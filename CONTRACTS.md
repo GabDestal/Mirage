@@ -507,17 +507,18 @@ Human-action POSTs from web and MCP (§5) send `HumanRequest` `{actor, reason}`.
 
 Built in `engine/detonation/`. The engine owns the process and the jail; the agent code only sees two files.
 
-- **At freeze** the gate writes `data/snapshots/<incident_id>.json`: `{id, incident_id, run_id, agent, task,
-  system, model_id, entrypoint, policy, legit, tool_results: [{call_id, tool, args, result}], inputs: [...]}`.
+- **At freeze** the gate writes `data/snapshots/<incident_id>.json`, validated as `Snapshot` (`models.py`),
+  including `model_calls` (from `POST /runs/{id}/model-calls`). Agents registered with `POST /agents` get
+  `runner = "mirage_sdk.sandbox:run"`; engine dev agents get `runner = null`.
 - **Each detonation run** is a new `python -I` child in a temp folder. Its environment holds only
   `AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION`, OS basics, `MIRAGE_SNAPSHOT` (path) and `MIRAGE_EFFECTS` (path).
 - **Jail** (audit hooks): DNS and connections only to `bedrock-runtime.<region>.amazonaws.com`; no new
   processes; no reads of `.env` or `secrets/`. Each blocked attempt is logged as an effect `sandbox.<kind>`.
-- **Entrypoint**: the child calls `entrypoint(snapshot: dict, call_tool)` where `call_tool(tool, args) -> result`.
-  The agent must route every tool call through `call_tool`. Today the engine's dev agent implements it
-  (`engine.dev.assistant:mirage_entry`). **SDK mirage mode = an adapter that builds the agent and wraps
-  its tools with `call_tool`.** `call_tool` returns the recorded result for a read (same args first, else
-  same tool) and captures anything else as an effect, answering `{"status": "ok"}`.
+- **Runner**: the child calls `(runner or entrypoint)(snapshot: dict, call_tool)` where
+  `call_tool(tool, args) -> result`. Every tool call must go through `call_tool`. Today the engine's dev agent
+  is called directly (`engine.dev.assistant:mirage_entry`); SDK agents go through `mirage_sdk.sandbox:run`.
+  `call_tool` returns the recorded result for a read (same args first, else same tool) and captures anything
+  else as an effect, answering `{"status": "ok"}`.
 - **Verdict** is code: the gate's own hard rules run over each effect. Any hit = compromised run.
 - CLI: `uv run python -m engine.cli detonate --incident inc_001 [--runs 3] [--remove-input in_02] [--json]`.
   Exit code 0 only when `passed` (attack blocked n/n and legit task n/n), so a regression test can call it.

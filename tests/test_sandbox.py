@@ -20,6 +20,7 @@ def make_snapshot(entrypoint, incident_id="inc_001"):
     run = SimpleNamespace(
         id="run_002", agent="assistant", task="Prepare my meetings.", system="", model_id="",
         entrypoint=entrypoint, legit={"tool": "send_email", "to": "bob@northwind.example"},
+        model_calls=[],
         tool_results=[
             {"call_id": "call_1", "tool": "read_calendar", "args": {"date": "2026-10-11"},
              "result": {"events": EVENTS}, "error": None},

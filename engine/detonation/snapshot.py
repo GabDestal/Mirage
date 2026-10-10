@@ -1,9 +1,7 @@
 """Snapshot: everything a frozen run read, saved at freeze. The sandbox's only input.
 
-File: data/snapshots/<incident_id>.json
-{id, incident_id, run_id, agent, task, system, model_id, entrypoint, policy, legit, taken_at,
- tool_results: [{call_id, tool, args, result}],
- inputs: [{id, kind, label, source_tool, preview, item}]}
+File: data/snapshots/<incident_id>.json, shape `Snapshot` in contracts/models.py (validated on save).
+`runner` is what the sandbox child calls; None means `entrypoint` itself (engine dev agents).
 
 Each item a read tool returned (one calendar event, one contact...) is one Input. Bisection
 removes an input by dropping that item from every tool result.
@@ -15,7 +13,7 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from contracts.models import Input
+from contracts.models import Input, Snapshot
 
 SNAP_DIR = Path(os.getenv("MIRAGE_SNAPSHOTS", "data/snapshots"))
 KINDS = [("calendar", "calendar_event"), ("contact", "crm_record"), ("crm", "crm_record"),
@@ -55,16 +53,16 @@ def _inputs(task, tool_results):
     return found
 
 
-def save(run, incident_id, policy, entrypoint=""):
+def save(run, incident_id, policy, entrypoint="", runner=None):
     results = [{k: r[k] for k in ("call_id", "tool", "args", "result")}
                for r in run.tool_results if not r.get("error")]
-    snap = {
-        "id": f"snap_{incident_id.removeprefix('inc_')}", "incident_id": incident_id,
-        "run_id": run.id, "agent": run.agent, "task": run.task, "system": run.system,
-        "model_id": run.model_id, "entrypoint": run.entrypoint or entrypoint,
-        "policy": policy, "legit": run.legit, "taken_at": datetime.now(UTC).isoformat(),
-        "tool_results": results, "inputs": _inputs(run.task, results),
-    }
+    snap = Snapshot(
+        id=f"snap_{incident_id.removeprefix('inc_')}", incident_id=incident_id, run_id=run.id,
+        agent=run.agent, task=run.task, entrypoint=run.entrypoint or entrypoint, runner=runner,
+        system=run.system or None, model_id=run.model_id or None, policy=policy, legit=run.legit,
+        taken_at=datetime.now(UTC), model_calls=run.model_calls, tool_results=results,
+        inputs=_inputs(run.task, results),
+    ).model_dump(mode="json")  # the contract checks the shape before it is written
     SNAP_DIR.mkdir(parents=True, exist_ok=True)
     (SNAP_DIR / f"{incident_id}.json").write_text(json.dumps(snap, indent=1), encoding="utf-8")
     return snap

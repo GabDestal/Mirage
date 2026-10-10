@@ -23,6 +23,7 @@ from engine.dev import tools  # shortcut: in-process tool dispatch, dev harness 
 from engine.store.events import emit
 
 STOP = threading.Event()  # global STOP: halts every run
+SDK_RUNNER = "mirage_sdk.sandbox:run"  # sandbox runner for agents registered through the SDK
 agents: dict[str, AgentSpec] = {}
 runs: dict[str, "LiveRun"] = {}
 incidents: dict[str, Incident] = {}
@@ -152,7 +153,8 @@ def check(run, tool, args) -> GateDecision:
     if hit:
         spec = agents.get(run.agent)
         snap = snapshot.save(run, run.incident_id, policy_for(run.agent),  # freeze = snapshot
-                             entrypoint=spec.entrypoint if spec else "")
+                             entrypoint=spec.entrypoint if spec else "",
+                             runner=SDK_RUNNER if spec else None)
         incidents[run.incident_id] = Incident(
             id=run.incident_id, run_id=run.id, status="open", opened_at=datetime.now(UTC),
             trigger=gate, snapshot_id=snap["id"], inputs=snapshot.inputs(snap))
