@@ -22,6 +22,7 @@ const router = createBrowserRouter([
     element: <DemoEntry />,
     children: [
       { path: '/', element: <Fleet />, handle: { title: 'Fleet' } },
+      { path: '/fleet', element: <Fleet />, handle: { title: 'Fleet' } },
       { path: '/incidents', element: <Incidents />, handle: { title: 'Incidents' } },
       { path: '/incidents/:id', element: <IncidentPage />, handle: { title: 'Incident' } },
       { path: '/runs/:id', element: <RunPage />, handle: { title: 'Run' } },

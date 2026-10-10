@@ -1,5 +1,5 @@
 // App shell (DESIGN.md §7): sidebar, 52 px header with the status sentence, content.
-import { AlertTriangle, LayoutList, Octagon, Search } from 'lucide-react'
+import { AlertTriangle, ChartNoAxesColumn, ChevronDown, KeyRound, LayoutList, MessageSquarePlus, Octagon, Search, Unplug } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useMatches, useNavigate } from 'react-router'
@@ -36,7 +36,7 @@ export function Shell() {
       } else if (e.key === 'g') {
         g = e.timeStamp
       } else if (e.timeStamp - g < 800 && (e.key === 'f' || e.key === 'i')) {
-        navigate(e.key === 'f' ? '/' : '/incidents')
+        navigate(e.key === 'f' ? '/fleet' : '/incidents')
         g = 0
       }
     }
@@ -89,47 +89,98 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
   const { data: runs = [] } = useRuns()
   const ask = useAsk()
   const agents = [...new Set(runs.map((r) => r.agent))]
+  const currentRun = useMatches().at(-1)?.params.id
 
   return (
     <nav
       aria-label="Main"
-      className="flex w-[232px] shrink-0 flex-col gap-6 border-r border-line bg-paper-2 px-3 py-4 max-[1099px]:w-14 max-[1099px]:px-2"
+      className="flex w-[256px] shrink-0 flex-col border-r border-line bg-paper-2 max-[767px]:w-[64px]"
     >
-      <div className="flex h-7 items-center gap-2 px-2 max-[1099px]:px-1.5">
+      <div className="flex h-[72px] shrink-0 items-center gap-3 px-6 max-[767px]:min-h-[44px] max-[767px]:justify-center max-[767px]:px-0">
         <Logo />
-        <span className="text-title font-semibold tracking-[-0.02em] text-mirage max-[1099px]:hidden">Mirage</span>
+        <span className="text-title font-semibold tracking-[-0.02em] max-[767px]:hidden">Mirage</span>
       </div>
 
-      <div className="flex flex-col gap-0.5">
-        <NavItem to="/" icon={<LayoutList />} end>Fleet</NavItem>
-        <NavItem to="/incidents" icon={<AlertTriangle />}>Incidents</NavItem>
-      </div>
-
-      {agents.length > 0 && (
-        <div className="flex min-h-0 flex-col gap-0.5">
-          <h2 className="px-2 pb-1 text-meta text-ink-3 max-[1099px]:hidden">Agents</h2>
-          {agents.map((agent) => {
-            const mine = runs.filter((r) => r.agent === agent)
-            const latest = mine.at(-1)!
-            return (
-              <NavItem key={agent} to={`/runs/${latest.id}`} icon={<AgentAvatar agent={agent} state={mostUrgent(mine.map(avatarState))} />}>
-                {agentName(agent)}
-              </NavItem>
-            )
-          })}
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 max-[767px]:px-2">
+        <div className="flex flex-col gap-1">
+          <NavItem to="/" icon={<MessageSquarePlus />} end>Ask Mirage</NavItem>
+          <NavItem to="/incidents" icon={<AlertTriangle />}>Incidents</NavItem>
         </div>
-      )}
 
-      <div className="mt-auto flex flex-col gap-0.5">
+        <details open className="group mt-5">
+          <summary
+            title="Analytics"
+            className="pressable flex h-[40px] cursor-pointer list-none items-center gap-3 rounded-control px-3 text-body text-ink-2 hover:bg-paper-3 hover:text-ink max-[767px]:min-h-[44px] max-[767px]:justify-center max-[767px]:px-0 [&::-webkit-details-marker]:hidden"
+          >
+            <ChartNoAxesColumn className="size-[18px] shrink-0" aria-hidden />
+            <span className="flex-1 max-[767px]:sr-only">Analytics</span>
+            <ChevronDown className="size-4 shrink-0 -rotate-90 group-open:rotate-0 max-[767px]:hidden" aria-hidden />
+          </summary>
+          <div className="ml-5 border-l border-line pl-3 max-[767px]:ml-0 max-[767px]:border-0 max-[767px]:pl-0">
+            <NavItem to="/fleet" icon={<LayoutList />}>Fleet</NavItem>
+          </div>
+        </details>
+
+        <details open className="group mt-5">
+          <summary
+            title="Integrations"
+            className="pressable flex h-[40px] cursor-pointer list-none items-center gap-3 rounded-control px-3 text-body text-ink-2 hover:bg-paper-3 hover:text-ink max-[767px]:min-h-[44px] max-[767px]:justify-center max-[767px]:px-0 [&::-webkit-details-marker]:hidden"
+          >
+            <Unplug className="size-[18px] shrink-0" aria-hidden />
+            <span className="flex-1 max-[767px]:sr-only">Integrations</span>
+            <ChevronDown className="size-4 shrink-0 -rotate-90 group-open:rotate-0 max-[767px]:hidden" aria-hidden />
+          </summary>
+          <div className="ml-5 border-l border-line pl-3 max-[767px]:ml-0 max-[767px]:border-0 max-[767px]:pl-0">
+            <Tooltip content="API-key management is coming soon.">
+              <button
+                type="button"
+                aria-disabled="true"
+                aria-label="API keys, coming soon"
+                className="flex h-[40px] w-full cursor-default items-center gap-3 rounded-control px-3 text-body text-ink-2 max-[767px]:min-h-[44px] max-[767px]:justify-center max-[767px]:px-0"
+              >
+                <KeyRound className="hidden size-[18px] max-[767px]:block" aria-hidden />
+                <span className="flex-1 text-left max-[767px]:sr-only">API keys</span>
+                <span className="text-meta max-[767px]:hidden">Soon</span>
+              </button>
+            </Tooltip>
+          </div>
+        </details>
+
+        <details open className="group mt-7">
+          <summary
+            title="Agents"
+            className="pressable mb-2 flex h-8 cursor-pointer list-none items-center gap-2 rounded-control px-3 text-ink-2 hover:bg-paper-3 hover:text-ink max-[767px]:min-h-[44px] max-[767px]:justify-center max-[767px]:px-0 [&::-webkit-details-marker]:hidden"
+          >
+            <ChevronDown className="size-3.5 shrink-0 -rotate-90 group-open:rotate-0" aria-hidden />
+            <span className="text-[11px] font-medium tracking-[0.04em] uppercase max-[767px]:sr-only">Agents</span>
+            <span className="ml-auto text-meta tabular max-[767px]:hidden">{agents.length}</span>
+          </summary>
+          <div className="flex flex-col gap-1">
+            {agents.map((agent) => {
+              const mine = runs.filter((r) => r.agent === agent)
+              const target = mine.find((r) => r.status === 'frozen') ?? mine.at(-1)!
+              return (
+                <NavItem key={agent} to={`/runs/${target.id}`} active={mine.some((r) => r.id === currentRun)} icon={<AgentAvatar agent={agent} state={mostUrgent(mine.map(avatarState))} />}>
+                  {agentName(agent)}
+                </NavItem>
+              )
+            })}
+            {agents.length === 0 && <p className="px-3 py-2 text-meta text-ink-2 max-[767px]:sr-only">No agents connected yet.</p>}
+          </div>
+        </details>
+      </div>
+
+      <div className="flex shrink-0 flex-col gap-1 border-t border-line p-3 max-[767px]:p-2">
         <SideButton icon={<Search />} onClick={onSearch} label="Search" hint="⌘K" />
         <Tooltip content={<>Halts every run and revokes all tokens <Kbd>⇧⌘.</Kbd></>}>
           <button
             type="button"
             onClick={() => ask('stop')}
-            className="pressable flex h-8 items-center gap-2.5 rounded-control px-2 text-control font-medium text-alarm hover:bg-alarm-wash [&_svg]:size-4"
+            title="Stop all"
+            className="pressable flex h-[40px] items-center gap-3 rounded-control px-3 text-body text-alarm hover:bg-alarm-wash max-[767px]:min-h-[44px] max-[767px]:justify-center max-[767px]:px-0 [&_svg]:size-[18px]"
           >
             <Octagon aria-hidden />
-            <span className="max-[1099px]:sr-only">Stop all</span>
+            <span className="max-[767px]:sr-only">Stop all</span>
           </button>
         </Tooltip>
       </div>
@@ -137,21 +188,22 @@ function Sidebar({ onSearch }: { onSearch: () => void }) {
   )
 }
 
-function NavItem({ to, icon, end, children }: { to: string; icon: ReactNode; end?: boolean; children: ReactNode }) {
+function NavItem({ to, icon, end, active, children }: { to: string; icon: ReactNode; end?: boolean; active?: boolean; children: ReactNode }) {
   return (
     <NavLink
       to={to}
       end={end}
+      aria-current={active ? 'page' : undefined}
       title={typeof children === 'string' ? children : undefined}
       className={({ isActive }) =>
         cn(
-          'pressable flex h-8 items-center gap-2.5 rounded-control px-2 text-control font-medium text-ink-2 hover:bg-paper-3 hover:text-ink [&_svg]:size-4',
-          isActive && 'bg-paper-3 text-ink',
+          'pressable flex h-[40px] items-center gap-3 rounded-control px-3 text-body text-ink-2 hover:bg-paper-3 hover:text-ink max-[767px]:min-h-[44px] max-[767px]:justify-center max-[767px]:px-0',
+          (isActive || active) && 'bg-paper-3 font-medium text-ink',
         )
       }
     >
-      {icon}
-      <span className="truncate max-[1099px]:sr-only">{children}</span>
+      <span className="flex size-5 shrink-0 items-center justify-center [&>svg]:size-[18px]">{icon}</span>
+      <span className="truncate max-[767px]:sr-only">{children}</span>
     </NavLink>
   )
 }
@@ -161,13 +213,12 @@ function SideButton({ icon, label, hint, onClick }: { icon: ReactNode; label: st
     <button
       type="button"
       onClick={onClick}
-      className="pressable flex h-8 items-center gap-2.5 rounded-control px-2 text-control font-medium text-ink-2 hover:bg-paper-3 hover:text-ink [&_svg]:size-4"
+      title={label}
+      className="pressable flex h-[40px] items-center gap-3 rounded-control px-3 text-body text-ink-2 hover:bg-paper-3 hover:text-ink max-[767px]:min-h-[44px] max-[767px]:justify-center max-[767px]:px-0 [&_svg]:size-[18px]"
     >
       {icon}
-      <span className="flex-1 text-left max-[1099px]:sr-only">{label}</span>
-      <Kbd>
-        <span className="max-[1099px]:hidden">{hint}</span>
-      </Kbd>
+      <span className="flex-1 text-left max-[767px]:sr-only">{label}</span>
+      <span className="max-[767px]:hidden"><Kbd>{hint}</Kbd></span>
     </button>
   )
 }
