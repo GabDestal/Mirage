@@ -10,6 +10,11 @@ const evidence = []
 for (const [device, viewport] of [['desktop', { width: 1440, height: 1000 }], ['mobile', { width: 390, height: 844 }]]) {
   const context = await browser.newContext({ viewport, colorScheme: 'dark', permissions: ['clipboard-read', 'clipboard-write'] })
   const page = await context.newPage()
+  await page.route('**/api/runs', (route) => route.fulfill({ json: [{
+    id: 'synthetic-run', agent: 'assistant', env: 'prod', task: 'Synthetic UI fixture',
+    status: 'frozen', started_at: '2026-10-10T14:02:11Z', ended_at: null,
+    incident_id: 'synthetic-incident', restarted_from: null, tool_calls: 4,
+  }] }))
   page.setDefaultTimeout(8000)
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
@@ -22,7 +27,7 @@ for (const [device, viewport] of [['desktop', { width: 1440, height: 1000 }], ['
   await page.getByRole('heading', { name: 'What needs your attention today?' }).waitFor()
   await page.evaluate(() => document.fonts.ready)
   await page.waitForTimeout(300)
-  const input = page.getByRole('textbox', { name: 'Message Mirage' })
+  const input = page.getByRole('textbox', { name: 'Message Miragio', exact: true })
   const stop = page.getByRole('button', { name: 'Stop response' })
   const send = async (message) => { await input.fill(message); await input.press('Enter') }
   const newChat = async () => { await page.getByRole('button', { name: 'New chat', exact: true }).click() }
@@ -34,9 +39,27 @@ for (const [device, viewport] of [['desktop', { width: 1440, height: 1000 }], ['
     assert.ok(await input.isVisible())
     await page.screenshot({ path: `${out}/${device}.png` })
   })
-  await record('suggestions keyboard and IME', async () => {
-    await page.getByRole('button', { name: 'Which agents need my attention?' }).click()
-    assert.equal(await input.inputValue(), 'Which agents need my attention?')
+  await record('suggestions and incident summary auto-send', async () => {
+    const prompts = [
+      ['Which agents need my attention?', 'Which agents need my attention?'],
+      ['Show me the proof for the latest incident', 'Show me the proof for the latest incident'],
+      ['What is happening across my agents?', 'What is happening across my agents?'],
+      ['Summarize incidents', 'Which agents need my attention?'],
+    ]
+    for (const [button, message] of prompts) {
+      await input.fill('Existing draft should not be sent')
+      const before = await (await fetch(base + '/chat/debug')).json()
+      await page.getByRole('button', { name: button, exact: true }).click()
+      await done()
+      assert.equal(await page.locator('.chat-question').textContent(), `You: ${message}`)
+      assert.equal(await input.inputValue(), '')
+      const after = await (await fetch(base + '/chat/debug')).json()
+      assert.equal(after.turns.length, before.turns.length + 1)
+      assert.equal(after.turns.at(-1).message, message)
+      await newChat()
+    }
+  })
+  await record('keyboard and IME', async () => {
     await input.fill('harness stream')
     await input.press('Shift+Enter')
     assert.match(await input.inputValue(), /\n/)
