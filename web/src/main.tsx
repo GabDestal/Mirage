@@ -4,10 +4,9 @@ import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router'
 import { Toaster } from 'sonner'
 import { queryClient } from '@/api/client'
-import { ActionsProvider } from '@/components/actions'
-import { Shell } from '@/components/shell'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Fleet } from '@/pages/fleet'
+import { DemoEntry } from '@/pages/login'
 import { IncidentPage, Incidents, RunPage } from '@/pages/placeholders'
 import './index.css'
 
@@ -20,7 +19,7 @@ try {
 
 const router = createBrowserRouter([
   {
-    element: <ActionsProvider><Shell /></ActionsProvider>,
+    element: <DemoEntry />,
     children: [
       { path: '/', element: <Fleet />, handle: { title: 'Fleet' } },
       { path: '/incidents', element: <Incidents />, handle: { title: 'Incidents' } },

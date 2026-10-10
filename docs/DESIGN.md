@@ -244,3 +244,17 @@ shadcn/ui primitives restyled with these tokens.
 Linear (sidebar, density, ⌘K, motion), Vercel (calm status, ink buttons, deployment flow),
 n8n (workflow trace), Raycast (instant keyboard actions), Sonner (toasts).
 Skills: `impeccable` (craft floor, anti-patterns, detector hook), `emil-design-eng` (motion).
+
+## 15. Login reference
+
+The login surface follows Liam's Opereit reference (2026-10-10): its layout and cursor effect
+are reused from `/Users/liamszefner/Opereit/obsydian/apps/dashboard/src/app/auth/`.
+This surface is an explicit exception to the no-grid/no-glass rules above: light neutral paper,
+5 px dot grid, blue cursor brush with a fading trail, translucent 384 × 404 px panel,
+self-hosted Inter, and the dark gradient submit button. The existing Mirage mark replaces the
+Opereit mark. Keep these details when iterating the login; other surfaces keep their current system.
+
+Login is a demo entry screen: any valid email and nonempty password opens Fleet. Credentials
+are neither sent nor saved. Refreshing returns to the login. Password visibility works;
+the recovery button explains that any credentials work in this demo.
+The background retains Opereit's reduced-motion handling and CSS dot fallback when WebGL is unavailable.
