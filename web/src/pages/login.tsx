@@ -32,7 +32,7 @@ export function Login({ onSignIn }: { onSignIn: () => void }) {
       <div className="login-panel">
         <div className="login-heading">
           <div className="login-logo">
-            <img src="/favicon.svg" alt="" width="28" height="28" />
+            <img src="/brand/mirage-mark.svg" alt="" width="56" height="34" />
           </div>
           <h1>Sign in to Mirage</h1>
         </div>

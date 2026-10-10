@@ -80,7 +80,7 @@ export function Chat() {
                 <div className="chat-exchange" key={index}>
                   <p className="chat-question">{exchange.question}</p>
                   <div className="chat-answer">
-                    <img src="/favicon.svg" width="24" height="24" alt="Mirage" />
+                    <img className="chat-answer-mark" src="/brand/mirage-mark.svg" width="36" height="24" alt="Mirage" />
                     <div><ContextAnswer exchange={exchange} /><p className="chat-answer-time">Fleet snapshot at {exchange.at}</p></div>
                   </div>
                 </div>
@@ -93,7 +93,7 @@ export function Chat() {
       <div className="chat-column chat-start">
         {!conversation ? (
           <div className="chat-welcome">
-            <img className="chat-mark" src="/favicon.svg" width="80" height="80" alt="" />
+            <img className="chat-mark" src="/brand/mirage-mark.svg" width="96" height="58" alt="Mirage" />
             <h2>What needs your attention today?</h2>
           </div>
         ) : null}

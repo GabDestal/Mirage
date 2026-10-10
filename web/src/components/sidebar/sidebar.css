@@ -44,6 +44,7 @@
 /* Source ease-out-strong is undefined; retain its effective Tailwind default easing. */
 .mirage-sidebar .font-mono { font-family: var(--font-mono); }
 .mirage-sidebar .sidebar-mobile-icon { display: none; }
+.mirage-sidebar .sidebar-mark { display: block; width: 72px; height: 43px; flex-shrink: 0; }
 .mirage-sidebar .sidebar-disabled { cursor: default; }
 .mirage-sidebar .sidebar-disabled:hover { background: transparent; color: var(--color-neutral-600); }
 .mirage-sidebar .sidebar-stop { color: var(--alarm); }
@@ -63,6 +64,7 @@
     border: 0;
   }
   .mirage-sidebar .sidebar-brand { justify-content: center; padding-inline: 0; }
+  .mirage-sidebar .sidebar-mark { width: 44px; height: 27px; }
   .mirage-sidebar .sidebar-scroll { padding-inline: 8px; }
   .mirage-sidebar a,
   .mirage-sidebar button { min-height: 44px; justify-content: center; padding-inline: 0; }
