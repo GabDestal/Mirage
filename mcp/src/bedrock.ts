@@ -3,6 +3,7 @@ import type { ConverseStreamCommandInput, ConverseStreamCommandOutput, Message, 
 import { setTimeout as delay } from "node:timers/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { isAbsolute } from "node:path";
 
 export type ModelProvider = {
   stream(messages: Message[], tools: Tool[], signal: AbortSignal): Promise<ConverseStreamCommandOutput>;
@@ -32,7 +33,13 @@ export function publicError(error: unknown): ChatError {
 }
 
 export function loadChatEnv() {
-  const path = fileURLToPath(new URL("../../.env", import.meta.url));
+  const selected = process.env.MIRAGE_CHAT_ENV_FILE;
+  if (selected && !isAbsolute(selected))
+    throw new ChatError("CONFIGURATION", "MIRAGE_CHAT_ENV_FILE must be an absolute path.");
+  const path = selected || fileURLToPath(new URL("../../.env", import.meta.url));
+  if (selected && !existsSync(path))
+    throw new ChatError("CONFIGURATION", "MIRAGE_CHAT_ENV_FILE does not exist.");
+  // Node preserves existing shell values, including launcher-selected routing and mode.
   if (existsSync(path)) process.loadEnvFile(path);
 }
 
@@ -59,6 +66,14 @@ capability tokens, handoff download links or the full coding-agent prompt.
 After a handoff, say it is ready and that the human must click "Hand off to coding agent" to open it in their coding
 agent. Never say it was handed off, sent or done.`;
 
+const DEMO_CONTEXT = `
+This session uses recorded demo background agents and a simulated engine. You, Miragio, use real Bedrock and
+real MCP tools, with the same human approvals and audit controls. Use actual tools to inspect and control the recording.
+Engine evidence, including detection, sandbox proof, cause tests, handoff and fix verification, is recorded or simulated
+demonstration evidence. Describe it that way. Never claim fresh live detection, a fresh sandbox run, a real verified fix,
+or a real background-agent launch. Starting the demo restarts the recording. A handoff demonstrates the workflow;
+it does not provide a live executable snapshot or establish real fix acceptance. Real validation needs a live incident.`;
+
 export function createBedrockProvider(env: NodeJS.ProcessEnv = process.env): ModelProvider {
   if (env.AWS_REGION && env.AWS_REGION !== "us-east-1")
     throw new ChatError("CONFIGURATION", "Mirage chat requires AWS_REGION=us-east-1.");
@@ -69,6 +84,7 @@ export function createBedrockProvider(env: NodeJS.ProcessEnv = process.env): Mod
     region: "us-east-1", maxAttempts: 1,
     token: { token: env.AWS_BEARER_TOKEN_BEDROCK }, authSchemePreference: ["httpBearerAuth"],
   });
+  const system = env.MIRAGE_UI_MODE === "demo" ? SYSTEM + DEMO_CONTEXT : SYSTEM;
   let nextStart = 0;
   return {
     async stream(messages, tools, signal) {
@@ -77,7 +93,7 @@ export function createBedrockProvider(env: NodeJS.ProcessEnv = process.env): Mod
       if (wait) await delay(wait, undefined, { signal });
       signal.throwIfAborted();
       const input: ConverseStreamCommandInput = {
-        modelId, messages, system: [{ text: SYSTEM }],
+        modelId, messages, system: [{ text: system }],
         toolConfig: { tools }, inferenceConfig: { maxTokens: 2048 },
       };
       return client.send(new ConverseStreamCommand(input), { abortSignal: signal });
