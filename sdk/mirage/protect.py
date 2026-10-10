@@ -24,4 +24,7 @@ def protect(agent, name, allow=None, owner="unknown", entrypoint=None):
     if kind.startswith("langgraph"):
         from mirage.adapters import langchain
         return langchain.protect(agent, name, allow, owner, entrypoint)
+    if kind.startswith("agents.") and hasattr(agent, "tools") and hasattr(agent, "instructions"):
+        from mirage.adapters import openai_agents  # duck-typed: `agents` is also a local name
+        return openai_agents.protect(agent, name, allow, owner, entrypoint)
     raise TypeError(f"mirage.protect: no adapter for {type(agent).__name__} ({kind}).")
