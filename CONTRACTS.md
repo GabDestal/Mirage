@@ -6,22 +6,23 @@ Status: draft, 2026-10-10. Read with `PRODUCT.md`.
 
 Two people. Two roles. One contract between them.
 
-| | Person A: Engine | Person B: Experience |
+| | Person A: Engine (Gabi) | Person B: Experience (Liam) |
 |---|---|---|
 | Owns | Everything that is real in the background | Everything the audience sees |
-| Builds | Agents, gate, real adapters (Gmail, Calendar, HubSpot), Mirage adapters, snapshot, detonation, judge, bisection, `mirage detonate` (CLI + MCP + HTTP) | UI, demo data (poisoned invite, synthetic CRM), handoff prompt text, demo script, pitch, backup video |
-| Also owns | The API server in this contract | The mock server in this contract |
+| Builds | Agent loop, gate, real adapters (Gmail, Calendar, CRM), Mirage adapters, snapshot, detonation, judge, bisection, `mirage detonate` (CLI + MCP + HTTP) | UI, demo script, pitch, backup video |
+| Also owns | The API server and its replay mode | Account setup and keys (Google, CRM, GitHub), seed data (synthetic contacts, poisoned invite), policy pack text P1–P6, "legit task completed" check per story, fixture `.jsonl` files, handoff prompt + Copy / Send to Codex, synthetic test set for metrics |
 | Done when | The UI works with `MIRAGE_API=real` | The demo runs end to end in 3 minutes |
 
 Rule: **the contract is the only link.** Person B never waits for Person A.
-Person B builds on the mock server. Person A builds the real server. Both follow this file.
+Person B builds on the server in replay mode. Person A builds the real engine. Both follow this file.
 
 ## 2. How we work with the contract
 
 1. We write the contract as Pydantic models in `contracts/models.py`. That file is the source of truth.
-2. Person A records one full demo as fixtures in `contracts/fixtures/` (see section 7).
-3. The mock server replays the fixtures with real timing. The UI uses it from hour 1.
-4. The UI reads one env var: `MIRAGE_API=mock|real`. Nothing else changes.
+2. Person B writes one full demo by hand as fixtures in `contracts/fixtures/` (see section 7).
+3. The API server in replay mode plays the fixtures with real timing. The UI uses it from hour 1.
+4. The server reads one env var: `MIRAGE_MODE=replay|live`. The UI does not change.
+5. FastAPI publishes `/openapi.json`. The UI generates its TypeScript types from it (`openapi-typescript`).
 
 Change rules:
 
@@ -312,13 +313,14 @@ mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json
 
 `passed` is true only if both values are `3/3`.
 
-## 7. Fixtures and mock server
+## 7. Fixtures and replay mode
 
 - `contracts/fixtures/calendar_demo.jsonl` holds one `Event` per line, in order, with real timing (`ts`).
 - `contracts/fixtures/state/` holds `runs.json`, `incidents.json`, `services_*.json` at the end of the demo.
-- `mock/server.py` serves the same API. It replays the `.jsonl` file over `/stream` and `/events`.
-- POST actions in the mock move the replay forward (example: `/incidents/{id}/detonate` plays the detonation events).
-- Person A writes the first fixtures by hand in hour 1. Later, Person A replaces them with a real recorded run.
+- With `MIRAGE_MODE=replay`, the real API server plays the `.jsonl` file over `/stream` and `/events`.
+  Same endpoints, same OpenAPI. There is no separate mock server, so nothing can drift.
+- POST actions in replay mode move the replay forward (example: `/incidents/{id}/detonate` plays the detonation events).
+- Person B writes the first fixtures by hand in hour 1. Later, Person A replaces them with a real recorded run.
 
 ## 8. Repo layout
 
@@ -326,10 +328,8 @@ mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json
 contracts/
   models.py          # Pydantic models, source of truth (Person A + B agree)
   fixtures/          # recorded demo events and state
-mock/
-  server.py          # fake API for UI work (Person B)
 api/
-  server.py          # real API, FastAPI (Person A)
+  server.py          # FastAPI, MIRAGE_MODE=replay|live (Person A)
 agents/  gateway/  store/  detection/  mirage/  replay/  remediation/   # engine (Person A)
 ui/                  # UI (Person B)
 demo/                # seed data, scripts, pitch, video (Person B)
@@ -339,13 +339,42 @@ demo/                # seed data, scripts, pitch, video (Person B)
 
 | When | Both people check |
 |---|---|
-| Sat +1h | `contracts/models.py` and first fixtures pushed. Mock server runs. |
+| Sat +1h | `contracts/models.py` and first fixtures pushed. Server runs in replay mode. |
 | Sat evening | First real run shows in the UI (`MIRAGE_API=real`). Gate freezes it. |
 | Sat night | Detonation and verdict real in the UI. |
 | Sun 09:00 | Full demo on real backend. Bisection and handoff work. Record backup video. |
 | Sun 11:00 | Two full rehearsals. No new features. |
 | Sun 12:00 | Hard freeze. |
 
-## 10. Open decision
+## 10. Tech stack
 
-UI stack: Streamlit or FastAPI + React. The contract works with both: `/events?after=` for polling, `/stream` for live push.
+Rule: everything runs on one laptop. AWS is used only for Bedrock.
+
+### Engine (Person A)
+
+| Layer | Choice |
+|---|---|
+| Runtime | Python 3.12, `uv` |
+| API | FastAPI + uvicorn, `sse-starlette` for `/stream` |
+| Contract | Pydantic v2 in `contracts/models.py` |
+| Agent loop | Own Converse loop (`boto3` + `python-dotenv`). Stretch: same agent in LangGraph, tools wrapped by the gate, to show Mirage is framework-agnostic. |
+| Concurrency | One thread per run. Each run has its own freeze flag (`threading.Event`). The gateway waits on it before each tool call. Freeze pauses only that thread. Global STOP is one shared flag. |
+| Gmail + Calendar | `google-api-python-client` + `google-auth-oauthlib` |
+| CRM | HubSpot free CRM via its REST SDK in the gate path (MCP only for us and the coding agent) |
+| Storage | Python's built-in `sqlite3` (WAL): event log, snapshots, Mirage fake services |
+| Mirage adapters | Plain Python classes over SQLite. No Docker. No network. |
+| `mirage detonate` | `argparse` CLI + MCP server (`mcp` SDK, FastMCP) + HTTP route. One function. |
+| Decision model + judge | `gpt-oss-safeguard-20b` / `-120b` via Converse (fallback: `InvokeModel`) |
+| Tunnel for cloud coding agents | `cloudflared` |
+| Tests / lint | `pytest`, `ruff` |
+
+### Experience (Person B)
+
+| Layer | Choice |
+|---|---|
+| Framework | Vite + React + TypeScript |
+| Style | Tailwind + shadcn/ui, `lucide-react` icons |
+| Animation | Motion |
+| Data | TanStack Query (REST), native `EventSource` (`/stream`) |
+| Types | `openapi-typescript` from `/openapi.json` |
+| PR diff view | `react-diff-viewer-continued` |

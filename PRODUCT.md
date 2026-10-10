@@ -56,6 +56,45 @@ Example: a calendar event has a malicious instruction in its description.
 The agent read it with `read_calendar`. So the event is in the snapshot.
 In Mirage, the fake calendar returns the same event.
 
+### Sandbox design
+
+Our agents have no hands of their own. The model runs on Bedrock. It only requests a tool call.
+Our code executes the call, or refuses it. The agent has no shell, no files, no network, and no credentials.
+So the boundary is the **tool layer**, not the operating system.
+
+```
+                 ┌── Production adapters ──▶ real Gmail / Calendar / HubSpot   (gateway checks every call)
+Agent (Bedrock) ─┤
+                 └── Mirage adapters ──────▶ SQLite fakes, captured, never sent (no keys, no network)
+```
+
+**Containing a production run (freeze)** is a lock, not a sandbox:
+
+- The gateway holds the Google, HubSpot and GitHub credentials. The agent never has them.
+- Freeze: the gateway stops serving that run. Its thread waits at the blocked call.
+- Unfreeze: the thread continues from that call. Kill: the run's access is revoked.
+- Other runs use other locks. They continue.
+
+**The Mirage sandbox (detonation)** is the same agent with the same tools, backed by fakes:
+
+- Gmail is an outbox table. Calendar is an events table. CRM is a contacts table. Web is recorded pages.
+- Each detonation starts from a fresh copy of the snapshot's SQLite file. Creating a sandbox is a file copy.
+
+Each detonation runs in a **separate Python process** with three layers of protection:
+
+1. Only the Bedrock key is in its environment. Google, HubSpot and GitHub keys are removed.
+2. Network connections are allowed only to the Bedrock host (a small `socket` wrapper). Other connections fail and are logged.
+3. Mirage adapters never import an HTTP client.
+
+**No Docker for this demo.** Docker isolates processes, files and network. That matters when an agent runs code.
+Our agents do not. Docker would still need network access to Bedrock, so it adds hours and risk for no gain.
+
+**When containers become necessary:** if an agent runs code (example: a dev agent reads a poisoned GitHub issue),
+the Mirage side needs a real container (Docker, E2B, or Bedrock AgentCore Code Interpreter). This is a "next steps" slide, not weekend work.
+
+**Pitch angle:** the boundary is the tool layer, so Mirage works in front of any agent framework.
+A customer puts the Mirage gateway between their agents and their tools (for example as an MCP proxy).
+
 ## 3. The incident flow
 
 ```
