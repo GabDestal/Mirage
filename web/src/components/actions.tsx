@@ -33,7 +33,7 @@ function copy(kind: ActionKind, run: Run | undefined, runs: Run[]) {
   return {
     title: `Unfreeze ${label}?`,
     effect: held
-      ? typeof to === 'string' ? `It will send the email to ${to} it was holding.` : `It will run the ${held.tool} call it was holding.`
+      ? typeof to === 'string' ? `It will send the held email to ${to}.` : `It will run the ${held.tool} call it was holding.`
       : 'It continues where it stopped.',
   }
 }

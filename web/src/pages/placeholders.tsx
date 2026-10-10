@@ -18,7 +18,7 @@ export function Incidents() {
   const { data: runs = [] } = useRuns()
   if (!incidents.length) return <Placeholder>Nothing to look at. Your agents are behaving.</Placeholder>
   return (
-    <ul className="mx-auto flex max-w-[1080px] flex-col py-3">
+    <ul className="flex max-w-[1080px] flex-col py-2">
       {incidents.map((i) => {
         const run = runs.find((r) => r.id === i.run_id)
         return (

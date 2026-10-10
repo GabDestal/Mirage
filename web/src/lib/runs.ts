@@ -76,7 +76,7 @@ export function relTime(iso: string | null | undefined, now: number) {
 }
 
 /** The one-line state under the run name. `tone: 'alarm'` only for frozen. */
-export function rowSentence(run: Run, events: MirageEvent[], now: number): { text: string; tone?: 'alarm' } {
+export function rowSentence(run: Run, events: MirageEvent[]): { text: string; tone?: 'alarm' } {
   const last = steps(events, run.id).at(-1)
   switch (run.status) {
     case 'queued':
@@ -84,7 +84,7 @@ export function rowSentence(run: Run, events: MirageEvent[], now: number): { tex
     case 'running':
       return { text: last ? `Working · ${last.tool}` : 'Starting' }
     case 'completed':
-      return { text: `Done ${relTime(run.ended_at, now)}` }
+      return { text: 'Done' }
     case 'frozen': {
       const b = blockedCall(events, run.id)
       if (!b) return { text: 'Frozen', tone: 'alarm' }

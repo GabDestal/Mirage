@@ -52,7 +52,7 @@ export function Fleet() {
     )
 
   return (
-    <ul className="mx-auto flex max-w-[1080px] flex-col py-3" aria-label="Runs">
+    <ul className="flex max-w-[1080px] flex-col py-2" aria-label="Runs">
       {runs.map((run, i) => (
         <AgentRow key={run.id} run={run} runs={runs} events={events} now={now} selected={i === selected} />
       ))}
@@ -63,11 +63,9 @@ export function Fleet() {
 function AgentRow({ run, runs, events, now, selected }: { run: Run; runs: Run[]; events: MirageEvent[]; now: number; selected: boolean }) {
   const navigate = useNavigate()
   const reduce = useReducedMotion()
-  const sentence = rowSentence(run, events, now)
+  const sentence = rowSentence(run, events)
   const label = runLabel(run, runs)
   const when = run.ended_at ?? run.started_at
-  // The sentence crossfades only when the state changes, not every time the clock ticks.
-  const sentenceKey = `${run.status}:${sentence.text.replace(/\d+ (s|min|h) ago$/, '')}`
 
   return (
     <li
@@ -84,7 +82,7 @@ function AgentRow({ run, runs, events, now, selected }: { run: Run; runs: Run[];
         </Link>
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.span
-            key={sentenceKey}
+            key={sentence.text}
             initial={{ opacity: 0, filter: reduce ? 'none' : 'blur(2px)' }}
             animate={{ opacity: 1, filter: 'blur(0px)' }}
             exit={{ opacity: 0, transition: { duration: 0.12 } }}
@@ -158,7 +156,7 @@ function CompactTrace({ run, events }: { run: Run; events: MirageEvent[] }) {
 
 function Skeleton() {
   return (
-    <ul className="mx-auto flex max-w-[1080px] flex-col py-3" aria-busy="true" aria-label="Loading runs">
+    <ul className="flex max-w-[1080px] flex-col py-2" aria-busy="true" aria-label="Loading runs">
       {[0, 1, 2].map((i) => (
         <li key={i} className="grid h-[52px] grid-cols-[20px_minmax(0,300px)_minmax(0,1fr)] items-center gap-4 px-6">
           <span className="size-5 rounded-full bg-paper-3" />
