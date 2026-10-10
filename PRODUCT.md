@@ -57,13 +57,13 @@ In Mirage, the SDK returns the same recorded event when the agent calls `read_ca
 
 ### Sandbox design
 
-The customer keeps their agent (LangGraph, their tools, their keys). Mirage wraps it with one line:
-`mirage.protect(...)` as middleware. Mirage does not hold keys. It decides whether each tool call may run.
+The customer keeps their agent (any framework, their tools, their keys). Mirage wraps it with one line:
+`mirage.protect(agent)`. Mirage does not hold keys. It decides whether each tool call may run.
 So the boundary is the **tool call**, not the operating system. Details: `CONTRACTS.md` section 11.
 
 ```
                                 ┌── prod mode:   gateway allows → the agent's real tool runs
-Agent graph + mirage.protect ───┤                gateway freezes → the run waits; kill → it stops
+Agent + mirage.protect ─────────┤                gateway freezes → the run waits; kill → it stops
                                 └── mirage mode: no real tool runs; reads from snapshot, writes captured
 ```
 
@@ -77,7 +77,7 @@ Agent graph + mirage.protect ───┤                gateway freezes → the
 
 **The Mirage sandbox (detonation)** is the same agent with the same tools, backed by fakes:
 
-- The detonation builds the agent's own graph with `mirage.protect` in mirage mode.
+- The detonation builds the agent's own code with the SDK in mirage mode.
 - Each detonation starts from a fresh copy of the snapshot. Creating a sandbox is loading a recording.
 
 Each detonation runs in a **separate Python process** with three layers of protection:
@@ -92,7 +92,7 @@ Our agents do not. Docker would still need network access to Bedrock, so it adds
 **When containers become necessary:** if an agent runs code (example: a dev agent reads a poisoned GitHub issue),
 the Mirage side needs a real container (Docker, E2B, or Bedrock AgentCore Code Interpreter). This is a "next steps" slide, not weekend work.
 
-**Pitch angle:** "Keep your LangGraph agent. Add one line. Mirage checks every tool call, freezes bad runs,
+**Pitch angle:** "Keep your agent, any framework. Add one line. Mirage checks every tool call, freezes bad runs,
 and replays them in a twin to prove what happened." Later: an MCP proxy mode for agents we cannot wrap.
 
 ## 3. The incident flow
@@ -285,7 +285,7 @@ Every human action is logged: who, when, what, why, and through which interface.
 |---|---|
 | Language | Python 3 |
 | Agents | LangGraph (`create_agent` + `ChatBedrockConverse`, temperature 0), wrapped by `mirage.protect` |
-| SDK | `mirage-sdk`: `mirage.protect` (LangChain middleware) |
+| SDK | `mirage-sdk`: `mirage.protect(agent)`, framework-agnostic core + LangChain/LangGraph adapter |
 | Gate decision model | `gpt-oss-safeguard-20b` on Bedrock |
 | Judge | `gpt-oss-safeguard-120b` on Bedrock |
 | Reports | stronger Bedrock model (ID from `.env`) |

@@ -44,7 +44,7 @@ Team rule: **demo first.** Build what the demo shows. Nothing else.
 ## Two environments
 - **Production:** real team-owned accounts with synthetic data: Gmail, Google Calendar,
   HubSpot free CRM.
-- **Mirage:** the same agent graph, but no real tool runs. The SDK (`mirage.protect` in mirage
+- **Mirage:** the same agent, but no real tool runs. The SDK (`mirage.protect` in mirage
   mode) answers each tool call: reads return the recorded result, writes are captured.
   **Nothing in Mirage reaches the real world** (no real HTTP, no real email).
 
@@ -56,8 +56,9 @@ Repo layout and ownership: `CONTRACTS.md` section 8. SDK: section 11. MCP: secti
 `web/`, `mcp/` and `agents/` talk to the engine only over HTTP. They never import `engine/`.
 - `contracts/models.py` — Pydantic models. **Source of truth** for all data shapes. Every
   change updates `models.py`, the fixtures and `CONTRACTS.md` in the same commit.
-- `sdk/` — `mirage.protect(...)`, LangChain middleware. Prod mode: record, check, hold.
-  Mirage mode: answer tool calls from the snapshot. How customer agents join Mirage.
+- `sdk/` — `mirage.protect(agent)`, plugged into customer agents (owner: Liam). Framework-agnostic:
+  the core wraps tools and the model client; adapters per framework (LangChain/LangGraph first).
+  Prod mode: record, check, hold. Mirage mode: answer tool calls from the snapshot.
 - `engine/gateway/` — **no tool runs before the gateway allows it.** It checks the global STOP
   flag, the run status, the tool allowlist, the canary and the destination allowlist, runs the
   decision model, and logs every call. This is the core security boundary: never bypass it.
@@ -69,8 +70,8 @@ Repo layout and ownership: `CONTRACTS.md` section 8. SDK: section 11. MCP: secti
   only to Bedrock), runs it, judge. `engine/bisect.py`, `engine/handoff.py`, `engine/cli.py` (`mirage detonate`).
 - `engine/api/` — FastAPI. Data plane (SDK) + control plane (web, mcp) + SSE.
   `MIRAGE_MODE=replay` plays fixtures for UI work; `live` runs the engine.
-- `agents/` — demo agents in LangGraph with their own tools (Gmail, Calendar, HubSpot) and keys,
-  wrapped by `mirage.protect`.
+- `agents/` — demo agents (LangGraph for the demo) with their own tools (Gmail, Calendar,
+  HubSpot) and keys, wrapped by `mirage.protect`.
 - `web/` — dashboard (Vite + React + TypeScript). `mcp/` — MCP server (TypeScript).
 - `demo/` — seed scripts, contacts CSV, poisoned invite, pitch.
 

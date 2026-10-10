@@ -9,7 +9,7 @@ Two people. Two roles. One contract between them.
 | | Person A: Engine (Gabi) | Person B: Experience (Liam) |
 |---|---|---|
 | Owns | Everything that is real in the background | Everything the audience sees |
-| Builds | SDK (`mirage.protect`), gate, snapshot, detonation, judge, bisection, `mirage detonate` (CLI + HTTP) | Web dashboard, MCP server (operator tools + `detonate` for coding agents), demo agents in LangGraph with their tools (Gmail, Calendar, HubSpot), demo script, pitch, backup video |
+| Builds | Engine: API (data + control plane), gate, detection, snapshot store, detonation runner, judge, bisection, `mirage detonate` (CLI + HTTP) | SDK (`mirage.protect`, plugged into agents), web dashboard, MCP server (operator tools + `detonate` for coding agents), demo agents with their tools (Gmail, Calendar, HubSpot), demo script, pitch, backup video |
 | Also owns | The API server and its replay mode | Account setup and keys (Google, CRM, GitHub), seed data (synthetic contacts, poisoned invite), policy pack text P1–P6, "legit task completed" check per story, fixture `.jsonl` files, handoff prompt + Copy / Send to Codex, synthetic test set for metrics |
 | Done when | The UI and MCP work with `MIRAGE_MODE=live` | The demo runs end to end in 3 minutes |
 
@@ -336,9 +336,12 @@ They never import `engine/`. The contract is the only link.
 contracts/           # shared (A + B agree)
   models.py          # Pydantic models, source of truth
   fixtures/          # recorded demo events and state
-sdk/                 # Gabi: `mirage-sdk`, the package agents install
+sdk/                 # Liam: `mirage-sdk`, the package customer agents install
   mirage_sdk/
-    protect.py       # mirage.protect(...): middleware (record, check, hold; mirage mode answers from snapshot)
+    core.py          # tool wrapper + model wrapper, prod/mirage modes, talks to the data plane API
+    protect.py       # mirage.protect(agent): detects the framework, picks an adapter
+    adapters/
+      langchain.py   # LangChain / LangGraph middleware (built for the demo)
 engine/              # Gabi: the Mirage service
   api/               # FastAPI: data plane (SDK) + control plane (web, mcp) + SSE, MIRAGE_MODE=replay|live
   gateway/           # check(tool call), freeze/kill, log
@@ -348,7 +351,7 @@ engine/              # Gabi: the Mirage service
   bisect.py
   handoff.py         # prompt + report for the coding agent
   cli.py             # mirage detonate
-agents/              # Liam: demo agents (the victims): LangGraph + their tools (Gmail, Calendar, HubSpot) + mirage.protect
+agents/              # Liam: demo agents (the victims): their tools (Gmail, Calendar, HubSpot) + mirage.protect
 web/                 # Liam: dashboard (docs/UX.md)
 mcp/                 # Liam: MCP server, operator tools + detonate for coding agents
 demo/                # Liam: seed scripts, contacts CSV, poisoned invite, pitch, video
@@ -385,7 +388,7 @@ Rule: everything runs on one laptop. AWS is used only for Bedrock.
 | Runtime | Python 3.12, `uv` |
 | API | FastAPI + uvicorn, `sse-starlette` for `/stream` |
 | Contract | Pydantic v2 in `contracts/models.py` |
-| Demo agents | LangGraph: `langchain` `create_agent` + `langchain-aws` `ChatBedrockConverse` (temperature 0), wrapped by `mirage.protect` |
+| Demo agents | LangGraph for the demo (`create_agent` + `langchain-aws` `ChatBedrockConverse`, temperature 0), wrapped by `mirage.protect`. The SDK is framework-agnostic (section 11). |
 | SDK | `mirage-sdk`: LangChain middleware, talks to the engine with `httpx` |
 | Concurrency | One thread per run in the agents process. Freeze: the SDK waits on `GET /runs/{id}/wait` inside that run's tool call. Only that thread pauses. Global STOP is one engine flag. |
 | Gmail + Calendar (demo agent tools, `agents/`) | `google-api-python-client` + `google-auth-oauthlib` |
@@ -412,37 +415,47 @@ Rule: everything runs on one laptop. AWS is used only for Bedrock.
 
 ## 11. SDK: how an agent joins Mirage
 
-The customer keeps their agent as it is (LangGraph, their tools, their keys). One line adds Mirage.
+Owner: Liam. The SDK goes **into the customer's agent**, not into our engine. It is the developer experience.
+
+The customer keeps their agent as it is: any framework, their tools, their keys. Mirage wraps the agent.
 Mirage does not hold keys. It decides whether each tool call may run.
 
 ```python
 import mirage
 
-agent = create_agent(
-    ChatBedrockConverse(model=MODEL_ID, temperature=0),
-    tools=[read_calendar, crm_query, crm_export, send_email],   # normal LangGraph tools, their own keys
-    system_prompt=SYSTEM,
-    middleware=[mirage.protect(agent="assistant", owner="liam",
-                               allow={"tools": ["read_calendar", "crm_query", "send_email"],
-                                      "email_to": ["demo-user@..."]})],
-)
-agent.invoke({"messages": [("user", task)]})
+agent = mirage.protect(agent, name="assistant", owner="liam",
+                       allow={"tools": ["read_calendar", "crm_query", "send_email"],
+                              "email_to": ["demo-user@..."]})
 ```
 
-`mirage.protect(...)` is LangChain middleware (`wrap_model_call` + `wrap_tool_call`).
+### Framework-agnostic by design
+
+Every framework has the same two things: **tools** (functions the model can call) and a **model client**.
+The SDK core wraps those two. Framework adapters only find them inside the agent.
+
+| Layer | Does | Works with |
+|---|---|---|
+| Core: tool wrapper | Wraps each tool function: check → hold → run (prod) or answer from snapshot (mirage). | Any framework. Fallback: `mirage.tools([...])` wraps a plain list of functions. |
+| Core: model wrapper | Wraps the provider client and records each call (prompt, messages, model ID, settings, response). | Bedrock (`boto3`), OpenAI, Anthropic clients. Fallback: `mirage.wrap_model(client)`. |
+| Adapter: LangChain / LangGraph | Uses LangChain middleware (`wrap_tool_call`, `wrap_model_call`). | `create_agent` graphs. **Built for the demo.** |
+| Adapter: others | OpenAI Agents SDK, AWS Strands, CrewAI, Google ADK: their tool and model hooks. | Next steps. One adapter each. |
+
+`mirage.protect(agent)` detects the framework and picks the adapter. If none fits, the customer uses the two
+core wrappers directly. The engine never knows which framework the agent uses: it only sees tool calls and
+model calls in the contract format.
+
+### Two modes
 
 | Mode | Model call | Tool call |
 |---|---|---|
-| `prod` | Recorded (system prompt, messages, model ID, settings, response). | Checked with `POST /gateway/check`. Allow: the agent's own tool runs. Freeze: waits on `GET /runs/{id}/wait`. Kill or block: raises. The tool does not run. The result is recorded. |
+| `prod` | Recorded. | Checked with `POST /gateway/check`. Allow: the agent's own tool runs. Freeze: waits on `GET /runs/{id}/wait`. Kill or block: raises. The tool does not run. The result is recorded. |
 | `mirage` | Recorded. | **Never runs the real tool.** Reads return the recorded result from the snapshot. Writes are captured in the effects ledger and return a fake "ok". |
 
-Verified in two spikes (LangChain 1.4, LangGraph):
+Verified in two spikes with the LangChain adapter (LangChain 1.4, LangGraph):
 - Production: waiting inside the tool hook holds the run until release, then it finishes. Raising stops it before the tool runs.
 - Mirage: the middleware answered every tool call from the snapshot. No real tool ran. The write was captured.
 
 Limit: Mirage sees only what goes through tools. Code that calls an API outside a tool is not seen.
-Agents that are not built with `create_agent` can use a callback handler instead: record, freeze and kill work,
-but Mirage mode does not (a callback cannot replace a tool result).
 
 ### Data plane API (SDK → engine)
 
@@ -459,7 +472,7 @@ but Mirage mode does not (a callback cannot replace a tool result).
 
 - The snapshot is the recorded run: task, model calls, and every tool call with its result.
 - A tool result can hold several inputs (example: `read_calendar` returns 4 events). Each one is an `Input`.
-- Detonation: a subprocess builds the agent from its entrypoint with `mirage.protect` in `mirage` mode,
+- Detonation: the engine starts a subprocess. It builds the agent from its entrypoint with the SDK in `mirage` mode,
   the gate off, and the snapshot loaded. It runs the same task. The poisoned invite comes back from the
   snapshot, so the agent takes the same path. The subprocess also has no third-party keys and network access
   only to Bedrock.
