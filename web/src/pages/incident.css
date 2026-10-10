@@ -13,7 +13,7 @@
 .incident-chain { flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin-top: 22px; }
 .incident-chain svg { flex-shrink: 0; }
 .incident-alarm { color: var(--alarm); }
-.incident-page code, .incident-page pre, .incident-handoff textarea { font-family: var(--font-mono); font-size: 12px; }
+.incident-page code, .incident-page pre { font-family: var(--font-mono); font-size: 12px; }
 .incident-section { position: relative; padding-bottom: 36px; }
 .incident-section:not(:last-of-type)::before { content: ''; position: absolute; top: 28px; bottom: 0; left: 13px; border-left: 1px solid var(--line); }
 .incident-section-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
@@ -59,7 +59,6 @@
 .incident-pr small { display: block; color: var(--ink-2); margin-top: 5px; }
 .incident-pr svg { flex-shrink: 0; }
 .incident-handoff { margin-top: 16px; }
-.incident-handoff textarea { resize: vertical; width: 100%; border: 1px solid var(--line); padding: 12px; border-radius: 8px; margin-top: 10px; }
 .incident-actions { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; background: var(--paper); border-top: 1px solid var(--line); padding: 16px 0 20px; z-index: 1; }
 .incident-action-main, .incident-secondary, .incident-action-main > span { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .incident-action-main > span { font-size: 12px; color: var(--ink-2); }

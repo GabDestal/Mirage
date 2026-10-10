@@ -54,7 +54,7 @@ is active, preserving the incident; wait for completion and retry.
 |---|---|
 | `detonate` | Detonate (explicit retry after failure, or replay of an existing incident) |
 | `find_cause` | Find the cause |
-| `send_fix` | Send fix to coding agent (Copy prompt / Send to Codex) |
+| `send_fix` | Hand off to coding agent (drawer: Open in Claude Code / Open in Codex / Copy prompt) |
 | `open_pr` | Open PR |
 | `none` | (hidden) |
 

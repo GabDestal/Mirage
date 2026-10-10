@@ -364,7 +364,7 @@ def bisect(incident_id: str, runs: int = 2, body: HumanRequest | None = None) ->
 @app.post("/incidents/{incident_id}/handoff")
 def handoff(incident_id: str, body: HumanRequest | None = None) -> dict:
     """Live: the prompt + report for a coding agent, and a token for this incident only.
-    Returns {prompt, codex_url, mirage_token, report}. The token is never logged."""
+    Returns {prompt, claude_code_url, codex_url, mirage_token, report}. The token is never logged."""
     if REPLAY:
         return _incident_step(incident_id, "handoff")
     incident = get_incident(incident_id)

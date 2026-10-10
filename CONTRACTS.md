@@ -116,7 +116,7 @@ Event types and their `payload`:
 | `verdict.ready` | `Verdict` (below) |
 | `bisection.step` | `BisectionRow` (below) |
 | `bisection.completed` | `{incident_id, cause_input_id}` (`null`: no single input proven; the incident goes back to `confirmed`) |
-| `handoff.created` | `{incident_id, prompt, codex_url}` |
+| `handoff.created` | `{incident_id, prompt, claude_code_url, codex_url}` |
 | `fix.verified` | `{incident_id, attack_blocked, legit_task_completed, passed}` (incident → `fix_verified` only if `passed`) |
 | `pr.opened` | `{incident_id, url, number}` |
 | `human.action` | `HumanAction` (below) |
@@ -295,7 +295,7 @@ All POST bodies with a human action carry `{actor, reason}`.
 | POST | `/runs/{id}/restart` | Approve a clean restart of a `killed` or `halted` run (else 409). Returns the new `Run`, `queued`, with `restarted_from`. The engine never launches agents: the agent's next `POST /runs` takes over the queued run. |
 | POST | `/incidents/{id}/detonate` | Explicit retry or operator replay (initial gate-incident replay is automatic). Returns `{detonation_id}`. Results come as events. |
 | POST | `/incidents/{id}/bisect` | Start bisection. Results come as events. |
-| POST | `/incidents/{id}/handoff` | Optional body `{actor, reason}`. Needs a confirmed verdict (409). Returns `{prompt, codex_url, mirage_token, report}`: the prompt for a coding agent (facts, fenced untrusted input, where the code is, the check command), the report (markdown), a token for this incident only (never logged). Incident → `fix_pending`. |
+| POST | `/incidents/{id}/handoff` | Optional body `{actor, reason}`. Needs a confirmed verdict (409). Returns `{prompt, claude_code_url, codex_url, mirage_token, report}`: the prompt for a coding agent (facts, fenced untrusted input, where the code is, the check command), the report (markdown), a token for this incident only (never logged). Incident → `fix_pending`. |
 | POST | `/incidents/{id}/pr` | Body `PullRequest` `{url}`. The fix PR (coding agent or human). Emits `pr.opened`. Incident → `pr_open`. CLI: `engine.cli pr --incident X --url Y`. |
 | POST | `/incidents/{id}/verify` | Run the fix check. Same output as `mirage detonate`. With `MIRAGE_PUBLIC=1` (API exposed through a tunnel) it needs `Authorization: Bearer <mirage_token>`. |
 
@@ -670,8 +670,8 @@ Already-started engine actions may continue: stopping generation never means STO
 
 Capability tokens are stripped from tool cards and model continuation. `send_fix`
 returns `structuredContent.handoff_url`, a relative user-only URL for its original prompt,
-and optionally a safe `codex_url`. The UI fetches the full prompt only after the human
-clicks Copy prompt/Download, never at the model's request. Prompt/download URL are kept
+and optionally safe `claude_code_url` / `codex_url`. The UI fetches the full prompt only after the
+human clicks Hand off to coding agent, never at the model's request. Prompt/download URL are kept
 out of model continuation. Handoffs are held only in memory (max 8 per session), expire
 with the conversation, and disappear on service restart. Synthetic fixture:
 `contracts/fixtures/chat_demo.jsonl` (wire examples, not a Bedrock fallback).

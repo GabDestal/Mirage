@@ -148,7 +148,7 @@ Repo layout and ownership: `CONTRACTS.md` section 8. SDK: section 11. MCP: secti
 8. Bisection.
 9. Decision model (layer 2) in the gate.
 10. Mirage MCP server + HTTP API + incident token.
-11. Coding agent handoff: Copy prompt + Send to Codex. Test the full loop.
+11. Coding agent handoff: Open in Claude Code / Open in Codex + Copy prompt. Test the full loop.
 12. Web dashboard + MCP server (Person B builds them in parallel on replay mode).
 13. Story 2 and story 3.
 14. Metrics on a synthetic test set (detection rate, false positives, time to detect,

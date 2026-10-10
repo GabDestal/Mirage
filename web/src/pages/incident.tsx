@@ -1,11 +1,12 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ArrowRight, Check, Copy, ExternalLink, LockKeyhole, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ExternalLink, LockKeyhole, ShieldAlert } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { api, ApiError, queryClient, useEvents, useRuns, type HumanRequest, type Incident } from '@/api/client'
 import { AgentAvatar } from '@/agents/avatars'
 import { ACTOR, HumanReasonDialog, useAsk } from '@/components/actions'
+import { HandoffDrawer } from '@/components/handoff-drawer'
 import { Button } from '@/components/ui/button'
 import { avatarState, callPhrase, runLabel, steps } from '@/lib/runs'
 import { fixEvidence, INCIDENT_ACTIONS, incidentEvents, isIncidentAction, latestFailure, recordedHandoff, requestFinished, safeLink, type IncidentAction } from './incident-data'
@@ -21,14 +22,11 @@ export function IncidentPage() {
   const [confirm, setConfirm] = useState<IncidentAction | null>(null)
   const [accepted, setAccepted] = useState<{ id: string; kind: IncidentAction; after: number } | null>(null)
   const [handoff, setHandoff] = useState<{ id: string; prompt: string } | null>(null)
+  const [drawer, setDrawer] = useState(false)
   const submitting = useRef(false)
   const incident = detail.data
   const evidence = incidentEvents(events, id)
   const run = runs.find((r) => r.id === incident?.run_id)
-  const copyPrompt = async (prompt: string) => {
-    try { await navigator.clipboard.writeText(prompt); toast('Handoff prompt copied. Paste it into your coding agent.') }
-    catch { toast.error('Clipboard unavailable. Select and copy the prompt below.') }
-  }
   const act = useMutation({
     mutationFn: ({ kind, reason, target }: { kind: IncidentAction; reason: string; target: string }) => {
       const body: HumanRequest = { actor: ACTOR, reason }
@@ -39,11 +37,14 @@ export function IncidentPage() {
       if (kind === 'send_fix') {
         if (typeof result.prompt === 'string' && result.prompt.trim()) {
           setHandoff({ id: target, prompt: result.prompt })
-          void copyPrompt(result.prompt)
+          setDrawer(true)
         } else toast.error('The handoff response contained no prompt. Refresh the incident and try again.')
       } else toast(kind === 'detonate' ? 'Detonation requested. Waiting for sandbox evidence.' : 'Cause search requested. Waiting for input tests.')
     },
-    onError: () => setAccepted(null),
+    onError: (error, { kind }) => {
+      setAccepted(null)
+      if (kind === 'send_fix') toast.error(`Handoff failed: ${error.message}`)
+    },
     onSettled: () => {
       submitting.current = false
       void queryClient.invalidateQueries({ queryKey: ['incidents'] })
@@ -84,6 +85,13 @@ export function IncidentPage() {
   const causeCompleted = evidence.some((e) => e.type === 'bisection.completed' && !e.payload.error) || (incident.status === 'root_caused' && !bisectionError)
   const effects = evidence.filter((e) => e.type === 'detonation.effect')
   const prompt = handoff?.id === id ? handoff.prompt : recordedHandoff(evidence)
+  // No reason dialog: the handoff only copies text. The POST still records the human action.
+  const handOff = () => {
+    if (prompt) { setDrawer(true); return }
+    if (submitting.current || busy) return
+    submitting.current = true
+    act.mutate({ kind: 'send_fix', reason: INCIDENT_ACTIONS.send_fix.reason, target: id })
+  }
   const canUnfreeze = run?.status === 'frozen' && ['open', 'false_positive'].includes(incident.status) && !busy
 
   return (
@@ -138,17 +146,18 @@ export function IncidentPage() {
         })}</ul> : <p className="incident-muted">No input previews were returned for this snapshot.</p>}
       </StorySection>
       <StorySection number="4" title="The fix">
-        {verification ? <Notice tone={verification.passed ? 'mirage' : 'alarm'}><strong>{verification.passed ? 'Fix replay passed.' : 'Fix replay failed.'}</strong> Attack blocked: {verification.attack}. Legitimate task completed: {verification.legitimate}.</Notice> : <p className="incident-section-intro">{incident.status === 'fix_pending' ? 'The handoff is ready. The coding agent must test the fix against this snapshot.' : 'A coding agent can prepare the fix and test it against this snapshot. Verification results will appear here when the server reports them.'}</p>}
+        {verification ? <Notice tone={verification.passed ? 'mirage' : 'alarm'}><strong>{verification.passed ? 'Fix replay passed.' : 'Fix replay failed.'}</strong> Attack blocked: {verification.attack}. Legitimate task completed: {verification.legitimate}.</Notice> : <p className="incident-section-intro">{incident.status === 'fix_pending' ? 'The handoff is ready. Your coding agent writes the fix and must test it against this snapshot.' : 'Hand off to your coding agent. It writes the fix and tests it against this snapshot. Verification results appear here when the server reports them.'}</p>}
         {pr && <a className="incident-pr" href={pr} target="_blank" rel="noopener noreferrer"><span><strong>Review the fix pull request</strong><small>{pr}</small></span><ExternalLink size={17} /></a>}
         {incident.pr_url && !pr && <Notice tone="alarm">The server returned an invalid PR link. Open the incident again after the link is corrected.</Notice>}
-        {prompt && <div className="incident-handoff"><Button onClick={() => void copyPrompt(prompt)}><Copy />Copy handoff prompt</Button><details><summary>Select the handoff prompt</summary><p className="incident-muted">This prompt includes access scoped to this incident. Share it deliberately with your coding agent.</p><textarea readOnly aria-label="Handoff prompt" value={prompt} rows={8} onFocus={(e) => e.currentTarget.select()} /></details></div>}
+        {prompt && <div className="incident-handoff"><Button onClick={handOff}>Hand off to coding agent<ArrowRight /></Button></div>}
         {!pr && !prompt && <p className="incident-muted">No pull request has been reported yet. A human reviews and merges the PR.</p>}
       </StorySection>
       <footer className="incident-actions">
-        <div className="incident-action-main">{busy ? <><Button variant="primary" disabled>Waiting for results…</Button><span role="status">Updates arrive from the engine.</span><Button onClick={refresh}>Refresh</Button></> : primary && action && isIncidentAction(action) ? <Button variant="primary" onClick={() => { act.reset(); setConfirm(action) }}>{primary.label}<ArrowRight /></Button> : action === 'open_pr' && pr ? <Button variant="primary" asChild><a href={pr} target="_blank" rel="noopener noreferrer">Open PR<ExternalLink /></a></Button> : action === 'open_pr' ? <span>Waiting for a valid PR link.</span> : <span><Check size={16} />{incident.status === 'false_positive' ? 'Review the replay, then unfreeze if appropriate.' : 'No further action requested.'}</span>}</div>
+        <div className="incident-action-main">{busy ? <><Button variant="primary" disabled>Waiting for results…</Button><span role="status">Updates arrive from the engine.</span><Button onClick={refresh}>Refresh</Button></> : primary && action && isIncidentAction(action) ? <Button variant="primary" onClick={() => { act.reset(); if (action === 'send_fix') handOff(); else setConfirm(action) }}>{primary.label}<ArrowRight /></Button> : action === 'open_pr' && pr ? <Button variant="primary" asChild><a href={pr} target="_blank" rel="noopener noreferrer">Open PR<ExternalLink /></a></Button> : action === 'open_pr' ? <span>Waiting for a valid PR link.</span> : <span><Check size={16} />{incident.status === 'false_positive' ? 'Review the replay, then unfreeze if appropriate.' : 'No further action requested.'}</span>}</div>
         {run?.status === 'frozen' && <div className="incident-secondary"><Button variant="ghost" disabled={!canUnfreeze} title={!canUnfreeze ? 'Unfreeze is available only before confirmation or after a false positive.' : undefined} onClick={() => ask('unfreeze', run)}>Unfreeze</Button><Button variant="destructive" disabled={busy} onClick={() => ask('kill', run)}>Kill</Button></div>}
       </footer>
-      {confirm && <HumanReasonDialog key={`${id}:${confirm}`} open title={`${INCIDENT_ACTIONS[confirm].label}?`} effect={INCIDENT_ACTIONS[confirm].effect} reasons={[INCIDENT_ACTIONS[confirm].reason]} verb={confirm === 'send_fix' ? 'Create and copy prompt' : INCIDENT_ACTIONS[confirm].label} onClose={() => setConfirm(null)} onSubmit={submit} busy={act.isPending} error={act.error?.message} />}
+      {confirm && <HumanReasonDialog key={`${id}:${confirm}`} open title={`${INCIDENT_ACTIONS[confirm].label}?`} effect={INCIDENT_ACTIONS[confirm].effect} reasons={[INCIDENT_ACTIONS[confirm].reason]} verb={INCIDENT_ACTIONS[confirm].label} onClose={() => setConfirm(null)} onSubmit={submit} busy={act.isPending} error={act.error?.message} />}
+      <HandoffDrawer open={drawer && !!prompt} onClose={() => setDrawer(false)} prompt={prompt} />
     </article>
   )
 }

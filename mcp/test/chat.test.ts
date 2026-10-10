@@ -52,7 +52,7 @@ function engine(status = "false_positive") {
       if (path.endsWith("/detonate")) { events = [{ seq: 1, type: "verdict.ready", incident_id: incident.id, payload: incident.verdict }]; return Response.json({ detonation_id: "det_1" }); }
       if (path.endsWith("/bisect")) { events = [{ seq: 2, type: "bisection.completed", incident_id: incident.id, payload: { cause_input_id: "in_cal_03" } }]; return Response.json({ started: true }); }
       if (path.endsWith("/handoff")) return Response.json({ prompt: "Full original prompt with capability synthetic-capability-001", mirage_token: "synthetic-capability-001",
-        codex_url: "https://chatgpt.com/codex", report: "Synthetic report" });
+        claude_code_url: "https://claude.ai/code", codex_url: "https://evil.example/codex", report: "Synthetic report" });
       if (path.endsWith("/unfreeze")) { run.status = "running"; return Response.json(run); }
       if (path.endsWith("/kill")) { run.status = "killed"; return Response.json(run); }
     }
@@ -170,7 +170,7 @@ test("all eight tools execute via MCP, retain progress/fences/audit labels and i
   // The click confirms; the human actor and the tool's own reason are logged.
   expect(app.posts[2].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Customer approved" });
   expect(app.posts[3].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Contain" });
-  expect(app.posts[4].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Send fix to coding agent" });
+  expect(app.posts[4].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Hand off to coding agent" });
   const continuation = JSON.stringify(p.requests[1].messages);
   expect(continuation).toContain("&lt;untrusted_input");
   expect(continuation).not.toContain("synthetic-capability-001");
@@ -178,6 +178,7 @@ test("all eight tools execute via MCP, retain progress/fences/audit labels and i
   expect(continuation).not.toContain("handoff_url");
   expect(JSON.stringify(events)).not.toContain("synthetic-capability-001");
   const fix = results.find((e) => e.tool === "send_fix")!;
+  expect(fix.result.structuredContent).toEqual({ handoff_url: expect.any(String), claude_code_url: "https://claude.ai/code" });
   const url = fix.result.structuredContent!.handoff_url as string;
   const download = await fetch(app.base + url);
   expect(download.headers.get("content-disposition")).toContain("attachment");

@@ -223,13 +223,13 @@ export function createChatService(opts: ChatOptions) {
               handoffUrl = `/chat/handoffs/${handoffId}`;
             }
             modelResult.content = [{ type: "text", text: handoffUrl
-              ? "Handoff created. The UI offers the full prompt to the human. A human must merge any resulting PR and approve a clean restart."
+              ? "Handed off. The human opens the prompt in their own coding agent (Claude Code or Codex), which writes the fix and proves it with mirage detonate. Mirage never writes code itself. A human must merge any resulting PR and approve a clean restart."
               : "Handoff was created in the engine, but its prompt is missing or exceeds the chat limit. Retrieve it from the incident dashboard; do not repeat this action." }];
             if (!handoffUrl) modelResult.isError = true;
             modelResult.structuredContent = {};
-            const url = result.structuredContent?.codex_url;
-            const codexUrl = url === "https://chatgpt.com/codex" ? url : undefined;
-            uiResult = { ...modelResult, structuredContent: { ...(handoffUrl && { handoff_url: handoffUrl }), ...(codexUrl && { codex_url: codexUrl }) } };
+            const links = { claude_code_url: "https://claude.ai/code", codex_url: "https://chatgpt.com/codex" };
+            const safeLinks = Object.fromEntries(Object.entries(links).filter(([key, url]) => result.structuredContent?.[key] === url));
+            uiResult = { ...modelResult, structuredContent: { ...(handoffUrl && { handoff_url: handoffUrl }), ...safeLinks } };
           }
           if (Buffer.byteLength(JSON.stringify(uiResult)) > LIMITS.resultBytes) uiResult = errorResult("Tool response exceeded the chat display limit. Check the incident dashboard for details.");
           emit({ type: "tool_result", call_id: callId, tool: call.name, result: uiResult });

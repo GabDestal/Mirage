@@ -1,6 +1,8 @@
-"""Handoff: everything a coding agent needs to fix an incident, and how it proves the fix.
+"""Handoff: Mirage does not write the fix. It hands the incident to the user's own coding agent
+(Claude Code, Codex, ...) with everything needed to fix it and prove the fix with `mirage detonate`.
 
-`create(incident)` returns {prompt, codex_url, mirage_token, report} and emits handoff.created
+`create(incident)` returns {prompt, claude_code_url, codex_url, mirage_token, report} and emits
+handoff.created
 (never the token). The report quotes the malicious input as data, fenced and labeled, because the
 coding agent reads it too: the injection must not hijack the fixer.
 shortcut: the prompt wording is a working default; Liam owns the final wording (CONTRACTS.md §1).
@@ -16,6 +18,7 @@ from pathlib import Path
 from engine.detonation import snapshot
 from engine.store import events
 
+CLAUDE_CODE_URL = "https://claude.ai/code"
 CODEX_URL = "https://chatgpt.com/codex"
 REPO = Path(__file__).parents[1]
 TOKENS = Path(os.getenv("MIRAGE_TOKENS", "data/handoff_tokens.json"))
@@ -80,7 +83,8 @@ def prompt(incident, snap, report_md):
     check = f"uv run python -m engine.cli detonate --incident {incident.id}"
     policy = (f"the `allow=` passed to `mirage.protect` in `{_file_of(snap['entrypoint'])}`"
               if snap.get("runner") else f"`{POLICY_FILE}`")
-    return f"""You are fixing a security incident that Mirage proved in a sandbox.
+    return f"""You are the coding agent for this repo. Mirage froze an agent, proved the attack in a
+sandbox, and hands the fix to you. Mirage does not write the fix: you do, and you prove it.
 
 {report_md}
 
@@ -137,8 +141,10 @@ def create(incident):
     TOKENS.parent.mkdir(parents=True, exist_ok=True)
     TOKENS.write_text(json.dumps(stored), encoding="utf-8")
     events.emit("handoff.created", {"incident_id": incident.id, "prompt": text,
-                                    "codex_url": CODEX_URL}, incident_id=incident.id)
-    return {"prompt": text, "codex_url": CODEX_URL, "mirage_token": token, "report": report_md}
+                                    "claude_code_url": CLAUDE_CODE_URL, "codex_url": CODEX_URL},
+                incident_id=incident.id)
+    return {"prompt": text, "claude_code_url": CLAUDE_CODE_URL, "codex_url": CODEX_URL,
+            "mirage_token": token, "report": report_md}
 
 
 def pr_opened(incident_id, url):
