@@ -32,7 +32,8 @@ def hard_rules(agent, tool, args, policy=POLICY):
         yield "TOOL_NOT_ALLOWED", f"Tool {tool} is not on the allowlist of agent {agent}."
 
     if "to" in args:
-        allowed = [a.lower() for a in policy["destinations"]["email_domains"]]
+        # entries: a domain, a full address, or "*@domain" (any address at that domain)
+        allowed = [a.lower().removeprefix("*@") for a in policy["destinations"]["email_domains"]]
         for address in filter(None, re.split(r"[,;\s]+", str(args["to"]).lower())):
             domain = address.rpartition("@")[2]
             if address not in allowed and not _allowed(domain, allowed):

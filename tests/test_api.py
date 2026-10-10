@@ -98,7 +98,7 @@ def test_events_feed_and_openapi(api):
     run_id, auth = start(api)
     check(api, run_id, auth, "export_contacts")
     types = [e["type"] for e in api.get("/events").json()]
-    assert types[:2] == ["run.status", "run.started"]
+    assert types[:3] == ["agent.registered", "run.status", "run.started"]
     assert "gate.decision" in types
     last = api.get("/events").json()[-1]["seq"]
     assert api.get(f"/events?after={last}").json() == []
