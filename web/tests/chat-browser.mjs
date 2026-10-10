@@ -59,7 +59,7 @@ for (const [device, viewport] of [['desktop', { width: 1440, height: 1000 }], ['
     await send('harness tools handoff')
     await done()
     assert.equal(await page.locator('.mirage-tool-card').count(), 8)
-    const sendFix = page.locator('.mirage-tool-card').filter({ has: page.getByText('send_fix', { exact: true }) })
+    const sendFix = page.locator('.mirage-tool-card').filter({ has: page.getByText('Preparing the fix handoff', { exact: true }) })
     await sendFix.locator('summary').click()
     await page.waitForTimeout(250)
     assert.equal(await page.getByText('fixture-secret-to-redact', { exact: false }).count(), 0)

@@ -80,7 +80,7 @@ export function ChatActivity({ label, state }: ChatActivityProps) {
   const [visibilityRef, animate] = useMotionGate()
   const Icon = state === 'done' ? Check : state === 'error' ? CircleAlert : state === 'approval' ? ShieldCheck : state === 'tool' ? Wrench : Circle
   return <div className="mirage-activity" data-state={state} ref={visibilityRef} role="status" aria-live="polite" aria-atomic="true">
-    <span className="mirage-activity-icon" aria-hidden="true">{animate && (state === 'thinking' || state === 'tool') ? <ThinkingOrb size={20} state={state === 'thinking' ? 'working' : 'connecting'} theme="light" speed={0.7} /> : <Icon size={17} />}</span>
+    <span className="mirage-activity-icon" aria-hidden="true">{animate && (state === 'thinking' || state === 'tool') ? <ThinkingOrb size={20} state="breathing" theme="light" speed={0.7} /> : <Icon size={17} />}</span>
     <AnimatePresence initial={false} mode="popLayout"><motion.span key={`${state}:${label}`} initial={animate ? reveal : false} animate={settled} exit={animate ? { opacity: 0, y: -4, filter: 'blur(2px)' } : { opacity: 0 }} transition={animate ? quick : { duration: 0 }}>{label}</motion.span></AnimatePresence>
   </div>
 }
