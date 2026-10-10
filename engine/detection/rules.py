@@ -7,7 +7,15 @@ from urllib.parse import urlparse
 
 import yaml
 
-POLICY = yaml.safe_load((Path(__file__).parent / "policies.yaml").read_text())
+POLICY_FILE = Path(__file__).parent / "policies.yaml"
+
+
+def load_policy():
+    """Read policies.yaml now (fix verification sees an edit without a restart)."""
+    return yaml.safe_load(POLICY_FILE.read_text())
+
+
+POLICY = load_policy()
 
 
 def _allowed(domain, allowed):
