@@ -10,6 +10,7 @@ dependencies = [
     "langgraph>=1.2.14",
     "pydantic>=2",
     "python-dotenv",
+    "pyyaml>=6.0.3",
 ]
 
 [dependency-groups]
@@ -23,3 +24,4 @@ line-length = 100
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "agents"]
+pythonpath = ["."]

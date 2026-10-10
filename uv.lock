@@ -491,6 +491,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -507,6 +508,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.2.14" },
     { name = "pydantic", specifier = ">=2" },
     { name = "python-dotenv" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
 [package.metadata.requires-dev]
