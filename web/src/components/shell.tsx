@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Outlet, useMatches, useNavigate } from 'react-router'
-import { useRuns } from '@/api/client'
 import { useEventStream } from '@/api/stream'
 import { useAsk } from '@/components/actions'
 import { Sidebar } from '@/components/sidebar/sidebar'
@@ -15,41 +14,28 @@ export function Shell() {
   const [menu, setMenu] = useState(false)
   const navigate = useNavigate()
   const ask = useAsk()
-  const { data: runs = [] } = useRuns()
   const title = (useMatches().at(-1)?.handle as { title?: string } | undefined)?.title ?? ''
 
   useEffect(() => {
-    let g = 0
     const onKey = (e: KeyboardEvent) => {
-      if (typing(e) || e.altKey || document.querySelector('[role=dialog]')) {
-        g = 0
-        return
-      }
+      if (typing(e) || e.altKey || document.querySelector('[role=dialog]')) return
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setMenu((m) => !m)
       } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === '.' || e.key === '>')) {
         e.preventDefault()
         ask('stop')
-      } else if (e.metaKey || e.ctrlKey) {
-        g = 0
-        return
-      } else if (e.key === 'g') {
-        g = e.timeStamp
-      } else if (g > 0 && e.timeStamp - g < 800) {
-        const path = e.key === 'a' ? '/' : e.key === 'f' ? '/fleet' : e.key === 'k' ? '/integrations' : e.key === 'i' ? '/incidents'
-          : /^[1-9]$/.test(e.key) && runs[Number(e.key) - 1] ? `/runs/${runs[Number(e.key) - 1].id}` : undefined
+      } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey) {
+        const path = e.key === '1' ? '/' : e.key === '2' ? '/fleet' : e.key === '3' ? '/incidents' : e.key === '4' ? '/integrations' : undefined
         if (path) {
           e.preventDefault()
           navigate(path)
         }
-        g = 0
       }
     }
-    // Handle G K before Fleet's row-navigation K.
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [ask, navigate, runs])
+  }, [ask, navigate])
 
   return (
     <div className={cn('flex h-dvh overflow-hidden bg-paper', title === 'Chat' && 'shell--chat')}>

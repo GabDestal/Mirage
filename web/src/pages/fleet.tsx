@@ -39,18 +39,25 @@ export function Fleet() {
     })
   }, [runs, filterTab, searchQuery])
 
-  // Keyboard navigation: J/K move, Enter opens, U unfreezes, X kills
+  // Keyboard navigation: J/K move, Enter opens, ⌘U unfreezes, ⌘⌫/⌘X kills (U/X fallbacks).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!filteredRuns.length || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('[role=dialog]')) return
+      if (!filteredRuns.length || e.defaultPrevented || e.altKey || document.querySelector('[role=dialog]')) return
       if (e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return
+      const command = e.metaKey || e.ctrlKey
+      const key = e.key.toLowerCase()
+      if (command && (e.shiftKey || !['u', 'x', 'backspace'].includes(key))) return
       const run = filteredRuns[selected]
       if (e.key === 'j') setSelected((i) => Math.min(i + 1, filteredRuns.length - 1))
       else if (e.key === 'k') setSelected((i) => Math.max(i - 1, 0))
       else if (e.key === 'Enter' && run) navigate(`/runs/${run.id}`)
-      else if (e.key === 'u' && run?.status === 'frozen') ask('unfreeze', run)
-      else if (e.key === 'x' && run && (run.status === 'running' || run.status === 'frozen')) ask('kill', run)
-      else if (e.key === 'Escape') setSelected(-1)
+      else if (key === 'u' && run?.status === 'frozen') {
+        e.preventDefault()
+        ask('unfreeze', run)
+      } else if ((key === 'x' || (command && key === 'backspace')) && run && (run.status === 'running' || run.status === 'frozen')) {
+        e.preventDefault()
+        ask('kill', run)
+      } else if (e.key === 'Escape') setSelected(-1)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
