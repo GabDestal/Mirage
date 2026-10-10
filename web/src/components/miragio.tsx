@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore, type RefObjec
 
 type Props = { className?: string; animate?: boolean; readingProgress?: number | null }
 const spring = { stiffness: 160, damping: 20, mass: 0.55 }
+const headPath = 'M43 562C53 523 78 489 109 420C178 266 240 90 326 84C423 73 456 224 528 300C593 373 618 317 671 249C711 195 746 170 778 191C834 226 860 337 902 446C932 524 977 587 949 640C923 690 838 700 755 724C620 764 506 748 405 731C291 711 221 683 126 667C57 655 31 623 43 562Z'
 const motionPreference = () => window.matchMedia('(prefers-reduced-motion: reduce)')
 function subscribeMotionPreference(onChange: () => void) {
   const preference = motionPreference()
@@ -86,8 +87,8 @@ function AnimatedMiragio({ className, readingProgress = null }: Omit<Props, 'ani
   }, [active, eyes, lookX, lookY])
 
   return <Portrait className={className} svgRef={ref} active={active} eyes={active ? eyes : undefined}
-    headStyle={active ? { x: headX, y: headY, rotate: headRotate, originX: 0.5, originY: 0.75 } : undefined}
-    eyeStyle={active ? { x: eyeX, y: eyeY } : undefined} />
+    headStyle={active ? { x: headX, y: headY, rotate: headRotate, originX: 0.5, originY: 0.75 } : { x: 0, y: 0, rotate: 0 }}
+    eyeStyle={active ? { x: eyeX, y: eyeY } : { x: 0, y: 0 }} />
 }
 
 function Portrait({ className, svgRef, active = false, eyes, headStyle, eyeStyle }: {
@@ -101,25 +102,25 @@ function Portrait({ className, svgRef, active = false, eyes, headStyle, eyeStyle
       <clipPath id={`${id}-tile`}><path d="M250 0H750Q1000 0 1000 250V750Q1000 1000 750 1000H250Q0 1000 0 750V250Q0 0 250 0Z" /></clipPath>
       <radialGradient id={`${id}-paper`} cx="50%" cy="42%" r="75%"><stop stopColor="#fffdf8" /><stop offset="0.65" stopColor="#faf1e4" /><stop offset="1" stopColor="#e9d8c1" /></radialGradient>
       <radialGradient id={`${id}-chest`} cx="54%" cy="15%" r="90%"><stop stopColor="#fffaf1" /><stop offset="0.65" stopColor="#eee2d1" /><stop offset="1" stopColor="#d2c7b9" /></radialGradient>
-      <linearGradient id={`${id}-sun`} x1="0.2" y1="1" x2="0.9" y2="0"><stop stopColor="#bd4828" /><stop offset="0.5" stopColor="#ed7e50" /><stop offset="1" stopColor="#ffb581" /></linearGradient>
-      <linearGradient id={`${id}-head`} x1="0" y1="0.55" x2="1" y2="0.25"><stop stopColor="#182f55" /><stop offset="0.3" stopColor="#0d213e" /><stop offset="0.68" stopColor="#15335e" /><stop offset="1" stopColor="#365487" /></linearGradient>
+      <linearGradient id={`${id}-sun`} x1="20%" y1="100%" x2="90%" y2="0%"><stop stopColor="#bd4828" /><stop offset="0.5" stopColor="#ed7e50" /><stop offset="1" stopColor="#ffb581" /></linearGradient>
+      <linearGradient id={`${id}-head`} x1="0%" y1="55%" x2="100%" y2="25%"><stop stopColor="#182f55" /><stop offset="0.3" stopColor="#0d213e" /><stop offset="0.68" stopColor="#15335e" /><stop offset="1" stopColor="#365487" /></linearGradient>
       <radialGradient id={`${id}-crest`} cx="36%" cy="0%" r="80%"><stop stopColor="#92b7ff" stopOpacity="0.45" /><stop offset="0.3" stopColor="#779dde" stopOpacity="0.08" /><stop offset="0.65" stopColor="#0b1c35" stopOpacity="0" /><stop offset="1" stopColor="#05152e" stopOpacity="0.45" /></radialGradient>
       <radialGradient id={`${id}-edge`} cx="58%" cy="100%" r="58%"><stop stopColor="#1377ff" /><stop offset="0.42" stopColor="#005bea" stopOpacity="0.65" /><stop offset="0.85" stopColor="#005bea" stopOpacity="0" /></radialGradient>
       <radialGradient id={`${id}-face`} cx="51%" cy="32%" r="74%"><stop stopColor="#fffefa" /><stop offset="0.55" stopColor="#fbf3e6" /><stop offset="0.82" stopColor="#e5d4bb" /><stop offset="1" stopColor="#c3c5ce" /></radialGradient>
-      <linearGradient id={`${id}-eye`} x1="0.2" y1="0" x2="0.8" y2="1"><stop stopColor="#060b14" /><stop offset="0.5" stopColor="#111825" /><stop offset="1" stopColor="#303846" /></linearGradient>
-      <linearGradient id={`${id}-ribbon`} x1="0.15" y1="1" x2="0.85" y2="0"><stop stopColor="#0043b8" /><stop offset="0.5" stopColor="#0068fa" /><stop offset="0.8" stopColor="#137eff" /><stop offset="1" stopColor="#46b7ff" /></linearGradient>
+      <linearGradient id={`${id}-eye`} x1="20%" y1="0%" x2="80%" y2="100%"><stop stopColor="#060b14" /><stop offset="0.5" stopColor="#111825" /><stop offset="1" stopColor="#303846" /></linearGradient>
+      <linearGradient id={`${id}-ribbon`} x1="15%" y1="100%" x2="85%" y2="0%"><stop stopColor="#0043b8" /><stop offset="0.5" stopColor="#0068fa" /><stop offset="0.8" stopColor="#137eff" /><stop offset="1" stopColor="#46b7ff" /></linearGradient>
     </defs>
     <g clipPath={url('tile')}>
       <rect width="1000" height="1000" fill={url('paper')} />
       <path d="M78 1000C110 878 166 821 256 789C451 718 827 720 902 846Q932 897 940 1000Z" fill={url('chest')} />
       <motion.g data-miragio="head" style={headStyle}>
-        <circle cx="570" cy="248" r="124" fill={url('sun')} />
-        <path id={`${id}-silhouette`} d="M43 562C53 523 78 489 109 420C178 266 240 90 326 84C423 73 456 224 528 300C593 373 618 317 671 249C711 195 746 170 778 191C834 226 860 337 902 446C932 524 977 587 949 640C923 690 838 700 755 724C620 764 506 748 405 731C291 711 221 683 126 667C57 655 31 623 43 562Z" fill={url('head')} />
-        <use href={`#${id}-silhouette`} fill={url('crest')} />
-        <use href={`#${id}-silhouette`} fill={url('edge')} />
+        <path d="M452 188C480 143 525 124 572 124C632 124 673 161 694 213C664 251 613 306 573 307C524 309 489 248 452 188Z" fill={url('sun')} />
+        <path d={headPath} fill={url('head')} />
+        <path d={headPath} fill={url('crest')} />
+        <path d={headPath} fill={url('edge')} />
         <path d="M188 521C198 440 299 331 397 326C487 319 514 383 586 397C637 408 690 382 744 404C806 424 827 484 821 573C816 660 778 697 699 720C605 748 513 743 432 723C323 697 177 650 188 521Z" fill={url('face')} />
         <motion.g data-miragio="gaze" style={eyeStyle}>
-          <motion.g data-miragio="blink" animate={eyes} style={{ transformBox: 'fill-box', originY: 0.5 }}>
+          <motion.g data-miragio="blink" animate={eyes} style={{ transformBox: 'fill-box', originY: 0.5, ...(!active ? { scaleY: 1 } : {}) }}>
             <path d="M345 552C349 488 367 422 405 422C451 420 450 470 441 540C435 586 426 615 392 615C353 615 341 593 345 552Z" fill={url('eye')} />
             <path d="M607 578C611 518 622 458 657 457C700 454 701 500 691 566C685 612 675 640 646 640C612 640 603 617 607 578Z" fill={url('eye')} />
             <ellipse cx="417" cy="457" rx="13" ry="19" transform="rotate(-12 417 457)" fill="#fff" />
