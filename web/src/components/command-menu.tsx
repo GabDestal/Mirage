@@ -67,7 +67,7 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
         </Command.Group>
 
         <Command.Group heading="Go to">
-          <Item icon={<ArrowRight />} onSelect={run(() => navigate('/'))}>Ask Mirage</Item>
+          <Item icon={<ArrowRight />} onSelect={run(() => navigate('/'))}>Ask Miragio</Item>
           <Item icon={<ArrowRight />} onSelect={run(() => navigate('/fleet'))} hint="G F">Fleet</Item>
           <Item icon={<ArrowRight />} onSelect={run(() => navigate('/incidents'))} hint="G I">Incidents</Item>
           {runs.map((r) => (

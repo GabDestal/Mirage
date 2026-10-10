@@ -45,7 +45,7 @@ function useMotionGate() {
   return [ref, reduced === false && visible && pageVisible] as const
 }
 
-export function ChatComposer({ value, onChange, onSubmit, disabled = false, busy = false, onStop, placeholder = 'Ask Mirage…', error, inputRef }: ChatComposerProps) {
+export function ChatComposer({ value, onChange, onSubmit, disabled = false, busy = false, onStop, placeholder = 'Ask Miragio…', error, inputRef }: ChatComposerProps) {
   const input = useRef<HTMLTextAreaElement>(null)
   const composing = useRef(false)
   const [focused, setFocused] = useState(false)

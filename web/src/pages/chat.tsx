@@ -83,7 +83,7 @@ export function Chat() {
   function stopReply() { submission.current++; chat.stop(); focusComposer() }
 
   return (
-    <section className={`chat-page${conversation ? ' chat-page--conversation' : ''}`} aria-label="Ask Mirage">
+    <section className={`chat-page${conversation ? ' chat-page--conversation' : ''}`} aria-label="Ask Miragio">
       {conversation ? <div className="chat-thread-toolbar">
         <button type="button" onClick={newChat}><MessageSquarePlus size={16} aria-hidden="true" />New chat</button>
         <Link to="/fleet">View fleet</Link>

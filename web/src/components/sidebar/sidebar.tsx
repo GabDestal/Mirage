@@ -26,16 +26,16 @@ export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
         <nav aria-label="Assistant" className="pb-3">
           <ul>
             <li>
-              <NavLink to="/" end title="Ask Mirage" className={NAV_LINK_CLASS_NAME}>
+              <NavLink to="/" end title="Ask Miragio" className={NAV_LINK_CLASS_NAME}>
                 <MascotAskIcon className="size-4 shrink-0" aria-hidden />
-                <span className="sidebar-label min-w-0 truncate text-sm leading-5">Ask Mirage</span>
+                <span className="sidebar-label min-w-0 truncate text-sm leading-5">Ask Miragio</span>
               </NavLink>
             </li>
           </ul>
         </nav>
         <nav aria-label="Navigation" className="pb-5">
           <NavItemList items={[
-            { icon: AlertTriangle, labelKey: 'Incidents', to: '/incidents', children: [] },
+            { icon: AlertTriangle, labelKey: 'Fleet', to: '/fleet', children: [] },
             ...NAV_ITEMS,
           ]} />
         </nav>
