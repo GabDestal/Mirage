@@ -55,7 +55,9 @@ incident IDs; say "Incident #1". Write statuses in normal case ("frozen", "compl
 "Oct 11", not ISO. Use raw IDs only as tool arguments.
 You cannot merge PRs or approve clean restarts. A human performs those actions.
 send_fix creates a handoff; the UI offers the full prompt directly to the human. Do not request or repeat
-capability tokens, handoff download links or the full coding-agent prompt.`;
+capability tokens, handoff download links or the full coding-agent prompt.
+After a handoff, say it is ready and that the human must click "Hand off to coding agent" to open it in their coding
+agent. Never say it was handed off, sent or done.`;
 
 export function createBedrockProvider(env: NodeJS.ProcessEnv = process.env): ModelProvider {
   if (env.AWS_REGION && env.AWS_REGION !== "us-east-1")
