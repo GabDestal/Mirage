@@ -303,8 +303,8 @@ All POST bodies with a human action carry `{actor, reason}`.
 
 | Method | Path | Does |
 |---|---|---|
-| POST | `/demo/start` | Body `{scenario: "calendar" \| "support" \| "false_positive"}`. Starts 3 runs. |
-| POST | `/demo/reset` | Clears runs, incidents, Mirage state. Reseeds services. |
+| POST | `/demo/start` | Optional body `DemoStart {scenario}` (default `calendar`; others 501, not built). Live: `/demo/reset`, then launches `agents.run_demo_fleet` (Liam's 4 agents) as its own process, `MIRAGE_URL` = this engine. Replay: restarts the recording. |
+| POST | `/demo/reset` | Live: stops the demo agents process, clears runs, agents, event log, snapshots and handoff tokens, lifts a global STOP. Replay: restarts the recording. |
 
 Long actions (detonate, bisect, verify) return at once. Progress comes as events.
 

@@ -8,6 +8,8 @@ answer 409. Data plane routes that act on a run need `Authorization: Bearer <run
 
 import asyncio
 import os
+import subprocess
+import sys
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -20,6 +22,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from contracts.models import (
     AgentSpec,
+    DemoStart,
     Event,
     GateDecision,
     HumanRequest,
@@ -40,7 +43,7 @@ from engine.api import services
 from engine.api.replay import Replay
 from engine.api.state import fold
 from engine.detection.rules import POLICY
-from engine.detonation import sandbox
+from engine.detonation import sandbox, snapshot
 from engine.gateway import gate
 from engine.store import events
 
@@ -427,11 +430,45 @@ def verify(incident_id: str, runs: int = 3, authorization: str = Header(""), bod
     return {"incident_id": incident_id, "status": "verifying"}
 
 
+DEMO_RUNNER = ["-m", "agents.run_demo_fleet"]  # Liam's fleet: 4 agents, one gets poisoned
+_demo = {"proc": None}  # the agents process /demo/start launched, if any
+
+
+def _stop_demo_agents():
+    proc, _demo["proc"] = _demo["proc"], None
+    if proc and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+def _reset_live():
+    """A clean slate: stop the demo agents, forget runs and agents, lift STOP, clear the log,
+    the snapshots and the handoff tokens."""
+    _stop_demo_agents()
+    gate.reset()
+    events.reset()
+    for file in snapshot.SNAP_DIR.glob("*.json"):
+        file.unlink()
+    engine_handoff.TOKENS.unlink(missing_ok=True)
+
+
 @app.post("/demo/start", status_code=204)
-def demo_start():
-    if not REPLAY:
-        raise HTTPException(501, "Live demo start is not built yet: run agents/run_demo.py")
-    REPLAY.restart()
+def demo_start(request: Request, body: DemoStart | None = None):
+    """Live: reset, then launch the story's agents as their own process, pointed at this engine
+    (they join through the SDK like any customer agent). Replay: restart the recording."""
+    if REPLAY:
+        REPLAY.restart()
+        return
+    scenario = body.scenario if body else "calendar"
+    if scenario != "calendar":
+        raise HTTPException(501, f"Scenario {scenario} is not built yet (only calendar)")
+    _reset_live()
+    env = {**os.environ, "MIRAGE_URL": str(request.base_url).rstrip("/")}
+    _demo["proc"] = subprocess.Popen([sys.executable, *DEMO_RUNNER], cwd=FIXTURES.parents[1],
+                                     env=env)
 
 
 @app.post("/demo/reset", status_code=204)
@@ -439,5 +476,4 @@ def demo_reset():
     if REPLAY:
         REPLAY.restart()
         return
-    gate.reset()
-    events.reset()
+    _reset_live()
