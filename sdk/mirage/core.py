@@ -56,8 +56,13 @@ def start(agent, task):
     """Start a run for this thread / task. Returns a token for `end`; None when nested."""
     if _sandbox or _run.get():  # invoke calls stream: one run, not two
         return None
+    return _run.set(open_run(agent, task))
+
+
+def open_run(agent, task):
+    """Start a run and return its handle; for adapters whose hooks cannot share a contextvar."""
     started = RunStarted.model_validate(_post("/runs", RunStart(agent=agent, task=task)))
-    return _run.set({"id": started.run_id, "token": started.run_token})
+    return {"id": started.run_id, "token": started.run_token}
 
 
 def end(token):
@@ -65,6 +70,10 @@ def end(token):
         return
     run = _run.get()
     _run.reset(token)
+    complete(run)
+
+
+def complete(run):
     _post(f"/runs/{run['id']}/complete", run=run)
 
 
@@ -94,26 +103,35 @@ def _wait(run):
             raise Blocked(f"Run {run['id']} is {status}.")
 
 
+def check(name, args, run):
+    """Gate one tool call: returns its call_id once allowed, waits while frozen, raises Blocked."""
+    if run is None:  # fail closed: a protected tool only runs inside a checked run
+        raise Blocked(f"{name} was called outside a Mirage run.")
+    gate = GateDecision.model_validate(_post("/gateway/check", ToolCheck(
+        run_id=run["id"], tool=name, args=_json(args)), run))
+    if gate.decision == "block":
+        raise Blocked(gate.explanation)
+    if gate.decision == "freeze":
+        _wait(run)  # only this run's thread waits; a human decides
+    return gate.call_id
+
+
+def record(run, call_id, name, result=None, error=None):
+    _post(f"/runs/{run['id']}/tool-results",
+          ToolResult(call_id=call_id, tool=name, result=_json(result), error=error), run)
+
+
 def tool(name, args, fn):
     """Run one tool call through Mirage. `fn()` runs the real tool (prod, once allowed)."""
     args = _json(args)
     if _sandbox:
         return _sandbox["call_tool"](name, args)
     run = _run.get()
-    if run is None:  # fail closed: a protected tool only runs inside a checked run
-        raise Blocked(f"{name} was called outside a Mirage run.")
-    gate = GateDecision.model_validate(_post("/gateway/check", ToolCheck(
-        run_id=run["id"], tool=name, args=args), run))
-    if gate.decision == "block":
-        raise Blocked(gate.explanation)
-    if gate.decision == "freeze":
-        _wait(run)  # only this run's thread waits; a human decides
+    call_id = check(name, args, run)
     try:
         result = fn()
     except Exception as e:
-        _post(f"/runs/{run['id']}/tool-results",
-              ToolResult(call_id=gate.call_id, tool=name, error=f"{type(e).__name__}: {e}"), run)
+        record(run, call_id, name, error=f"{type(e).__name__}: {e}")
         raise
-    _post(f"/runs/{run['id']}/tool-results",
-          ToolResult(call_id=gate.call_id, tool=name, result=_json(result)), run)
+    record(run, call_id, name, result)
     return result
