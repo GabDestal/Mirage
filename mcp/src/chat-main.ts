@@ -1,0 +1,18 @@
+#!/usr/bin/env node
+import { createBedrockProvider, loadChatEnv, publicError } from "./bedrock.js";
+import { createChatService } from "./chat.js";
+
+try {
+  loadChatEnv();
+  const port = Number(process.env.MIRAGE_CHAT_PORT ?? 8001);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid chat port");
+  const service = createChatService({ provider: createBedrockProvider(),
+    ...(process.env.MIRAGE_CHAT_ORIGINS && { origins: process.env.MIRAGE_CHAT_ORIGINS.split(",").map((s) => s.trim()) }) });
+  service.http.listen(port, "127.0.0.1", () => console.log(`Mirage chat: http://localhost:${port} (Bedrock us-east-1)`));
+  service.http.on("error", () => { console.error("Mirage chat could not bind its loopback port."); process.exitCode = 1; });
+  for (const sig of ["SIGINT", "SIGTERM"] as const) process.once(sig, () => { void service.close(); });
+} catch (error) {
+  const safe = publicError(error);
+  console.error(JSON.stringify({ code: safe.code, message: safe.message }));
+  process.exitCode = 1;
+}

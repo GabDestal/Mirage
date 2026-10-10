@@ -5,7 +5,7 @@ CONTRACTS.md and the fixtures in the same commit. All times are UTC, all IDs are
 """
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -288,3 +288,87 @@ class Snapshot(Model):
     model_calls: list[ModelCall] = []
     tool_results: list[SnapshotToolResult] = []
     inputs: list[SnapshotInput] = []
+
+
+# Ask Mirage operator chat (CONTRACTS.md §13). A separate Node service, not engine events.
+class ChatTurn(Model):
+    session_id: str | None = None
+    message: str = Field(min_length=1, max_length=8000)
+    actor: str = Field(min_length=1, max_length=80)
+
+
+class ChatApproval(Model):
+    action: Literal["accept", "decline"]
+    content: dict[str, Any] | None = None
+
+
+class ChatApprovalAccepted(Model):
+    accepted: Literal[True] = True
+
+
+class ChatSession(Model):
+    type: Literal["session"] = "session"
+    session_id: str
+
+
+class ChatTextDelta(Model):
+    type: Literal["text_delta"] = "text_delta"
+    text: str
+
+
+class ChatToolStart(Model):
+    type: Literal["tool_start"] = "tool_start"
+    call_id: str
+    tool: str
+    args: dict[str, Any]
+
+
+class ChatToolProgress(Model):
+    type: Literal["tool_progress"] = "tool_progress"
+    call_id: str
+    message: str
+
+
+class ChatMcpResult(Model):
+    """Sanitized MCP CallToolResult; content blocks retain their MCP data shapes.
+
+    send_fix structuredContent may include handoff_url (user-only relative download)
+    and a safe codex_url. Full prompt and tokens never appear in chat tool results.
+    """
+
+    content: list[dict[str, Any]]
+    structuredContent: dict[str, Any] | None = None
+    isError: bool | None = None
+
+
+class ChatToolResult(Model):
+    type: Literal["tool_result"] = "tool_result"
+    call_id: str
+    tool: str
+    result: ChatMcpResult
+
+
+class ChatApprovalRequired(Model):
+    type: Literal["approval_required"] = "approval_required"
+    approval_id: str
+    call_id: str
+    message: str
+    # "schema" is the wire field; use an alias to avoid shadowing BaseModel.schema.
+    requested_schema: dict[str, Any] = Field(alias="schema")
+
+
+class ChatDone(Model):
+    type: Literal["done"] = "done"
+
+
+class ChatError(Model):
+    type: Literal["error"] = "error"
+    code: str
+    message: str
+
+
+ChatEvent = Annotated[
+    ChatSession | ChatTextDelta | ChatToolStart | ChatToolProgress | ChatToolResult
+    | ChatApprovalRequired | ChatDone | ChatError,
+    Field(discriminator="type"),
+]
