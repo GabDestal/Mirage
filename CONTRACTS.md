@@ -6,7 +6,7 @@ Status: draft, 2026-10-10. Read with `PRODUCT.md`.
 
 Two people. Two roles. One contract between them.
 
-| | Person A: Engine | Person B: Experience |
+| | Person A: Engine (Gabi) | Person B: Experience (Liam) |
 |---|---|---|
 | Owns | Everything that is real in the background | Everything the audience sees |
 | Builds | Agent loop, gate, real adapters (Gmail, Calendar, CRM), Mirage adapters, snapshot, detonation, judge, bisection, `mirage detonate` (CLI + MCP + HTTP) | UI, demo script, pitch, backup video |
