@@ -96,6 +96,7 @@ function ReasonDialog({ pending, onClose }: { pending: { kind: ActionKind; run?:
                 ))}
               </RadioGroup.Root>
               <textarea
+                aria-label="Reason details"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Add details (optional if you picked a reason)"

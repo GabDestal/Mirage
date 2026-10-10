@@ -125,7 +125,7 @@ function CompactTrace({ run, events }: { run: Run; events: MirageEvent[] }) {
   const shown = all.slice(-MAX_STEPS)
   const hidden = all.length - shown.length
   return (
-    <ol className="flex min-w-0 items-center gap-1.5 overflow-hidden font-mono text-code whitespace-nowrap" aria-label="Tool calls">
+    <ol className="flex min-w-0 items-center justify-end gap-1.5 overflow-hidden font-mono text-code whitespace-nowrap" aria-label="Tool calls">
       {hidden > 0 && <li className="font-sans text-meta text-ink-3 tabular">+{hidden}</li>}
       <AnimatePresence initial={false}>
         {shown.map((s, i) => (
@@ -135,7 +135,7 @@ function CompactTrace({ run, events }: { run: Run; events: MirageEvent[] }) {
             initial={{ opacity: 0, transform: 'translateX(-8px)' }}
             animate={{ opacity: 1, transform: 'translateX(0px)' }}
             transition={{ duration: 0.22, ease: EASE_OUT }}
-            className="flex items-center gap-1.5"
+            className="flex shrink-0 items-center gap-1.5"
           >
             {(i > 0 || hidden > 0) && <span className="text-ink-3" aria-hidden>→</span>}
             <span
