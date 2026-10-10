@@ -1,0 +1,66 @@
+[
+  {
+    "device": "desktop",
+    "theme": "light",
+    "passed": true,
+    "checks": [
+      "dimensions",
+      "gaze",
+      "reading",
+      "reduced pixel equality",
+      "static/unmount resources",
+      "unique ids",
+      "read-only synthetic SSE followup",
+      "overflow",
+      "runtime errors"
+    ]
+  },
+  {
+    "device": "desktop",
+    "theme": "dark",
+    "passed": true,
+    "checks": [
+      "dimensions",
+      "gaze",
+      "reading",
+      "reduced pixel equality",
+      "static/unmount resources",
+      "unique ids",
+      "read-only synthetic SSE followup",
+      "overflow",
+      "runtime errors"
+    ]
+  },
+  {
+    "device": "phone",
+    "theme": "light",
+    "passed": true,
+    "checks": [
+      "dimensions",
+      "gaze",
+      "reading",
+      "reduced pixel equality",
+      "static/unmount resources",
+      "unique ids",
+      "read-only synthetic SSE followup",
+      "overflow",
+      "runtime errors"
+    ]
+  },
+  {
+    "device": "phone",
+    "theme": "dark",
+    "passed": true,
+    "checks": [
+      "dimensions",
+      "gaze",
+      "reading",
+      "reduced pixel equality",
+      "static/unmount resources",
+      "unique ids",
+      "read-only synthetic SSE followup",
+      "overflow",
+      "runtime errors"
+    ]
+  }
+]
