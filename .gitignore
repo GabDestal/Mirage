@@ -3,3 +3,6 @@
 __pycache__/
 secrets/
 data/
+
+# Impeccable per-developer settings
+.impeccable/config.local.json

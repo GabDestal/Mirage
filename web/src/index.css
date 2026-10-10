@@ -1,0 +1,208 @@
+@import 'tailwindcss';
+
+/* Geist, self-hosted from the `geist` npm package (DESIGN.md §5). Its exports map hides the files, hence the path. */
+@font-face {
+  font-family: 'Geist';
+  src: url('../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* Tokens: DESIGN.md §4 (color), §6 (shape), §9 (motion). Light is the default. */
+:root {
+  --paper: #fcfcfa;
+  --paper-2: #f4f4f1;
+  --paper-3: #eaeae6;
+  --line: #e3e3de;
+  --ink: #151716;
+  --ink-2: #5c605e;
+  --ink-3: #8c908e;
+  --mirage: #0e8c86;
+  --mirage-wash: #e3f4f2;
+  --alarm: #d93a2b;
+  --alarm-wash: #fbe9e6;
+  --float-shadow: 0 12px 32px -8px rgb(21 23 22 / 0.18);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-press: 120ms;
+  --dur-fast: 160ms;
+  --dur-base: 220ms;
+  --dur-sheet: 320ms;
+
+  color-scheme: light;
+}
+
+/* Dark: an explicit choice, or the system setting when the user made none. Keep both blocks equal. */
+:root[data-theme='dark'] {
+  --paper: #0c0d0d;
+  --paper-2: #141515;
+  --paper-3: #1d1e1e;
+  --line: #262828;
+  --ink: #ecedea;
+  --ink-2: #9da19f;
+  --ink-3: #6e7270;
+  --mirage: #3cc7be;
+  --mirage-wash: #0f2826;
+  --alarm: #ff6a5c;
+  --alarm-wash: #2a1412;
+  --float-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #0c0d0d;
+    --paper-2: #141515;
+    --paper-3: #1d1e1e;
+    --line: #262828;
+    --ink: #ecedea;
+    --ink-2: #9da19f;
+    --ink-3: #6e7270;
+    --mirage: #3cc7be;
+    --mirage-wash: #0f2826;
+    --alarm: #ff6a5c;
+    --alarm-wash: #2a1412;
+    --float-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-paper-3: var(--paper-3);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-mirage: var(--mirage);
+  --color-mirage-wash: var(--mirage-wash);
+  --color-alarm: var(--alarm);
+  --color-alarm-wash: var(--alarm-wash);
+
+  --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+
+  /* Type scale, DESIGN.md §5 */
+  --text-headline: 1.5rem;
+  --text-headline--line-height: 2rem;
+  --text-title: 1rem;
+  --text-title--line-height: 1.5rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-control: 0.8125rem;
+  --text-control--line-height: 1.25rem;
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1rem;
+  --text-code: 0.78125rem;
+  --text-code--line-height: 1.125rem;
+
+  --radius-control: 8px;
+  --radius-node: 12px;
+  --shadow-float: var(--float-shadow);
+
+  --ease-out: var(--ease-out);
+  --ease-in-out: var(--ease-in-out);
+  --ease-drawer: var(--ease-drawer);
+}
+
+/* Browser surfaces carry the design too (DESIGN.md §4). */
+@layer base {
+  html,
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'ss01';
+  }
+  ::selection {
+    background: var(--mirage-wash);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+  * {
+    scrollbar-color: var(--line) transparent;
+    scrollbar-width: thin;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 999px;
+    border: 3px solid var(--paper);
+  }
+  input,
+  textarea {
+    caret-color: var(--mirage);
+  }
+  ::placeholder {
+    color: var(--ink-3);
+  }
+  a {
+    text-underline-offset: 3px;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Press feedback on every control (DESIGN.md §9). */
+@utility pressable {
+  transition-property: transform, background-color, color;
+  transition-duration: var(--dur-press);
+  transition-timing-function: ease;
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+/* The one authored moment: heat shimmer over anything simulated in Mirage (DESIGN.md §9). */
+@utility shimmer {
+  color: var(--mirage);
+  mask-image: linear-gradient(100deg, #000 35%, rgb(0 0 0 / 0.55) 50%, #000 65%);
+  mask-size: 300% 100%;
+  animation: shimmer 2.4s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    mask-image: none;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    mask-position: 100% 0;
+  }
+  to {
+    mask-position: 0% 0;
+  }
+}
+
+/* Menus, popovers, tooltips: opacity + scale from the trigger, 160 ms (DESIGN.md §9). */
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
