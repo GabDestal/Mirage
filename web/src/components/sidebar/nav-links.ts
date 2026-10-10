@@ -1,6 +1,5 @@
 import type { ComponentType, SVGProps } from 'react'
-import { KeyRound, LayoutList } from 'lucide-react'
-import { Chart5Icon } from './icons/chart5'
+import { KeyRound } from 'lucide-react'
 import { IconAgentsIcon } from './icons/icon-agents'
 
 export type NavItem = {
@@ -14,13 +13,10 @@ export type NavItem = {
 
 export const NAV_ITEMS: NavItem[] = [
   {
-    icon: Chart5Icon,
-    labelKey: 'Analytics',
-    children: [{ labelKey: 'Fleet', to: '/fleet', mobileIcon: LayoutList, children: [] }],
-  },
-  {
     icon: IconAgentsIcon,
     labelKey: 'Integrations',
-    children: [{ labelKey: 'API keys', disabled: true, mobileIcon: KeyRound, children: [] }],
+    mobileIcon: KeyRound,
+    disabled: true,
+    children: [],
   },
 ]
