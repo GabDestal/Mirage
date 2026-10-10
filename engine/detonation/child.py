@@ -1,7 +1,7 @@
 """Detonation child: runs inside the sandbox process. Only `sandbox.py` starts it.
 
-Reads the snapshot from MIRAGE_SNAPSHOT, jails itself, rebuilds the agent from the snapshot's
-entrypoint (`module:function(snapshot, call_tool)`) and runs the task. Tools never run:
+Reads the snapshot from MIRAGE_SNAPSHOT, jails itself, then calls the snapshot's `runner`
+(`module:function(snapshot, call_tool)`; None means `entrypoint` itself). Tools never run:
 - a tool the run already called returns its recorded result (same args first, else same tool);
 - anything else (the writes the gate never let through) is captured and answered "ok".
 Every tool call, and every blocked escape attempt, is appended to MIRAGE_EFFECTS as it happens,
@@ -42,7 +42,7 @@ def main():
             return (exact or same)[0]["result"]
         return {"status": "ok"}
 
-    module, function = snap["entrypoint"].split(":")
+    module, function = (snap.get("runner") or snap["entrypoint"]).split(":")
     getattr(importlib.import_module(module), function)(snap, call_tool)
 
 

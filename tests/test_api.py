@@ -5,7 +5,9 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
+from contracts.models import Snapshot
 from engine.api.server import app
+from engine.detonation import snapshot
 from engine.gateway import gate
 from engine.store import events
 
@@ -106,6 +108,9 @@ def test_events_feed_and_openapi(api):
 def test_detonate_route_runs_the_sandbox(api):
     gate.agents["meeting_assistant"].entrypoint = "tests.sandbox_agents:attacker"
     run_id, auth = start(api)
+    api.post(f"/runs/{run_id}/model-calls", headers=auth, json={
+        "model_id": "openai.gpt-oss-20b-1:0", "request": {"messages": []},
+        "response": {"stopReason": "tool_use"}})
     d = check(api, run_id, auth, "read_calendar", date="2026-10-11").json()
     api.post(f"/runs/{run_id}/tool-results", headers=auth, json={
         "call_id": d["call_id"], "tool": "read_calendar", "result": {"events": []}})
@@ -116,6 +121,14 @@ def test_detonate_route_runs_the_sandbox(api):
     check(api, run_id, auth, "send_email", to=ATTACKER, subject="x", body="rows")  # freeze
 
     incident_id = api.get("/incidents").json()[0]["id"]
+    snap = Snapshot.model_validate(snapshot.load(incident_id))  # the file matches the contract
+    assert snap.runner == gate.SDK_RUNNER and snap.entrypoint == "tests.sandbox_agents:attacker"
+    assert snap.model_calls[0].model_id == "openai.gpt-oss-20b-1:0"
+    assert [r.tool for r in snap.tool_results] == ["read_calendar", "export_contacts"]
+
+    # mirage_sdk does not exist yet: run the entrypoint itself, as a dev agent would
+    path = snapshot.SNAP_DIR / f"{incident_id}.json"
+    path.write_text(snap.model_copy(update={"runner": None}).model_dump_json(), encoding="utf-8")
     assert api.post(f"/incidents/{incident_id}/detonate?runs=1").json()["detonation_id"]
     assert api.post(f"/incidents/{incident_id}/detonate").status_code == 409  # already running
     for _ in range(100):
