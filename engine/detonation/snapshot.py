@@ -79,6 +79,7 @@ def inputs(snap) -> list[Input]:
 def without(snap, input_id):
     """A copy of the snapshot with one input removed (bisection)."""
     snap = copy.deepcopy(snap)
+    snap["model_calls"] = []  # rerun from the start: recorded replies saw the removed input
     target = next(i for i in snap["inputs"] if i["id"] == input_id)
     if target["kind"] == "user_task":
         snap["task"] = "(no task)"
