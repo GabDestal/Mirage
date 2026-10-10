@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { blockedCall, runLabel } from '@/lib/runs'
 
 // shortcut: one operator for the demo, upgrade to a sign-in when Mirage has users.
-const ACTOR = 'liam'
+export const ACTOR = 'liam'
 
 export type ActionKind = 'unfreeze' | 'kill' | 'stop'
 type Ask = (kind: ActionKind, run?: Run) => void
@@ -53,28 +53,42 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
 }
 
 function ReasonDialog({ pending, onClose }: { pending: { kind: ActionKind; run?: Run } | null; onClose: () => void }) {
-  const [choice, setChoice] = useState('')
-  const [note, setNote] = useState('')
   const act = useHumanAction()
   const kind = pending?.kind ?? 'unfreeze'
   const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
   const { title, effect } = copy(kind, pending?.run, runs)
-  const reason = [choice, note.trim()].filter(Boolean).join(' ')
+  return <HumanReasonDialog key={pending ? `${kind}:${pending.run?.id}` : 'closed'} open={!!pending} title={title} effect={effect}
+    reasons={REASONS[kind]} verb={VERB[kind]} destructive={kind !== 'unfreeze'} onClose={onClose}
+    onSubmit={(reason) => {
+      if (!pending) return
+      act.mutate({ kind, run: pending.run, body: { actor: ACTOR, reason } })
+      onClose()
+    }} />
+}
 
+export function HumanReasonDialog({ open, title, effect, reasons, verb, destructive = false,
+  onClose, onSubmit, busy = false, error }: {
+  open: boolean; title: string; effect: string; reasons: string[]; verb: string;
+  destructive?: boolean; onClose: () => void; onSubmit: (reason: string) => void;
+  busy?: boolean; error?: string;
+}) {
+  const [choice, setChoice] = useState('')
+  const [note, setNote] = useState('')
+  const reason = [choice, note.trim()].filter(Boolean).join(' ')
   const close = () => {
+    if (busy) return
     onClose()
     setChoice('')
     setNote('')
   }
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!pending || !reason) return
-    act.mutate({ kind, run: pending.run, body: { actor: ACTOR, reason } })
-    close()
+    if (!reason || busy) return
+    onSubmit(reason)
   }
 
   return (
-    <Dialog.Root open={!!pending} onOpenChange={(open) => !open && close()}>
+    <Dialog.Root open={open} onOpenChange={(open) => !open && close()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-ink/20 animate-[fade_160ms_var(--ease-out)]" />
         <Dialog.Content className="fixed top-1/2 left-1/2 z-50 w-[min(440px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 rounded-node bg-paper p-6 shadow-float animate-[pop_160ms_var(--ease-out)]">
@@ -83,10 +97,10 @@ function ReasonDialog({ pending, onClose }: { pending: { kind: ActionKind; run?:
               <Dialog.Title className="text-title font-semibold text-balance">{title}</Dialog.Title>
               <Dialog.Description className="text-ink-2">{effect}</Dialog.Description>
             </div>
-            <fieldset className="flex flex-col gap-3">
+            <fieldset disabled={busy} className="flex flex-col gap-3">
               <legend className="mb-2 text-control font-medium">Why?</legend>
               <RadioGroup.Root value={choice} onValueChange={setChoice} className="flex flex-col gap-0.5">
-                {REASONS[kind].map((r) => (
+                {reasons.map((r) => (
                   <label key={r} className="flex cursor-pointer items-center gap-3 rounded-control px-2 py-1.5 hover:bg-paper-2">
                     <RadioGroup.Item value={r} className="grid size-4 shrink-0 place-items-center rounded-full border border-ink-3 data-[state=checked]:border-ink">
                       <RadioGroup.Indicator className="size-2 rounded-full bg-ink" />
@@ -104,12 +118,13 @@ function ReasonDialog({ pending, onClose }: { pending: { kind: ActionKind; run?:
                 className="resize-none rounded-control border border-line bg-paper px-3 py-2 outline-none focus-visible:border-ink focus-visible:outline-none"
               />
             </fieldset>
+            {error && <p role="alert" className="text-alarm">{error}</p>}
             <div className="flex justify-end gap-2">
               <Dialog.Close asChild>
-                <Button type="button" variant="ghost">Cancel</Button>
+                <Button type="button" variant="ghost" disabled={busy}>Cancel</Button>
               </Dialog.Close>
-              <Button type="submit" variant={kind === 'unfreeze' ? 'primary' : 'destructive'} disabled={!reason}>
-                {VERB[kind]}
+              <Button type="submit" variant={destructive ? 'destructive' : 'primary'} disabled={!reason || busy}>
+                {busy ? 'Working…' : verb}
               </Button>
             </div>
           </form>

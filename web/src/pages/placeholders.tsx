@@ -1,14 +1,9 @@
 // Placeholders for Incidents; RunPage is now implemented in trace.tsx
-import { Link, useParams } from 'react-router'
+import { Link } from 'react-router'
 import { useIncidents, useRuns } from '@/api/client'
 import { runLabel } from '@/lib/runs'
 
 export { RunPage } from './trace'
-
-export function IncidentPage() {
-  const { id } = useParams()
-  return <Placeholder>Incident <span className="font-mono text-code">{id}</span>. The incident story lands here.</Placeholder>
-}
 
 export function Incidents() {
   const { data: incidents = [] } = useIncidents()
