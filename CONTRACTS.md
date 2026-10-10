@@ -120,6 +120,7 @@ Event types and their `payload`:
 | `fix.verified` | `{incident_id, attack_blocked, legit_task_completed, passed}` (incident → `fix_verified` only if `passed`) |
 | `pr.opened` | `{incident_id, url, number}` |
 | `human.action` | `HumanAction` (below) |
+| `agent.registered` | `AgentSpec` (each `POST /agents`; the engine restores registrations from these after a restart) |
 
 ### GateDecision
 
@@ -246,7 +247,11 @@ So the UI and MCP always agree on the next step.
 }
 ```
 
-`action`: `freeze | unfreeze | kill | approve_restart | global_stop | approve | reject | handoff | merge`
+`action`: `freeze | unfreeze | kill | approve_restart | global_stop | approve | reject | handoff | merge | detonate | find_cause | verify`
+
+`POST /incidents/{id}/detonate`, `/bisect` and `/verify` take an optional `HumanRequest` body `{actor, reason}` and log it
+as a `human.action` (`detonate`, `find_cause`, `verify`). Without a body the actor is logged as `unknown`.
+After an engine restart, a global STOP stays on (it comes back from the log); only `/demo/reset` lifts it.
 
 ### ServiceView (Gmail, Calendar, CRM panels)
 
@@ -490,7 +495,7 @@ Limits: Mirage sees only tool calls. Code that calls an API outside a tool, and 
 | POST | `/runs/{id}/complete` | → `Run` | The agent finished its task. Emits `run.status` → `completed`. |
 
 Destination checks read the `to` and `url` arguments of **any** tool, so tool names are free.
-`allow.email_to` takes domains (`mirage-demo.com`) or full addresses (`demo-user@mirage-demo.com`).
+`allow.email_to` takes domains (`mirage-demo.com`), `*@domain`, or full addresses (`demo-user@mirage-demo.com`).
 
 The SDK sends the run token as `Authorization: Bearer <run_token>`.
 Human-action POSTs from web and MCP (§5) send `HumanRequest` `{actor, reason}`.

@@ -10,6 +10,7 @@ import asyncio
 import os
 import threading
 import time
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -58,7 +59,24 @@ PUBLIC = os.getenv("MIRAGE_PUBLIC") == "1"  # exposed (tunnel): fix checks need 
 REPLAY = (Replay(_fixture(), float(os.getenv("MIRAGE_REPLAY_SPEED", "1")))
           if MODE == "replay" else None)
 
-app = FastAPI(title="Mirage engine", version="0.1.0")
+def restore():
+    """After an engine restart: agent registrations and a global STOP come back from the log.
+    Only /demo/reset (which clears the log) lifts a STOP."""
+    for e in events.read():
+        if e.type == "agent.registered":
+            gate.agents[e.payload["name"]] = AgentSpec.model_validate(e.payload)
+        elif e.type == "global.stop":
+            gate.STOP.set()
+
+
+@asynccontextmanager
+async def lifespan(app):
+    if not REPLAY:
+        restore()
+    yield
+
+
+app = FastAPI(title="Mirage engine", version="0.1.0", lifespan=lifespan)
 
 
 def live_only():
@@ -92,6 +110,7 @@ data_plane = {"dependencies": [Depends(live_only)]}
 @app.post("/agents", **data_plane)
 def register_agent(spec: AgentSpec) -> AgentSpec:
     gate.agents[spec.name] = spec
+    events.emit("agent.registered", spec.model_dump(mode="json"))  # survives an engine restart
     return spec
 
 
@@ -281,6 +300,15 @@ def kill(run_id: str, body: HumanRequest) -> Run:
     return _act(run_id, body, "kill", ("running", "frozen"))
 
 
+def _audit(action, incident_id, body):
+    """Log who triggered a detonation, a bisection or a fix check (AGENTS.md: every human
+    decision is logged). Callers that send no body are logged as "unknown"."""
+    events.emit("human.action", {"actor": body.actor if body else "unknown", "action": action,
+                                 "target": incident_id,
+                                 "reason": body.reason if body else "(no reason given)",
+                                 "ts": datetime.now(UTC).isoformat()})
+
+
 def _incident_step(incident_id, step) -> dict:
     """detonate / bisect / handoff / verify. Replay: play the next segment, return its head."""
     if not REPLAY:
@@ -294,7 +322,7 @@ _detonating = set()  # incident ids with a detonation running in this API proces
 
 
 @app.post("/incidents/{incident_id}/detonate")
-def detonate(incident_id: str, runs: int = 3) -> dict:
+def detonate(incident_id: str, runs: int = 3, body: HumanRequest | None = None) -> dict:
     """Live: replay the frozen run in the sandbox in the background; results come as events.
     Works for incidents frozen by any process: the snapshot is read from disk."""
     if REPLAY:
@@ -303,6 +331,7 @@ def detonate(incident_id: str, runs: int = 3) -> dict:
     if incident_id in _detonating:
         raise HTTPException(409, "A detonation is already running for this incident")
     _detonating.add(incident_id)
+    _audit("detonate", incident_id, body)
     detonation_id = f"det_{incident_id.removeprefix('inc_')}_{int(time.time())}"
 
     def work():
@@ -321,7 +350,7 @@ def detonate(incident_id: str, runs: int = 3) -> dict:
 
 
 @app.post("/incidents/{incident_id}/bisect")
-def bisect(incident_id: str, runs: int = 2) -> dict:
+def bisect(incident_id: str, runs: int = 2, body: HumanRequest | None = None) -> dict:
     """Live: remove one input at a time in the background; rows come as bisection.step events."""
     if REPLAY:
         return _incident_step(incident_id, "bisect")
@@ -331,6 +360,7 @@ def bisect(incident_id: str, runs: int = 2) -> dict:
     if incident_id in _detonating:
         raise HTTPException(409, "A detonation or bisection is already running")
     _detonating.add(incident_id)
+    _audit("find_cause", incident_id, body)
 
     def work():
         try:
@@ -370,7 +400,7 @@ def pr_opened(incident_id: str, body: PullRequest) -> dict:
 
 
 @app.post("/incidents/{incident_id}/verify")
-def verify(incident_id: str, runs: int = 3, authorization: str = Header("")) -> dict:
+def verify(incident_id: str, runs: int = 3, authorization: str = Header(""), body: HumanRequest | None = None) -> dict:
     """Live: check a fix in the background (current agent code + policy, from scratch).
     The result comes as fix.verified {attack_blocked, legit_task_completed, passed}."""
     if REPLAY:
@@ -381,6 +411,7 @@ def verify(incident_id: str, runs: int = 3, authorization: str = Header("")) -> 
     if incident_id in _detonating:
         raise HTTPException(409, "A detonation is already running for this incident")
     _detonating.add(incident_id)
+    _audit("verify", incident_id, body)
 
     def work():
         try:
