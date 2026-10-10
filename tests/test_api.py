@@ -165,3 +165,13 @@ def test_unfreeze_follows_the_incident(api, step, code):
     assert r.status_code == code
     if step == "confirmed":
         assert "Kill it and approve a clean restart" in r.json()["detail"]
+
+
+def test_a_model_typo_tool_does_not_freeze_but_a_disallowed_tool_does(api):
+    gate.agents["meeting_assistant"].allow.tools.remove("export_contacts")
+    run_id, auth = start(api)
+    typo = check(api, run_id, auth, "search_contactschannelcommentary", query="x").json()
+    assert (typo["decision"], typo["rule_id"]) == ("allow", "UNKNOWN_TOOL")
+    assert api.get(f"/runs/{run_id}").json()["status"] == "running"
+    known = check(api, run_id, auth, "export_contacts").json()  # the agent has it, not allowed
+    assert (known["decision"], known["rule_id"]) == ("freeze", "TOOL_NOT_ALLOWED")

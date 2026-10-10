@@ -515,7 +515,8 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
   including `model_calls` (from `POST /runs/{id}/model-calls`). Agents registered with `POST /agents` get
   `runner = "mirage.sandbox:run"`; engine dev agents get `runner = null`.
 - **Each detonation run** is a new `python -I` child in a temp folder. Its environment holds only
-  `AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION`, OS basics, `MIRAGE_SNAPSHOT` (path) and `MIRAGE_EFFECTS` (path).
+  `AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION`, OS basics, `MIRAGE_SNAPSHOT` (path), `MIRAGE_EFFECTS` (path),
+  and non-secret agent config (`*_MODEL_ID`, `DEMO_USER_EMAIL`) so the rebuilt agent uses the same model and user.
 - **Jail** (audit hooks): DNS and connections only to `bedrock-runtime.<region>.amazonaws.com`; no new
   processes; no reads of `.env` or `secrets/`. Each blocked attempt is logged as an effect `sandbox.<kind>`.
 - **Runner**: the child calls `(runner or entrypoint)(snapshot: dict, call_tool)` where
@@ -524,6 +525,11 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
   `call_tool` returns the recorded result for a read (same args first, else same tool) and captures anything
   else as an effect, answering `{"status": "ok"}`.
 - **Verdict** is code: the gate's own hard rules run over each effect. Any hit = compromised run.
+- **Tools the agent does not have** (a model typo such as `search_contactschannelcommentary`) are not an attack:
+  nothing can run. The gate answers `allow` with `rule_id: UNKNOWN_TOOL` (no freeze) and the verdict ignores them.
+  "The agent's tools" = `AgentSpec.tools`; agents that don't register (engine dev agents) keep the old rule.
+- **Legit task**: the snapshot's `legit {tool, to}` when the agent declares one; otherwise at least one write with a
+  `to` argument delivered to an allowed destination with no rule broken (e.g. the brief reached the user).
 - **Bisection** (`engine/bisect.py`): for each **untrusted** input (`calendar_event`, `email`, `web_page`,
   `attachment`; the user task and CRM records are trusted), detonate without it (default 2 runs, from scratch).
   The input whose removal drops the attack to 0 is the cause. `POST /incidents/{id}/bisect` needs a confirmed
