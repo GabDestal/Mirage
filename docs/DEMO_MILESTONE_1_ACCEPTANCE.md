@@ -8,15 +8,23 @@ execution, repair, pull-request creation, merge or clean-restart acceptance.
 ## Exact composition
 
 Common base: `289a6968539d3d4d2eadf5a72354f7e6a2c5882f`.
-Provider/integration/browser tested composition: `c37811a648a37aeb3cd999de77d165f29cfecad8`,
-retained locally as `validation/m1-demo-composed`. Source ranges were cherry-picked
-from the coordinator-confirmed heads, including both follow-ups:
+Provider/integration/browser tested composition: `c37811a648a37aeb3cd999de77d165f29cfecad8`.
+Final presentation composition: `fefbf94339ef643c3f426716102b21652cfa25dd`, retained
+locally as `validation/m1-demo-composed`. Source ranges were cherry-picked from
+the coordinator-confirmed heads, including follow-ups:
 
 | Dependency | Exact source head |
 |---|---|
-| [PR109: real Miragio / recorded labels](https://github.com/GabDestal/Mirage/pull/109) | `6f051dd018e7899df50a89ae3f1d4ef8acc3339d` |
+| [PR109: real Miragio / recorded labels](https://github.com/GabDestal/Mirage/pull/109) | `6d81b769aaac834554e0e24df46e649621fb8712` |
 | [PR110: recorded engine](https://github.com/GabDestal/Mirage/pull/110) | `41eb5c97ef510ba986dc108918820abb43669bd9` |
 | [PR111: isolated launcher](https://github.com/GabDestal/Mirage/pull/111) | `cff4e13dd0f543b72beeb5a79b3eb1851ad5d0f0` |
+
+Provider rehearsal used PR109's preceding `6f051dd018e7899df50a89ae3f1d4ef8acc3339d`.
+The final amendment changes only the demo drawer access sentence and its focused
+browser assertions. Engine, MCP/provider, launcher and owned selfcheck files are
+identical between tested compositions. Per coordinator instruction, rebuilt web
+and rechecked the actual drawer through approved recorded HTTP/dashboard handoff
+without additional Bedrock requests. Documentation updates do not alter runtime.
 
 This acceptance PR owns only `mcp/scripts/demo-e2e.mjs` and this report. Companion
 implementation commits belong to their PRs and must land before running this script
@@ -130,7 +138,8 @@ pixel ratio 3. Incident text wrapped and document had no horizontal overflow.
   `Restarted the recorded demo` before new timed events arrived.
 
 Local screenshot samples: `/tmp/m1-incident-mobile.png` and
-`/tmp/m1-chat-approval-final-shot.json`; these are temporary QA material, not
+`/tmp/m1-chat-approval-final-shot.json` and `/tmp/m1-final-drawer-shot.json`;
+these are temporary QA material, not
 portable repository artifacts. The repeatable checks and observed values above
 are the durable evidence.
 
@@ -154,7 +163,17 @@ SHA256 manifest exactly:
 `8a5a77d0bcc17140b769e785945958b6667a8af444ae69b7a743e84563636903`.
 No original service was started, stopped or reset; no `.env` was copied or read
 into terminal/browser/report output. Only the acceptance launcher owns its child
-processes and disposable state. Final owned shutdown verification follows below.
+processes and disposable state. Signaled only launcher PID50632; launcher/engine/
+chat/Vite PIDs50632/50644/50652/50653 all exited, dedicated ports5174/8010/8011 had
+no listeners, and owned temporary directory `mirage-demo-Ib8AaC` disappeared.
+Closed only the acceptance browser tab. Main/data checks still matched after
+shutdown; the local validation branch remains for exact-composition review.
+
+The browser-discovered drawer access claim was corrected by PR109's owner at the
+final head above. Final actual drawer text: “This prompt is a recorded example.
+It does not grant live incident access.” The earlier scoped-access claim was
+absent, and the prompt still explicitly supplied no live capability. No companion
+implementation was edited by this acceptance worker.
 
 Known limitations:
 
@@ -165,9 +184,6 @@ Known limitations:
    ask a conversational question before calling the actual handoff tool. A new
    explicit request produced the genuine approval card; the extra question is
    model behavior, not an extra implemented approval gate.
-3. The recorded demo handoff drawer still displayed “This prompt includes access
-   scoped to this incident” alongside its correct no-live-capability notice.
-   Routed to PR109 owner/coordinator; final acceptance decision pending.
-4. Unsupported stories, epoch/reconnect/failure UX, live integrations, fresh
+3. Unsupported stories, epoch/reconnect/failure UX, live integrations, fresh
    sandbox proof, real fix validation, merges and clean restarts were not accepted
    by this rehearsal. Recorded success ratios/PR42 are examples only.
