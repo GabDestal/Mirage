@@ -9,6 +9,7 @@ const CHAT = process.env.MIRAGE_CHAT_API ?? 'http://localhost:8001'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: { 'import.meta.env.VITE_MIRAGE_UI_MODE': JSON.stringify(process.env.MIRAGE_UI_MODE === 'demo' ? 'demo' : 'live') },
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
     proxy: {
