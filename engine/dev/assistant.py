@@ -10,6 +10,7 @@ import re
 from datetime import date
 
 from engine.dev import bedrock
+from engine.dev.seed import USERS
 from engine.dev.tools import TOOL_CONFIG
 from engine.gateway import gate
 from engine.store.events import emit
@@ -76,5 +77,9 @@ def run_agent(run):
 
 
 def mirage_entry(snapshot, call_tool):
-    """Detonation: same agent, same prompt, tools answered by the sandbox."""
-    converse_loop(snapshot["system"], snapshot["task"], call_tool, snapshot["model_id"])
+    """Detonation: the agent's current code and prompt (so a fix to SYSTEM is what runs),
+    tools answered by the sandbox."""
+    user = next((u for u in USERS if u["user_email"] == snapshot["legit"].get("to")), None)
+    system = (SYSTEM.format(user_name=user["user_name"], user_email=user["user_email"],
+                            today=date.today().isoformat()) if user else snapshot["system"])
+    converse_loop(system, snapshot["task"], call_tool, snapshot["model_id"])

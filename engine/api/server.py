@@ -305,8 +305,28 @@ def handoff(incident_id: str) -> dict:
 
 
 @app.post("/incidents/{incident_id}/verify")
-def verify(incident_id: str) -> dict:
-    return _incident_step(incident_id, "verify")
+def verify(incident_id: str, runs: int = 3) -> dict:
+    """Live: check a fix in the background (current agent code + policy, from scratch).
+    The result comes as fix.verified {attack_blocked, legit_task_completed, passed}."""
+    if REPLAY:
+        return _incident_step(incident_id, "verify")
+    get_incident(incident_id)
+    if incident_id in _detonating:
+        raise HTTPException(409, "A detonation is already running for this incident")
+    _detonating.add(incident_id)
+
+    def work():
+        try:
+            sandbox.detonate(incident_id, runs, verify=True)
+        except Exception as e:  # noqa: BLE001 - keep the API up; the operator can retry
+            events.emit("detonation.failed", {"incident_id": incident_id, "detonation_id": "",
+                                              "error": f"{type(e).__name__}: {e}"},
+                        incident_id=incident_id, env="mirage")
+        finally:
+            _detonating.discard(incident_id)
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"incident_id": incident_id, "status": "verifying"}
 
 
 @app.post("/demo/start", status_code=204)

@@ -39,8 +39,11 @@ def fold(events):
                 trigger=gates[p["trigger_call_id"]], inputs=p.get("inputs", []),
                 snapshot_id=f"snap_{p['incident_id'].removeprefix('inc_')}")
         elif (inc := incidents.get(e.incident_id)) is not None:
-            if e.type == "detonation.started" and p.get("removed_input_id"):
-                continue  # one of bisection's own detonations, not a new verdict
+            if e.type == "detonation.started" and (p.get("removed_input_id")
+                                                   or p.get("purpose") == "verify"):
+                continue  # bisection's or a fix check's own detonation, not a new verdict
+            if e.type == "fix.verified" and not p.get("passed", True):
+                continue  # the fix failed: the incident stays where it was
             inc.status = INCIDENT_STATUS.get(e.type, inc.status)
             if e.type == "verdict.ready":
                 inc.verdict = Verdict.model_validate(p)

@@ -109,7 +109,7 @@ Event types and their `payload`:
 | `run.status` | `{from, to, actor, reason}` |
 | `global.stop` | `{actor, reason}` |
 | `incident.opened` | `{incident_id, trigger_call_id, inputs?}` (`inputs`: `Input[]`, what the run read) |
-| `detonation.started` | `{incident_id, detonation_id, n_runs}` |
+| `detonation.started` | `{incident_id, detonation_id, n_runs, removed_input_id, purpose}` (`purpose`: `detonate` \| `verify`) |
 | `detonation.effect` | `Effect` (below) |
 | `detonation.completed` | `Detonation` (below) |
 | `detonation.failed` | `{incident_id, detonation_id, error}` (the incident goes back to `open`) |
@@ -117,7 +117,7 @@ Event types and their `payload`:
 | `bisection.step` | `BisectionRow` (below) |
 | `bisection.completed` | `{incident_id, cause_input_id}` (`null`: no single input proven; the incident goes back to `confirmed`) |
 | `handoff.created` | `{incident_id, prompt, codex_url}` |
-| `fix.verified` | `{incident_id, attack_blocked, legit_task_completed}` |
+| `fix.verified` | `{incident_id, attack_blocked, legit_task_completed, passed}` (incident → `fix_verified` only if `passed`) |
 | `pr.opened` | `{incident_id, url, number}` |
 | `human.action` | `HumanAction` (below) |
 
@@ -528,6 +528,10 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
   `attachment`; the user task and CRM records are trusted), detonate without it (default 2 runs, from scratch).
   The input whose removal drops the attack to 0 is the cause. `POST /incidents/{id}/bisect` needs a confirmed
   verdict (else 409); CLI: `uv run python -m engine.cli bisect --incident inc_001 [--runs 2]`.
+- **Fix verification** (`POST /incidents/{id}/verify`, and `mirage detonate` by default): reruns the **current**
+  agent code from scratch (no recorded model replies) and judges with the policy at freeze **and** the current
+  policy (agent registration, else `policies.yaml` re-read). A fix that allowlists the attacker still fails.
+  `passed` = no violation in n/n runs and the legit task done n/n. `--from-freeze` gives the operator replay.
 - CLI: `uv run python -m engine.cli detonate --incident inc_001 [--runs 3] [--remove-input in_02] [--json]`.
   Exit code 0 only when `passed` (attack blocked n/n and legit task n/n), so a regression test can call it.
 

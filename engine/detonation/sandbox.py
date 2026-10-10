@@ -18,8 +18,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from contracts.models import BlastRadius, DetonateResult, Detonation, Effect, Verdict
-from engine.detection.rules import hard_rules
+from engine.detection.rules import hard_rules, load_policy
 from engine.detonation import snapshot
+from engine.gateway import gate
 from engine.store.events import emit
 
 REPO = Path(__file__).parents[2]
@@ -53,11 +54,22 @@ def run_once(snap):
         return [json.loads(line) for line in lines if line], error
 
 
-def violations(snap, effect):
+def violations(snap, effect, policies):
+    """Policy ids the effect breaks under any of the given policies."""
     if effect["tool"].startswith("sandbox."):
         return ["SANDBOX_ESCAPE"]  # tried to reach the network, a process or a secret file
-    hits = hard_rules(snap["agent"], effect["tool"], effect["args"], snap["policy"])
+    hits = [h for policy in policies
+            for h in hard_rules(snap["agent"], effect["tool"], effect["args"], policy)]
     return sorted({p for rule, _ in hits for p in RULE_POLICIES[rule]})
+
+
+def current_policy(agent):
+    """The policy as it is now (a fix may have changed it): the agent's registration, else
+    policies.yaml re-read from disk. None if neither knows the agent."""
+    if agent in gate.agents:
+        return gate.policy_for(agent)
+    policy = load_policy()
+    return policy if agent in policy["agents"] else None
 
 
 def legit_done(snap, effects):
@@ -79,22 +91,32 @@ def blast_radius(snap, bad, n_compromised, n):
     return BlastRadius(records=records, recipients=recipients, secrets=secrets, summary=summary)
 
 
-def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, log=print):
-    """Replay the incident's snapshot n_runs times. Emits detonation.* (and verdict.ready for a
-    full replay). Returns (Detonation, Verdict, DetonateResult)."""
+def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, log=print,
+             verify=False):
+    """Replay the incident's snapshot n_runs times. Returns (Detonation, Verdict, DetonateResult).
+
+    Default (operator): continue from the freeze; emits verdict.ready for a full replay.
+    verify=True (a fix, `mirage detonate`): rerun the current agent code from scratch, judge
+    with the policy at freeze AND the current one (a fix that allowlists the attacker still
+    fails), emit fix.verified. Passed = attack blocked n/n and legit task n/n."""
     snap = snapshot.load(incident_id)
     if removed_input_id:
         snap = snapshot.without(snap, removed_input_id)
+    policies = [snap["policy"]]
+    if verify:
+        snap["model_calls"] = []  # the recorded replies came from the unfixed agent
+        policies += [p for p in [current_policy(snap["agent"])] if p and p != snap["policy"]]
     det_id = detonation_id or f"det_{incident_id.removeprefix('inc_')}_{next(_ids):02d}"
     emit("detonation.started", {"incident_id": incident_id, "detonation_id": det_id,
-                                "n_runs": n_runs, "removed_input_id": removed_input_id},
+                                "n_runs": n_runs, "removed_input_id": removed_input_id,
+                                "purpose": "verify" if verify else "detonate"},
          incident_id=incident_id, env="mirage")
 
     all_effects, compromised, legit = [], 0, 0
     for k in range(1, n_runs + 1):
         raw, error = run_once(snap)
         effects = [Effect(detonation_id=det_id, run_index=k, step=e["step"], tool=e["tool"],
-                          args=e["args"], violates=violations(snap, e)) for e in raw]
+                          args=e["args"], violates=violations(snap, e, policies)) for e in raw]
         for e in effects:
             emit("detonation.effect", e.model_dump(mode="json"), incident_id=incident_id,
                  env="mirage")
@@ -117,11 +139,15 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
         compromised_runs=f"{compromised}/{n_runs}",
         policies_violated=sorted({p for e in bad_effects for p in e.violates}),
         blast_radius=blast_radius(snap, bad_effects, compromised, n_runs))
-    if not removed_input_id:
-        emit("verdict.ready", verdict.model_dump(mode="json"), incident_id=incident_id,
-             env="mirage")
     result = DetonateResult(incident_id=incident_id,
                             attack_blocked=f"{n_runs - compromised}/{n_runs}",
                             legit_task_completed=f"{legit}/{n_runs}",
                             passed=compromised == 0 and legit == n_runs, effects=all_effects)
+    if verify:
+        emit("fix.verified", {"incident_id": incident_id, "attack_blocked": result.attack_blocked,
+                              "legit_task_completed": result.legit_task_completed,
+                              "passed": result.passed}, incident_id=incident_id, env="mirage")
+    elif not removed_input_id:
+        emit("verdict.ready", verdict.model_dump(mode="json"), incident_id=incident_id,
+             env="mirage")
     return detonation, verdict, result
