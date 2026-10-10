@@ -12,8 +12,20 @@ export function fleetStatus(run: Pick<Run, 'status'>) {
   }
 }
 
+/** Distinct production agents; restarts add runs, not agents. */
+export function agentCount(runs: Pick<Run, 'agent' | 'env'>[]) {
+  return new Set(runs.filter((run) => run.env === 'prod').map((run) => run.agent)).size
+}
+
 export function healthyAgents(runs: Run[]) {
-  return runs.filter((run) => run.env === 'prod' && ['Working', 'Healthy'].includes(fleetStatus(run))).length
+  return agentCount(runs.filter((run) => ['Working', 'Healthy'].includes(fleetStatus(run))))
+}
+
+/** Runs grouped by agent, keeping input order: newest-first runs give newest-first groups. */
+export function groupByAgent<T extends Pick<Run, 'agent'>>(runs: T[]) {
+  const groups = new Map<string, T[]>()
+  for (const run of runs) groups.set(run.agent, [...(groups.get(run.agent) ?? []), run])
+  return [...groups].map(([agent, runs]) => ({ agent, runs }))
 }
 
 /** Only the baseline incident replay, never bisection or fix verification. */
