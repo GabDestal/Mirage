@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, test } from 'node:test'
-import { parseChatEvent, sanitize, streamTurn, submitApproval } from '../src/api/chat.ts'
+import { batchDeltas, parseChatEvent, sanitize, streamTurn, submitApproval, type ChatTurn } from '../src/api/chat.ts'
 
 const originalFetch = globalThis.fetch
 afterEach(() => { globalThis.fetch = originalFetch })
@@ -73,4 +73,25 @@ test('sanitizes nested credentials and bearer tokens while preserving visible in
   assert.deepEqual(sanitize({ incident_id: 'inc-1', nested: [{ mirage_token: 'sensitive', explanation: 'Authorization: Bearer fake-capability and secret=hidden' }] }), {
     incident_id: 'inc-1', nested: [{ mirage_token: '[redacted]', explanation: 'Authorization: Bearer [redacted] and secret=[redacted]' }],
   })
+})
+
+test('reveals bursty text a few characters per frame and keeps later events behind it', async () => {
+  const frames: FrameRequestCallback[] = []
+  Object.assign(globalThis, { document: { hidden: false }, matchMedia: () => ({ matches: false }), requestAnimationFrame: (callback: FrameRequestCallback) => frames.push(callback), cancelAnimationFrame: () => {} })
+  let turn: ChatTurn = { id: 't', question: 'q', parts: [], status: 'running' }
+  const shown = () => turn.parts[0]?.kind === 'text' ? turn.parts[0].text.length : 0
+  const batch = batchDeltas((change) => { turn = change(turn) })
+  const burst = 'Mirage freezes the compromised run and detonates it in a twin. '.repeat(2)
+  batch.apply({ type: 'text_delta', text: burst })
+  let now = 0
+  const step = () => { now += 16; frames.shift()?.(now) }
+  step()
+  assert.ok(shown() > 0 && shown() < 20, `first frame showed ${shown()} chars`)
+  batch.apply({ type: 'done' })
+  const drained = batch.drained()
+  assert.equal(turn.status, 'running')
+  while (frames.length) step()
+  await drained
+  assert.equal(shown(), burst.length)
+  assert.equal(turn.status, 'done')
 })
