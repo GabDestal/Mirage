@@ -115,7 +115,7 @@ Event types and their `payload`:
 | `detonation.failed` | `{incident_id, detonation_id, error}` (the incident goes back to `open`) |
 | `verdict.ready` | `Verdict` (below) |
 | `bisection.step` | `BisectionRow` (below) |
-| `bisection.completed` | `{incident_id, cause_input_id}` |
+| `bisection.completed` | `{incident_id, cause_input_id}` (`null`: no single input proven; the incident goes back to `confirmed`) |
 | `handoff.created` | `{incident_id, prompt, codex_url}` |
 | `fix.verified` | `{incident_id, attack_blocked, legit_task_completed}` |
 | `pr.opened` | `{incident_id, url, number}` |
@@ -524,6 +524,10 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
   `call_tool` returns the recorded result for a read (same args first, else same tool) and captures anything
   else as an effect, answering `{"status": "ok"}`.
 - **Verdict** is code: the gate's own hard rules run over each effect. Any hit = compromised run.
+- **Bisection** (`engine/bisect.py`): for each **untrusted** input (`calendar_event`, `email`, `web_page`,
+  `attachment`; the user task and CRM records are trusted), detonate without it (default 2 runs, from scratch).
+  The input whose removal drops the attack to 0 is the cause. `POST /incidents/{id}/bisect` needs a confirmed
+  verdict (else 409); CLI: `uv run python -m engine.cli bisect --incident inc_001 [--runs 2]`.
 - CLI: `uv run python -m engine.cli detonate --incident inc_001 [--runs 3] [--remove-input in_02] [--json]`.
   Exit code 0 only when `passed` (attack blocked n/n and legit task n/n), so a regression test can call it.
 

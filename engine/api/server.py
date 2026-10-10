@@ -29,6 +29,7 @@ from contracts.models import (
     ToolResult,
     WaitResult,
 )
+from engine import bisect as engine_bisect
 from engine.api.replay import Replay
 from engine.api.state import fold
 from engine.detection.rules import POLICY
@@ -273,8 +274,29 @@ def detonate(incident_id: str, runs: int = 3) -> dict:
 
 
 @app.post("/incidents/{incident_id}/bisect")
-def bisect(incident_id: str) -> dict:
-    return _incident_step(incident_id, "bisect")
+def bisect(incident_id: str, runs: int = 2) -> dict:
+    """Live: remove one input at a time in the background; rows come as bisection.step events."""
+    if REPLAY:
+        return _incident_step(incident_id, "bisect")
+    incident = get_incident(incident_id)
+    if not (incident.verdict and incident.verdict.confirmed):
+        raise HTTPException(409, "Detonate first: bisection needs a confirmed compromise")
+    if incident_id in _detonating:
+        raise HTTPException(409, "A detonation or bisection is already running")
+    _detonating.add(incident_id)
+
+    def work():
+        try:
+            engine_bisect.bisect(incident_id, runs)
+        except Exception as e:  # noqa: BLE001 - keep the API up; the operator can retry
+            events.emit("bisection.completed", {"incident_id": incident_id,
+                                                "cause_input_id": None, "error": str(e)},
+                        incident_id=incident_id, env="mirage")
+        finally:
+            _detonating.discard(incident_id)
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"incident_id": incident_id, "status": "bisecting"}
 
 
 @app.post("/incidents/{incident_id}/handoff")
