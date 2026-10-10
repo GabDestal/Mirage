@@ -45,19 +45,24 @@ function stageTitle(tool: string, agent: string): string {
     case 'create_invoice': case 'send_invoice': case 'record_payment': case 'mark_reminded': return 'Update invoices'
     case 'list_pull_requests': case 'read_pull_request': case 'read_file': return 'Review changes'
     case 'submit_review': case 'post_inline_comment': case 'set_labels': case 'update_description': return 'Share review'
-    default: return readableTool(tool)
+    default: return 'Other activity'
   }
 }
 
 export type WorkflowStage<T extends Call = Call> = { id: string; title: string; calls: T[] }
-/** Consecutive activity only: a return to an earlier activity remains a new stage. */
+/** Activity areas, not a planned sequence. Each area's actions retain recorded order. */
 export function buildWorkflow<T extends Call>(calls: T[], agent: string): WorkflowStage<T>[] {
   const stages: WorkflowStage<T>[] = []
+  const byTitle = new Map<string, WorkflowStage<T>>()
   for (const call of calls) {
     const title = stageTitle(call.tool, agent)
-    const last = stages.at(-1)
-    if (last?.title === title) last.calls.push(call)
-    else stages.push({ id: call.callId, title, calls: [call] })
+    const stage = byTitle.get(title)
+    if (stage) stage.calls.push(call)
+    else {
+      const next = { id: call.callId, title, calls: [call] }
+      byTitle.set(title, next)
+      stages.push(next)
+    }
   }
   return stages
 }

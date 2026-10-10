@@ -1,10 +1,15 @@
 .trace-page {
+  /* Fleet and chat use a light surface, including on a dark OS theme. */
+  --paper: #fff; --paper-2: #fafafa; --line: #e2e8f0;
+  --ink: #18181b; --ink-2: #52525b; --mirage: #2563eb;
+  --alarm: #b91c1c; --alarm-wash: #fef2f2;
   --trace-surface: var(--paper); --trace-wash: var(--paper-2); --trace-line: var(--line);
   --trace-ink: var(--ink); --trace-muted: var(--ink-2); --trace-accent: var(--mirage);
   display: flex; flex-direction: column; min-height: 100%; padding: 32px 36px 64px;
   background: var(--trace-surface); color: var(--trace-ink);
   font-family: 'Mirage Login Inter', 'Sidebar Inter', ui-sans-serif, system-ui, sans-serif;
   font-size: 14px; line-height: 20px;
+  color-scheme: light;
 }
 .trace-container { width: 100%; max-width: 1120px; margin-inline: auto; display: flex; flex-direction: column; gap: 24px; }
 .trace-nav-back { display: inline-flex; align-items: center; gap: 6px; width: fit-content; color: var(--trace-muted); font-size: 13px; text-decoration: none; }
@@ -38,7 +43,7 @@
 .trace-stage.is-current { background: var(--trace-wash); }
 .trace-stage.is-selected { border-color: var(--trace-accent); background: var(--trace-wash); }
 .trace-stage-top { width: 100%; display: flex; align-items: center; justify-content: space-between; color: var(--trace-muted); margin-bottom: 5px; }
-.trace-stage-number { display: grid; place-items: center; border: 1px solid var(--trace-line); border-radius: 50%; width: 24px; height: 24px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.trace-stage-symbol { display: grid; place-items: center; width: 24px; height: 24px; }
 .trace-stage strong { font-size: 14px; line-height: 20px; font-weight: 600; }
 .trace-stage-state { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--trace-muted); }
 .trace-stage-summary { font-size: 12px; line-height: 18px; color: var(--trace-muted); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -73,6 +78,14 @@
 .trace-result-summary h4, .trace-technical h4 { font-size: 12px; font-weight: 500; color: var(--trace-muted); margin: 0 0 6px; }
 .trace-result-summary p { font-size: 13px; color: var(--trace-muted); margin: 0 0 10px; }
 .trace-result-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow-y: auto; }
+.trace-message { margin-top: 20px; }
+.trace-message h4 { font-size: 12px; font-weight: 500; color: var(--trace-muted); margin-bottom: 6px; }
+.trace-message p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; font-size: 13px; max-width: 72ch; max-height: 240px; overflow-y: auto; }
+.trace-history { border-top: 1px solid var(--trace-line); padding-top: 12px; }
+.trace-history summary { width: fit-content; cursor: pointer; color: var(--trace-muted); padding-block: 8px; font-size: 13px; min-height: 36px; }
+.trace-history summary:hover { color: var(--trace-ink); }
+.trace-history-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.trace-order { min-width: 24px; font-variant-numeric: tabular-nums; color: var(--trace-muted); font-size: 12px; }
 .trace-returned-item:not(:empty) { padding-block: 10px; border-top: 1px solid var(--trace-line); }
 .trace-technical { margin-top: 20px; font-size: 13px; }
 .trace-technical summary { cursor: pointer; color: var(--trace-muted); width: fit-content; padding-block: 8px; min-height: 36px; }
@@ -105,7 +118,7 @@
   .trace-stages > li:not(:last-child)::after { display: block; left: 27px; top: 100%; height: 16px; width: 1px; }
   .trace-detail-layout { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .trace-facts > div { grid-template-columns: 80px minmax(0, 1fr); }
-  .trace-nav-back, .trace-technical summary, .trace-section-heading button, .trace-header-meta a { min-height: 44px; }
+  .trace-nav-back, .trace-technical summary, .trace-history summary, .trace-section-heading button, .trace-header-meta a { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .trace-page *, .trace-page *::before, .trace-page *::after { animation: none !important; transition: none !important; }

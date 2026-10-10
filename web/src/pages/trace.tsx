@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, ArrowUpRight, Check, ChevronRight, Circle, Clock, Pause, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Calendar, Check, ChevronRight, Circle, Clock, Mail, Pause, Search, ShieldAlert, Wrench } from 'lucide-react'
 import { useEvents, useRuns, type GateDecision, type MirageEvent, type Run } from '@/api/client'
 import { useNow } from '@/api/stream'
 import { AgentAvatar } from '@/components/avatar'
@@ -57,6 +57,8 @@ function RunWorkflow({ id }: { id: string | undefined }) {
   const selectedStage = stages.find((stage) => stage.id === selection?.stageId)
   const activeCall = selectedStage?.calls.find((call) => call.callId === selection?.callId)
   const latestCall = traceCalls.at(-1)
+  const currentStage = stages.find((stage) => stage.calls.some((call) => call.callId === latestCall?.callId))
+  const actionOrder = new Map(traceCalls.map((call, index) => [call.callId, index + 1]))
   const lastEvent = events.findLast((event) => event.run_id === id)
 
   if (!run) return <div className="trace-page"><div className="trace-container">
@@ -91,26 +93,29 @@ function RunWorkflow({ id }: { id: string | undefined }) {
     </header>
     {isError ? <p className="trace-notice" role="status">Latest run status is unavailable. Showing the last received activity. <button onClick={() => void refetch()}>Try again</button></p> : null}
     {run.status === 'frozen' ? <div className="trace-pause-note"><Pause size={16} aria-hidden="true" />
-      <p><strong>Paused for human review.</strong> Review the held action below{run.incident_id ? ' or open the incident to decide what happens next.' : '.'}</p>
+      <p><strong>Paused for human review.</strong> Review its activity below{run.incident_id ? ' or open the incident to decide what happens next.' : '.'}</p>
     </div> : null}
     <section className="trace-workflow" aria-labelledby="workflow-title">
       <div className="trace-section-heading"><div><h2 id="workflow-title">The work so far</h2>
-        <p>{stages.length ? 'Follow the activity in order. Choose a stage to see what happened.' : EMPTY[run.status]}</p>
+        <p>{stages.length ? 'Grouped by activity. The assistant can return to any stage.' : EMPTY[run.status]}</p>
       </div><span className="trace-following">{selection ? 'Reviewing selected activity' : run.status === 'running' ? 'Watching current activity' : 'Recorded activity'}</span></div>
-      {stages.length ? <ol className="trace-stages">{stages.map((stage, index) => {
+      {stages.length ? <ul className="trace-stages">{stages.map((stage) => {
         const state = stageState(stage, run.status)
         const selected = selectedStage?.id === stage.id
-        const current = !selection && stage.id === stages.at(-1)?.id
+        const current = !selection && stage.id === currentStage?.id
+        const Icon = stage.title.startsWith('Send') || stage.title === 'Share review' ? Mail
+          : stage.title.includes('calendar') || stage.title.includes('next steps') ? Calendar
+          : stage.title === 'Other activity' ? Wrench : Search
         return <li key={stage.id}><button type="button"
           className={`trace-stage trace-state--${state} ${selected ? 'is-selected' : ''} ${current ? 'is-current' : ''}`}
           aria-pressed={selected} aria-controls={selectedStage ? 'workflow-detail' : undefined} onClick={() => chooseStage(stage)}>
-          <span className="trace-stage-top"><span className="trace-stage-number">{index + 1}</span><StateIcon state={state} /></span>
+          <span className="trace-stage-top"><span className="trace-stage-symbol"><Icon size={17} aria-hidden="true" /></span><StateIcon state={state} /></span>
           <strong>{stage.title}</strong>
           <span className="trace-stage-state">{activityLabels[state]}<ChevronRight size={13} aria-hidden="true" /></span>
           <span className="trace-stage-summary">{actionSummary(stage.calls.at(-1)!)}</span>
           <span className="trace-stage-count">{stage.calls.length} {stage.calls.length === 1 ? 'action' : 'actions'}</span>
         </button></li>
-      })}</ol> : null}
+      })}</ul> : null}
       <div className="trace-current" aria-live="polite" aria-atomic="true">{latestCall ? <>
         <StateIcon state={activityState(latestCall, run.status)} /><span>
           {run.status === 'completed' ? 'Run finished.' : run.status === 'killed' || run.status === 'halted' ? 'Run stopped.' : 'Latest activity:'} {actionSummary(latestCall)} · {activityLabels[activityState(latestCall, run.status)]}
@@ -128,13 +133,24 @@ function RunWorkflow({ id }: { id: string | undefined }) {
             const state = activityState(call, run.status)
             return <li key={call.callId}><button type="button" className={`trace-action trace-state--${state}`}
               aria-pressed={activeCall.callId === call.callId} onClick={() => setSelection({ stageId: selectedStage.id, callId: call.callId })}>
-              <StateIcon state={state} /><span><strong>{actionSummary(call)}</strong><small>{activityLabels[state]}</small></span>
+              <StateIcon state={state} /><span><strong>{actionSummary(call)}</strong><small>Action {actionOrder.get(call.callId)} · {activityLabels[state]}</small></span>
             </button></li>
           })}
         </ol> : null}
         <ActionDetail key={activeCall.callId} call={activeCall} run={run} />
       </div>
     </section> : null}
+    {traceCalls.length ? <details className="trace-history">
+      <summary>View all {traceCalls.length} actions in order</summary>
+      <ol className="trace-history-list">{traceCalls.map((call) => {
+        const stage = stages.find((area) => area.calls.some((action) => action.callId === call.callId))!
+        return <li key={call.callId}><button type="button" className="trace-action"
+          aria-pressed={activeCall?.callId === call.callId} onClick={() => setSelection({ stageId: stage.id, callId: call.callId })}>
+          <span className="trace-order">{actionOrder.get(call.callId)}</span><span><strong>{actionSummary(call)}</strong>
+            <small>{stage.title} · {activityLabels[activityState(call, run.status)]} · <time dateTime={call.ts}>{relTime(call.ts, now)}</time></small>
+          </span></button></li>
+      })}</ol>
+    </details> : null}
   </div></div>
 }
 
@@ -157,6 +173,8 @@ function ActionDetail({ call, run }: { call: TraceCallDetail; run: Run }) {
       : state === 'completed' ? 'The action returned a result.' : activityLabels[state]}</p>
     {state === 'blocked' && call.decision?.explanation ? <p className="trace-held-reason">{call.decision.explanation}</p> : null}
     <Facts value={call.args} />
+    {(call.tool === 'send_email' || call.tool === 'schedule_follow_up') && typeof call.args.body === 'string'
+      ? <div className="trace-message"><h4>Message</h4><p>{call.args.body}</p></div> : null}
     {call.error !== null ? <p className="trace-held-reason">{call.error}</p> : null}
     {hasResult ? <div className="trace-result-summary"><h4>Returned activity</h4>
       {resultItems ? <><p>{resultItems.length} {resultItems.length === 1 ? 'item' : 'items'} returned</p>
