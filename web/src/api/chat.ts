@@ -101,9 +101,12 @@ export function useChat() {
   const active = useRef<AbortController | null>(null)
   const pending = useRef(new Set<string>())
   const decisions = useRef(new Set<string>())
+  const approvalRequests = useRef(new Set<AbortController>())
 
   const stop = useCallback(() => {
     active.current?.abort()
+    for (const controller of approvalRequests.current) controller.abort()
+    approvalRequests.current.clear()
     active.current = null
     pending.current.clear()
     decisions.current.clear()
@@ -113,7 +116,7 @@ export function useChat() {
         ? { ...part, status: 'cancelled' } : part.kind === 'tool' && part.status === 'running' ? { ...part, status: 'error', progress: 'Connection stopped; check the incident for the action outcome.' } : part),
     }))
   }, [])
-  useEffect(() => () => { active.current?.abort() }, [])
+  useEffect(() => () => { active.current?.abort(); for (const controller of approvalRequests.current) controller.abort() }, [])
 
   const send = useCallback(async (question: string) => {
     if (active.current || !question.trim()) return false
@@ -153,15 +156,15 @@ export function useChat() {
       return true
     } catch (cause) {
       if (!controller.signal.aborted) update((turn) => ({ ...turn, status: 'error', error: cause instanceof Error ? cause.message : 'Connection lost. Try again.' }))
+      controller.abort()
       return false
     } finally {
       if (active.current === controller) {
         active.current = null
         pending.current.clear()
-        decisions.current.clear()
         setBusy(false)
         setTurns((previous) => previous.map((turn) => turn.id !== id ? turn : {
-          ...turn, parts: turn.parts.map((part) => part.kind === 'approval' && ['waiting', 'sending'].includes(part.status) ? { ...part, status: 'cancelled' }
+          ...turn, parts: turn.parts.map((part) => part.kind === 'approval' && ['waiting', 'sending'].includes(part.status) && (!decisions.current.has(part.id) || controller.signal.aborted) ? { ...part, status: 'cancelled' }
             : part.kind === 'tool' && part.status === 'running' ? { ...part, status: 'error', progress: 'No outcome received; check the incident.' } : part),
         }))
       }
@@ -172,8 +175,9 @@ export function useChat() {
     const controller = active.current
     if (!controller || !pending.current.has(id) || decisions.current.has(id)) return
     decisions.current.add(id)
-    const update = (status: 'sending' | 'waiting' | 'accepted' | 'declined', error?: string) => {
-      if (active.current !== controller) return
+    approvalRequests.current.add(controller)
+    const update = (status: 'sending' | 'waiting' | 'accepted' | 'declined' | 'cancelled', error?: string) => {
+      if (controller.signal.aborted) return
       setTurns((previous) => previous.map((turn) => ({ ...turn, parts: turn.parts.map((part) => part.kind === 'approval' && part.id === id ? { ...part, status, error } : part) })))
     }
     update('sending')
@@ -182,8 +186,8 @@ export function useChat() {
       pending.current.delete(id)
       update(action === 'accept' ? 'accepted' : 'declined')
     } catch (cause) {
-      if (!controller.signal.aborted) update('waiting', cause instanceof Error ? cause.message : 'Your decision could not be submitted. Try again.')
-    } finally { decisions.current.delete(id) }
+      if (!controller.signal.aborted) update(active.current === controller ? 'waiting' : 'cancelled', cause instanceof Error ? cause.message : 'Your decision could not be submitted. Try again.')
+    } finally { decisions.current.delete(id); if (!decisions.current.size) approvalRequests.current.clear() }
   }, [])
 
   const reset = useCallback(() => { stop(); session.current = undefined; setTurns([]) }, [stop])
