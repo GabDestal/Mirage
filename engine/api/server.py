@@ -54,13 +54,16 @@ FIXTURES = Path(__file__).parents[2] / "contracts" / "fixtures"
 def _fixture():
     if os.getenv("MIRAGE_FIXTURE"):
         return os.environ["MIRAGE_FIXTURE"]
+    if os.getenv("MIRAGE_REPLAY_MANAGED") == "1":
+        return FIXTURES / "fleet_demo_4agents.jsonl"
     demo = FIXTURES / "calendar_demo.jsonl"  # Liam's recorded demo, once it exists
     return demo if demo.exists() else FIXTURES / "sample_demo.jsonl"
 
 
 MODE = os.getenv("MIRAGE_MODE", "live")
 PUBLIC = os.getenv("MIRAGE_PUBLIC") == "1"  # exposed (tunnel): fix checks need the incident token
-REPLAY = (Replay(_fixture(), float(os.getenv("MIRAGE_REPLAY_SPEED", "1")))
+REPLAY = (Replay(_fixture(), float(os.getenv("MIRAGE_REPLAY_SPEED", "1")),
+                 managed=os.getenv("MIRAGE_REPLAY_MANAGED") == "1")
           if MODE == "replay" else None)
 
 def restore():
@@ -83,7 +86,7 @@ async def lifespan(app):
     yield
     if not REPLAY:
         jobs.shutdown()
-    _stop_demo_agents()  # a normal shutdown (Ctrl+C) does not leave the demo fleet running
+        _stop_demo_agents()  # a normal shutdown does not leave the live demo fleet running
 
 
 app = FastAPI(title="Mirage engine", version="0.1.0", lifespan=lifespan)
@@ -259,6 +262,7 @@ def _decide(call_id, body, action):
     if not held:
         raise HTTPException(404, f"No call {call_id} is waiting for approval")
     if REPLAY:
+        _recorded_control(action)
         REPLAY.advance()
         return get_run(held.run_id)
     if held.run_id not in gate.runs:
@@ -281,6 +285,23 @@ def reject(call_id: str, body: HumanRequest) -> Run:
 
 @app.get("/policies")
 def policies() -> dict:
+    if REPLAY and REPLAY.managed:
+        specs = {}
+        for e in REPLAY.recorded:
+            if e.type == "agent.registered":
+                specs[e.payload["name"]] = {**e.payload, "entrypoint": ""}
+            elif e.type == "run.started" and e.env == "prod":
+                name = e.payload["agent"]
+                tools = sorted({x.payload["tool"] for x in REPLAY.recorded
+                                if x.run_id == e.run_id and x.type == "tool.requested"})
+                destinations = sorted({x.payload["args"]["to"] for x in REPLAY.recorded
+                                       if x.run_id == e.run_id and x.type == "gate.decision"
+                                       and x.payload["decision"] == "allow"
+                                       and "to" in x.payload["args"]})
+                specs.setdefault(name, AgentSpec(name=name, owner="recorded-demo", tools=tools,
+                                                allow={"tools": tools, "email_to": destinations},
+                                                entrypoint="").model_dump())
+        return {"canary": POLICY["canary"], "agents": specs}
     return {"canary": POLICY["canary"],
             "agents": {name: spec.model_dump() for name, spec in gate.agents.items()}}
 
@@ -288,7 +309,10 @@ def policies() -> dict:
 @app.post("/stop")
 def stop(body: HumanRequest) -> list[Run]:
     if REPLAY:
-        REPLAY.advance()
+        if REPLAY.managed:
+            _recorded_stop(body)
+        else:
+            REPLAY.advance()
     else:
         gate.global_stop(body.actor, body.reason)
         _stop_resumed_agents()
@@ -299,7 +323,10 @@ def stop(body: HumanRequest) -> list[Run]:
 def lift_stop(body: HumanRequest):
     """Lift Stop all. Halted runs stay halted (the dashboard uses /resume-all instead)."""
     if REPLAY:
-        REPLAY.advance()
+        if REPLAY.managed:
+            _recorded_stop(body, lift=True)
+        else:
+            REPLAY.advance()
     else:
         gate.lift_stop(body.actor, body.reason)
 
@@ -310,8 +337,24 @@ def _compromised(inc):
                     or (inc.verdict and inc.verdict.confirmed))
 
 
+def _recorded_control(action, run_id=None):
+    if REPLAY and REPLAY.managed:
+        if run_id is not None:
+            get_run(run_id)
+        raise HTTPException(409, f"Recorded demo: {action} is unsupported; no live run is controlled. "
+                                 "Use /demo/reset to restart the recording.")
+
+
+def _recorded_stop(body, *, lift=False):
+    try:
+        REPLAY.pause(body, lift=lift)
+    except ValueError as error:
+        raise HTTPException(409, str(error)) from error
+
+
 def _act(run_id, body, action, allowed_from):
     if REPLAY:
+        _recorded_control(action, run_id)
         REPLAY.advance()
         return get_run(run_id)
     if run_id not in gate.runs and run_id in _state()[0]:
@@ -331,10 +374,10 @@ def freeze(run_id: str, body: HumanRequest) -> Run:
 @app.post("/runs/{run_id}/unfreeze")
 def unfreeze(run_id: str, body: HumanRequest) -> Run:
     with jobs.lock:
-        if not REPLAY:
+        if not REPLAY or REPLAY.managed:
             runs, incidents = _state()
             inc = incidents.get(runs[run_id].incident_id) if run_id in runs else None
-            if inc and (inc.status == "detonating" or jobs.running(inc.id)):
+            if inc and (inc.status == "detonating" or (not REPLAY and jobs.running(inc.id))):
                 raise HTTPException(409, "Cannot unfreeze: detonation is running. Wait for the verdict.")
             if _compromised(inc):
                 raise HTTPException(409, "Cannot unfreeze: detonation confirmed this run is compromised. "
@@ -348,6 +391,7 @@ def restart(run_id: str, body: HumanRequest) -> Run:
     `queued` with `restarted_from`; the agent's next start (SDK `POST /runs`) takes it over.
     The engine does not launch it (resume does)."""
     if REPLAY:
+        _recorded_control("restart", run_id)
         REPLAY.advance()
         return get_run(run_id)
     old = get_run(run_id)
@@ -381,6 +425,7 @@ def resume(run_id: str, body: HumanRequest, request: Request) -> Run:
     """Resume a halted run after Stop all: a clean restart the engine launches itself. The agent
     restarts its task from the beginning; the old run stays halted and every call is gated."""
     if REPLAY:
+        _recorded_control("resume", run_id)
         REPLAY.advance()
         return get_run(run_id)
     with jobs.lock:  # Stop all cannot land between the checks and the launch
@@ -417,6 +462,7 @@ def resume_all(body: HumanRequest, request: Request) -> ResumeAll:
     """Lift Stop all (if on) and resume every halted run that has no restart yet. Compromised
     runs stay halted and come back in `skipped`."""
     if REPLAY:
+        _recorded_control("resume all")
         REPLAY.advance()
         return ResumeAll(resumed=[], skipped=[])
     with jobs.lock:
@@ -451,11 +497,16 @@ def _audit(action, incident_id, body):
                                  "ts": datetime.now(UTC).isoformat()})
 
 
-def _incident_step(incident_id, step) -> dict:
+def _incident_step(incident_id, step, body=None, *, pr_url=None, runs=None) -> dict:
     """detonate / bisect / handoff / verify. Replay: play the next segment, return its head."""
     if not REPLAY:
         raise HTTPException(501, f"{step} is not built yet in live mode")
     get_incident(incident_id)
+    if REPLAY.managed:
+        try:
+            return REPLAY.advance_for(incident_id, step, body, pr_url=pr_url, runs=runs)
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from error
     head = REPLAY.advance()
     return head.payload if head else {}
 
@@ -475,7 +526,7 @@ def _schedule(incident_id, work, *, purpose="detonate", runs=3, body=None):
 def detonate(incident_id: str, runs: int = 3, body: HumanRequest | None = None) -> dict:
     """Explicit retry/operator replay; initial incident detonation is automatic at freeze."""
     if REPLAY:
-        return _incident_step(incident_id, "detonate")
+        return _incident_step(incident_id, "detonate", body)
     with jobs.lock:
         get_incident(incident_id)
         det_id = _schedule(incident_id, lambda det_id: sandbox.detonate(
@@ -487,7 +538,7 @@ def detonate(incident_id: str, runs: int = 3, body: HumanRequest | None = None) 
 def bisect(incident_id: str, runs: int = 2, body: HumanRequest | None = None) -> dict:
     """Live: remove one input at a time in the background; rows come as bisection.step events."""
     if REPLAY:
-        return _incident_step(incident_id, "bisect")
+        return _incident_step(incident_id, "bisect", body, runs=runs)
     with jobs.lock:
         incident = get_incident(incident_id)
         if not (incident.verdict and incident.verdict.confirmed):
@@ -502,7 +553,7 @@ def handoff(incident_id: str, body: HumanRequest | None = None) -> dict:
     """Live: the prompt + report for a coding agent, and a token for this incident only.
     Returns {prompt, claude_code_url, codex_url, mirage_token, report}. The token is never logged."""
     if REPLAY:
-        return _incident_step(incident_id, "handoff")
+        return _incident_step(incident_id, "handoff", body)
     incident = get_incident(incident_id)
     if not (incident.verdict and incident.verdict.confirmed):
         raise HTTPException(409, "Detonate first: a handoff needs a confirmed compromise")
@@ -517,6 +568,10 @@ def handoff(incident_id: str, body: HumanRequest | None = None) -> dict:
 def pr_opened(incident_id: str, body: PullRequest) -> dict:
     """The coding agent (or a human) reports the fix PR. Emits pr.opened."""
     get_incident(incident_id)
+    if REPLAY:
+        if not REPLAY.managed:
+            raise HTTPException(409, "Replay mode: reporting a real PR is unsupported")
+        return _incident_step(incident_id, "pr", pr_url=body.url)
     return engine_handoff.pr_opened(incident_id, body.url)
 
 
@@ -525,7 +580,7 @@ def verify(incident_id: str, runs: int = 3, authorization: str = Header(""), bod
     """Live: check a fix in the background (current agent code + policy, from scratch).
     The result comes as fix.verified {attack_blocked, legit_task_completed, passed}."""
     if REPLAY:
-        return _incident_step(incident_id, "verify")
+        return _incident_step(incident_id, "verify", body, runs=runs)
     with jobs.lock:
         get_incident(incident_id)
         if PUBLIC and not engine_handoff.token_ok(incident_id, authorization):
@@ -581,6 +636,8 @@ def demo_start(request: Request, body: DemoStart | None = None):
     """Live: reset, then launch the story's agents as their own process, pointed at this engine
     (they join through the SDK like any customer agent). Replay: restart the recording."""
     if REPLAY:
+        if REPLAY.managed and body and body.scenario != "calendar":
+            raise HTTPException(409, "Recorded demo supports only the calendar scenario")
         REPLAY.restart()
         return
     scenario = body.scenario if body else "calendar"
