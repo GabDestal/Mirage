@@ -107,6 +107,7 @@ export const effectTools = (seen: Event[]) => Object.entries(seen.filter((e) => 
 export function createServer(opts: Options = {}) {
   const { call, start, watch, timeoutMs } = engineClient(opts);
   const server = new McpServer({ name: "mirage", version: "0.1.0" });
+  const demo = process.env.MIRAGE_UI_MODE === "demo";
 
   // Every tool turns an engine error into a readable tool error instead of a protocol error.
   const safe = <A>(fn: (a: A, extra: any) => Promise<CallToolResult>) => async (a: A, extra: any) => {
@@ -312,6 +313,7 @@ export function createServer(opts: Options = {}) {
   };
   const runAct = (action: keyof typeof MESSAGE, allowed: string[]) => safe<{ run_id: string; reason: string }>(
     async ({ run_id, reason }) => {
+      if (demo && action === "resume") return refuse("per-run resume is unsupported for the recording. Use resume_all to resume paused recording; no agent is launched.");
       const run = await call<Run>("GET", `/runs/${run_id}`);
       const inc = run.incident_id ? await call<Incident>("GET", `/incidents/${run.incident_id}`) : null;
       if (action !== "kill" && inc?.status === "detonating") return refuse("detonation is running. Wait for the verdict.");
@@ -345,15 +347,18 @@ export function createServer(opts: Options = {}) {
 
   server.registerTool("resume", {
     title: "Resume halted run",
-    description: "Restart one run halted by Stop all: a new run starts the task from the beginning, and every " +
+    description: demo ? "Unsupported for recorded demo runs. Use resume_all to resume paused recording, with human confirmation; no agent is launched." :
+      "Restart one run halted by Stop all: a new run starts the task from the beginning, and every " +
       "action goes through the gate. Lifts Stop all if it is on. Needs human confirmation. Refused if detonation " +
       "confirmed the compromise.",
     inputSchema: runArgs, annotations: act,
   }, runAct("resume", ["halted"]));
 
   server.registerTool("resume_all", {
-    title: "Resume all agents",
-    description: "Lift Stop all and restart every halted run from the beginning; every action goes through the gate. " +
+    title: demo ? "Resume recording" : "Resume all agents",
+    description: demo ? "Lift Stop all and resume paused recording from its paused position, restoring prior recorded run states. " +
+      "No agents or providers are launched. Needs human confirmation." :
+      "Lift Stop all and restart every halted run from the beginning; every action goes through the gate. " +
       "Runs detonation confirmed compromised (or still detonating) stay halted. Needs human confirmation.",
     inputSchema: { reason: runArgs.reason }, annotations: act,
   }, safe<{ reason: string }>(async ({ reason }) => {
@@ -364,13 +369,16 @@ export function createServer(opts: Options = {}) {
       (i.status === "detonating" || CONFIRMED.includes(i.status) || i.verdict?.confirmed));
     const names = (rs: Run[]) => rs.map((r) => `${runLabel(r, runs)} (${r.id})`).join(", ");
     const resume = halted.filter((r) => !blocked(r)), skip = halted.filter(blocked);
-    const ok = await confirm(`Resume all agents. Stop all is lifted. ` +
+    const ok = await confirm(demo ? "Resume paused recording. Stop all is lifted and prior recorded run states are restored. " +
+      "The recording continues from its paused position; no agents or providers are launched." : `Resume all agents. Stop all is lifted. ` +
       (resume.length ? `Restarts from the beginning: ${names(resume)}. ` : "No halted agent to restart. ") +
       (skip.length ? `Stays stopped (compromised or detonating): ${names(skip)}. ` : "") +
       "Every action goes through the gate.", "resume all", reason);
     if (!ok) return refuse(NOT_CONFIRMED);
     const r = await call<{ resumed: Run[]; skipped: { run_id: string; reason: string }[] }>("POST", "/resume-all",
       { actor: actor(), reason: ok });
+    if (demo) return text(`Done: Recording resumed from its paused position and prior recorded run states restored. ` +
+      `No agents or providers launched. Logged as "${actor()}", reason "${ok}".`, r);
     return text(`Done: Stop all is lifted. ${r.resumed.length} resumed` +
       (r.resumed.length ? ` (${r.resumed.map((n) => `${n.restarted_from} restarts as ${n.id}`).join(", ")})` : "") +
       `, ${r.skipped.length} skipped${r.skipped.length ? ` (${r.skipped.map((k) => `${k.run_id}: ${k.reason}`).join("; ")})` : ""}. ` +
@@ -379,19 +387,26 @@ export function createServer(opts: Options = {}) {
 
   server.registerTool("send_fix", {
     title: "Hand off to coding agent",
-    description: "Hand the incident to the user's own coding agent (Claude Code, Codex). Mirage never writes code: " +
+    description: demo ? "Prepare a recorded example handoff for the user's coding agent (Claude Code, Codex), with a prompt for the current repair or a fresh fix attempt. " +
+      "No live executable snapshot or Mirage token is created, and recorded verification is not real fix acceptance. Needs human confirmation." :
+      "Hand the incident to the user's own coding agent (Claude Code, Codex). Mirage never writes code: " +
       "returns the prompt the coding agent uses to write the fix and prove it with detonate, plus agent links. " +
       "Needs human confirmation.",
     inputSchema: { incident_id: z.string() }, annotations: act,
   }, safe(async ({ incident_id }) => {
     await call<Incident>("GET", `/incidents/${incident_id}`);
     const phrase = `send fix ${incident_id}`;
-    const ok = await confirm(`Prepare a handoff of ${incidentLabel(incident_id)} for your coding agent. This creates a handoff and a Mirage token.`,
+    const ok = await confirm(demo ? `Prepare a recorded example handoff of ${incidentLabel(incident_id)} for your coding agent's current repair or a fresh fix attempt. ` +
+      "No live executable snapshot or Mirage token is created." :
+      `Prepare a handoff of ${incidentLabel(incident_id)} for your coding agent. This creates a handoff and a Mirage token.`,
       phrase, "Hand off to coding agent");
     if (!ok) return refuse(NOT_CONFIRMED);
     const h = await call<{ prompt?: string; claude_code_url?: string; codex_url?: string }>("POST", `/incidents/${incident_id}/handoff`,
       { actor: actor(), reason: ok });
     const agents = [h.claude_code_url, h.codex_url].filter(Boolean).join(" or ") || "your coding agent";
+    if (demo) return text(`Recorded example handoff for ${incidentLabel(incident_id)} ready, not sent yet. ` +
+      "Use the prompt for the current coding repair or a fresh fix attempt. It contains no live executable snapshot or Mirage token; " +
+      `recorded verification is not real fix acceptance. Open ${agents} and paste this prompt:\n\n${h.prompt ?? ""}`, h);
     return text(`Handoff for ${incidentLabel(incident_id)} ready, not sent yet. Mirage does not write the fix. ` +
       `Open ${agents} and paste this prompt to start the fix:\n\n${h.prompt ?? ""}`, h);
   }));

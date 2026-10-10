@@ -56,6 +56,11 @@ test("demo uses the real SDK with recorded-engine context; live and default syst
   expect(systems[2]).toContain("Never claim fresh live detection");
   expect(systems[2]).toContain("real verified fix");
   expect(systems[2]).toContain("same human approvals and audit controls");
+  expect(systems[2]).toContain("use resume_all with human approval");
+  expect(systems[2]).toContain("restores prior recorded run states, without launching agents or providers");
+  expect(systems[2]).toContain("resumed and skipped arrays are empty");
+  expect(systems[2]).toContain("Per-run resume is\nunsupported in demo mode");
+  expect(systems[2]).toContain("current coding repair or a fresh fix attempt");
   expect(systems[2]).toContain("Do not request or repeat");
   expect(() => createBedrockProvider({ MIRAGE_UI_MODE: "demo" })).toThrow("Set AWS_BEARER_TOKEN_BEDROCK");
 });

@@ -6,7 +6,8 @@ import { useEvents, useIncidents, useRuns } from '@/api/client'
 import { useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Kbd, Tooltip } from '@/components/ui/tooltip'
-import { agentName, avatarState, mostUrgent, resumeAllOn } from '@/lib/runs'
+import { agentName, avatarState, mostUrgent, resumeAllOn, stopOn } from '@/lib/runs'
+import { isDemo } from '@/lib/demo'
 import { cn } from '@/lib/utils'
 import { MascotAskIcon } from './icons/mascot-ask'
 import { ChevronRightMediumIcon } from './icons/chevron-right-medium'
@@ -19,7 +20,7 @@ export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
   const { data: events = [] } = useEvents()
   const { data: runs = [] } = useRuns()
   const { data: incidents = [] } = useIncidents()
-  const resumable = resumeAllOn(runs, incidents, events)
+  const resumable = isDemo ? stopOn(events) : resumeAllOn(runs, incidents, events)
 
   return (
     <aside aria-label="Main" className="mirage-sidebar flex h-full w-(--sidebar-width) flex-col overflow-hidden border-r border-r-neutral-200 bg-neutral-50 antialiased">
@@ -56,16 +57,16 @@ export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
           </li>
           <li>
             {resumable ? (
-              <Tooltip content="Lifts Stop all and restarts every halted agent">
-                <button type="button" title="Resume all" onClick={() => ask('resumeAll')} className={cn(NAV_LINK_CLASS_NAME, 'w-full')}>
+              <Tooltip content={isDemo ? 'Resumes paused recording and restores prior recorded run states' : 'Lifts Stop all and restarts every halted agent'}>
+                <button type="button" title={isDemo ? 'Resume recording' : 'Resume all'} onClick={() => ask('resumeAll')} className={cn(NAV_LINK_CLASS_NAME, 'w-full')}>
                   <Play className="size-4 shrink-0" aria-hidden />
-                  <span className="sidebar-label min-w-0 truncate text-sm leading-5">Resume all</span>
+                  <span className="sidebar-label min-w-0 truncate text-sm leading-5">{isDemo ? 'Resume recording' : 'Resume all'}</span>
                 </button>
               </Tooltip>
-            ) : <Tooltip content={<>Halts every run and revokes all tokens <Kbd>⇧⌘.</Kbd></>}>
-              <button type="button" title="Stop all" onClick={() => ask('stop')} className={cn(NAV_LINK_CLASS_NAME, 'sidebar-stop w-full')}>
+            ) : <Tooltip content={<>{isDemo ? 'Pauses recording and marks active recorded runs halted' : 'Halts every run and revokes all tokens'} <Kbd>⇧⌘.</Kbd></>}>
+              <button type="button" title={isDemo ? 'Pause recording' : 'Stop all'} onClick={() => ask('stop')} className={cn(NAV_LINK_CLASS_NAME, 'sidebar-stop w-full')}>
                 <OctagonAlert className="size-4 shrink-0" aria-hidden />
-                <span className="sidebar-label min-w-0 truncate text-sm leading-5">Stop all</span>
+                <span className="sidebar-label min-w-0 truncate text-sm leading-5">{isDemo ? 'Pause recording' : 'Stop all'}</span>
               </button>
             </Tooltip>}
           </li>

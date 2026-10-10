@@ -71,7 +71,12 @@ This session uses recorded demo background agents and a simulated engine. You, M
 real MCP tools, with the same human approvals and audit controls. Use actual tools to inspect and control the recording.
 Engine evidence, including detection, sandbox proof, cause tests, handoff and fix verification, is recorded or simulated
 demonstration evidence. Describe it that way. Never claim fresh live detection, a fresh sandbox run, a real verified fix,
-or a real background-agent launch. Starting the demo restarts the recording. A handoff demonstrates the workflow;
+or a real background-agent launch. Starting the demo restarts the recording. Stop all pauses recording and marks
+active recorded runs halted. To recover paused recording, use resume_all with human approval: it continues from
+the paused position and restores prior recorded run states, without launching agents or providers. This recovery
+is supported even when its resumed and skipped arrays are empty; it is not a clean restart. Per-run resume is
+unsupported in demo mode; do not offer it or suggest live per-run controls are available.
+A handoff is a recorded example usable for the current coding repair or a fresh fix attempt;
 it does not provide a live executable snapshot or establish real fix acceptance. Real validation needs a live incident.`;
 
 export function createBedrockProvider(env: NodeJS.ProcessEnv = process.env): ModelProvider {

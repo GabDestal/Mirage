@@ -1,8 +1,11 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createServer } from "../src/server.js";
+
+beforeEach(() => vi.stubEnv("MIRAGE_UI_MODE", undefined));
+afterEach(() => vi.unstubAllEnvs());
 
 const trigger = { call_id: "call_010", tool: "send_email", args: { to: "attacker@evil-corp-demo.com" },
   decision: "freeze", layer: "hard_rule", rule_id: "DEST_NOT_ALLOWED", policy_id: null, p: null,
@@ -31,14 +34,16 @@ const DB: Record<string, unknown> = {
   "POST /incidents/inc_001/handoff": { prompt: "Fix inc_001", claude_code_url: "https://claude.ai/code" },
 };
 
-async function connect(opts: { elicit?: (msg: string) => { action: string; content?: Record<string, unknown> }; client?: string } = {}) {
+async function connect(opts: { elicit?: (msg: string) => { action: string; content?: Record<string, unknown> }; client?: string;
+  responses?: Record<string, unknown> } = {}) {
   const posts: { path: string; body: any }[] = [];
   const fetch = (async (url: string, init: RequestInit) => {
     const path = url.replace("http://mirage.test", "");
     if (init.method === "POST") posts.push({ path, body: JSON.parse(String(init.body ?? "null")) });
     const key = `${init.method} ${path}`;
-    const v = DB[key] as any;
-    return key in DB ? Response.json(v, { status: v?.status === 409 ? 409 : 200 }) : Response.json({ detail: "not found" }, { status: 404 });
+    const responses = { ...DB, ...opts.responses };
+    const v = responses[key] as any;
+    return key in responses ? Response.json(v, { status: v?.status === 409 ? 409 : 200 }) : Response.json({ detail: "not found" }, { status: 404 });
   }) as typeof globalThis.fetch;
   const server = createServer({ api: "http://mirage.test", actor: "liam", fetch });
   const client = new Client({ name: opts.client ?? "claude-code", version: "1" },
@@ -164,6 +169,7 @@ test("send_fix says the handoff is ready, not sent, with readable labels", async
   } });
   const r = await callText("send_fix", { incident_id: "inc_001" });
   expect(message).toContain("Incident #1");
+  expect(message).toContain("This creates a handoff and a Mirage token.");
   expect(r.text).toMatch(/^Handoff for Incident #1 ready, not sent yet\./);
   expect(r.text).not.toMatch(/handed off/i);
   expect(r.structured.prompt).toBe("Fix inc_001");
@@ -220,4 +226,92 @@ test("resume fails closed without the typed phrase", async () => {
   const { posts, callText } = await connect({ elicit: () => ({ action: "accept", content: { confirm: "resume", reason: "r" } }) });
   expect((await callText("resume", { run_id: "run_004", reason: "r" })).isError).toBe(true);
   expect(posts).toEqual([]);
+});
+
+test("demo keeps the real tool catalogue and annotations, but describes recorded recovery and handoff", async () => {
+  const live = (await (await connect()).client.listTools()).tools;
+  vi.stubEnv("MIRAGE_UI_MODE", "demo");
+  const demo = (await (await connect()).client.listTools()).tools;
+  expect(demo.map(({ name, annotations }) => ({ name, annotations }))).toEqual(live.map(({ name, annotations }) => ({ name, annotations })));
+  expect(demo.find((t) => t.name === "resume")?.description).toContain("Unsupported for recorded demo runs");
+  expect(demo.find((t) => t.name === "resume_all")?.description).toContain("restoring prior recorded run states");
+  expect(demo.find((t) => t.name === "send_fix")?.description).toContain("recorded example handoff");
+});
+
+test("demo resume_all confirms recording recovery and posts the same audited request, even with empty arrays", async () => {
+  vi.stubEnv("MIRAGE_UI_MODE", "demo");
+  let message = "";
+  const { posts, callText } = await connect({
+    responses: {
+      "GET /runs": [run("run_001", "halted", "inc_001")],
+      "POST /resume-all": { resumed: [], skipped: [] },
+    },
+    elicit: (m) => {
+      message = m;
+      return { action: "accept", content: { confirm: "resume all", reason: "Continue recording" } };
+    },
+  });
+  const result = await callText("resume_all", { reason: "draft" });
+  expect(message).toContain("prior recorded run states are restored");
+  expect(message).toContain("no agents or providers are launched");
+  expect(message).not.toMatch(/Restarts from the beginning|Stays stopped/);
+  expect(posts).toEqual([{ path: "/resume-all", body: { actor: "liam via Claude Code (MCP)", reason: "Continue recording" } }]);
+  expect(result.isError).toBe(false);
+  expect(result.text).toMatch(/^Done: Recording resumed from its paused position/);
+  expect(result.text).not.toMatch(/0 resumed|No halted agent|restarts as/);
+  expect(result.structured).toEqual({ resumed: [], skipped: [] });
+});
+
+test("demo per-run resume refuses without confirmation or effects", async () => {
+  vi.stubEnv("MIRAGE_UI_MODE", "demo");
+  const elicit = vi.fn(() => ({ action: "decline" }));
+  const { posts, callText } = await connect({ elicit });
+  const result = await callText("resume", { run_id: "run_004", reason: "Continue recording" });
+  expect(result.isError).toBe(true);
+  expect(result.text).toContain("per-run resume is unsupported");
+  expect(result.text).toContain("resume_all");
+  expect(elicit).not.toHaveBeenCalled();
+  expect(posts).toEqual([]);
+});
+
+test("demo send_fix prepares a recorded example through the same handoff route", async () => {
+  vi.stubEnv("MIRAGE_UI_MODE", "demo");
+  let message = "";
+  const { posts, callText } = await connect({ elicit: (m) => {
+    message = m;
+    return { action: "accept", content: { confirm: "send fix inc_001", reason: "Prepare current repair" } };
+  } });
+  const result = await callText("send_fix", { incident_id: "inc_001" });
+  expect(message).toContain("recorded example handoff of Incident #1");
+  expect(message).toContain("current repair or a fresh fix attempt");
+  expect(message).toContain("No live executable snapshot or Mirage token is created");
+  expect(posts).toEqual([{ path: "/incidents/inc_001/handoff", body: { actor: "liam via Claude Code (MCP)", reason: "Prepare current repair" } }]);
+  expect(result.isError).toBe(false);
+  expect(result.text).toMatch(/^Recorded example handoff for Incident #1 ready, not sent yet/);
+  expect(result.text).toContain("recorded verification is not real fix acceptance");
+  expect(result.structured.prompt).toBe("Fix inc_001");
+});
+
+test.each(["resume_all", "send_fix"])("demo %s fails closed on missing/declined/invalid confirmation and HTTP failure", async (tool) => {
+  vi.stubEnv("MIRAGE_UI_MODE", "demo");
+  const args = tool === "resume_all" ? { reason: "r" } : { incident_id: "inc_001" };
+  const phrase = tool === "resume_all" ? "resume all" : "send fix inc_001";
+  for (const elicit of [undefined, () => ({ action: "decline" }), () => ({ action: "cancel" }),
+    () => ({ action: "accept", content: { confirm: "wrong", reason: "r" } }),
+    () => ({ action: "accept", content: { confirm: phrase, reason: " " } }),
+    () => { throw new Error("Elicitation unavailable"); }]) {
+    const { posts, callText } = await connect({ elicit });
+    expect((await callText(tool, args)).isError).toBe(true);
+    expect(posts).toEqual([]);
+  }
+  const path = tool === "resume_all" ? "/resume-all" : "/incidents/inc_001/handoff";
+  const { posts, callText } = await connect({
+    responses: { [`POST ${path}`]: { status: 409, detail: "Recorded action unavailable" } },
+    elicit: () => ({ action: "accept", content: { confirm: phrase, reason: "r" } }),
+  });
+  const result = await callText(tool, args);
+  expect(result.isError).toBe(true);
+  expect(result.text).toContain("409: Recorded action unavailable");
+  expect(result.text).not.toMatch(/Done:|ready, not sent/);
+  expect(posts).toHaveLength(1);
 });
