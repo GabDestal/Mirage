@@ -3,6 +3,8 @@
     uv run python -m engine.dev.demo                    # dev agents (3 runs, gate in-process)
     uv run python -m engine.dev.demo --agent meeting    # Liam's meeting assistant via the SDK
     uv run python -m engine.dev.demo --keep             # leave the API up for the UI afterwards
+    uv run python -m engine.dev.demo --agent meeting --until freeze   # stop at the freeze, drive
+                                                                      # the rest from the UI
 
 Starts the engine API as its own process (live mode), runs the agents, then drives the incident
 over HTTP exactly like the UI or MCP would. Needs .env with a valid Bedrock key. ~5 minutes.
@@ -76,11 +78,28 @@ def run_meeting_agent(url):
     return "Liam's meeting assistant via mirage.protect (gpt-oss-20b), poisoned invite V2"
 
 
+def hands_on(url, run_id, incident_id, agent):
+    """--until freeze: print what the operator can do now, from the UI or by hand."""
+    owned = "API" if agent == "meeting" else "this process (dev runner): UI kill/unfreeze = 409"
+    print(f"""
+Stopped at the freeze. The engine stays up at {url} (Liam's UI: http://localhost:5173).
+The frozen run {run_id} is held by the {owned}.
+  From the UI: Unfreeze (the blocked email goes out: false positive path) or Kill.
+  By hand:     curl -X POST {url}/incidents/{incident_id}/detonate
+               curl -X POST {url}/incidents/{incident_id}/bisect
+               curl -X POST {url}/runs/{run_id}/kill -H "Content-Type: application/json" \\
+                    -d '{{"actor": "gabi", "reason": "confirmed"}}'
+Ctrl+C to stop.""", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(prog="engine.dev.demo")
     parser.add_argument("--agent", choices=["dev", "meeting"], default="dev")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--keep", action="store_true", help="leave the API running at the end")
+    parser.add_argument("--until", choices=["freeze"],
+                        help="stop after the freeze and leave everything running: drive it "
+                             "from the UI (unfreeze, kill, detonate...)")
     args = parser.parse_args()
 
     from dotenv import load_dotenv
@@ -106,6 +125,10 @@ def main():
         trigger = http.get(f"/incidents/{incident_id}").json()["trigger"]
         print(f"  FROZEN by the gate: {trigger['rule_id']} on {trigger['tool']} "
               f"-> {trigger['args'].get('to') or trigger['args']}")
+        if args.until == "freeze":
+            hands_on(url, frozen["id"], incident_id, args.agent)
+            api.wait()  # the operator drives from the UI; Ctrl+C stops everything
+            return
 
         def incident():
             return http.get(f"/incidents/{incident_id}").json()
