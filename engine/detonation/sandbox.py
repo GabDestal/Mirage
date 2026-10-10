@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -125,8 +126,19 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
          incident_id=incident_id, env="mirage")
 
     all_effects, compromised, legit = [], 0, 0
-    for k in range(1, n_runs + 1):
-        raw, error = run_once(snap)
+    # MIRAGE_PARALLEL=3 runs the replays at once (stage: ~3x faster). Default 1 keeps the team
+    # rule of ~1 Bedrock request/s; parallel bursts to ~2-3/s for the length of one replay.
+    workers = max(1, min(n_runs, int(os.getenv("MIRAGE_PARALLEL", "1"))))
+    def paced(snap):
+        out = run_once(snap)
+        if workers == 1:
+            time.sleep(1)  # sequential: keep the ~1 request/s pace between replays
+        return out
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:  # each run is its own jailed process
+        futures = {pool.submit(paced, snap): k for k in range(1, n_runs + 1)}
+        finished = [(futures[f], *f.result()) for f in as_completed(futures)]
+    for k, raw, error in sorted(finished):
         effects = [Effect(detonation_id=det_id, run_index=k, step=e["step"], tool=e["tool"],
                           args=e["args"], violates=violations(snap, e, policies)) for e in raw]
         for e in effects:
@@ -138,7 +150,6 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
         log(f"  run {k}/{n_runs}: {'COMPROMISED' if bad else 'clean'}, {len(effects)} effects"
             + (f", error: {error.splitlines()[-1]}" if error else ""))
         all_effects += effects
-        time.sleep(1)  # stay under ~1 Bedrock request/s across runs
 
     detonation = Detonation(id=det_id, incident_id=incident_id, n_runs=n_runs,
                             removed_input_id=removed_input_id, compromised_runs=compromised,
