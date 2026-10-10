@@ -169,11 +169,7 @@ async function main() {
   const read = await turn('Read current agent runs and Incident #1 proof using your tools. Briefly explain which background is recorded and which assistant is real. Do not take actions.');
   assert(results(read, 'list_runs').length && results(read, 'get_incident').length, 'Read uses current runs and proof tools');
   if (live) assert.match(texts(read), /recorded|simulat/i, 'Live model describes recorded evidence');
-  const beforeDecline = await get('/events');
-  const decline = await turn('Find the cause of Incident #1 using your cause-finding tool. Ask for human approval and wait.', 'decline', 'find_cause');
-  assert(results(decline, 'find_cause')[0].result.isError, 'Declined tool reports refusal');
-  assert.deepEqual(await get('/events'), beforeDecline, 'Human decline causes no engine effect');
-  check('current evidence read / real chat approval / decline no effect / stale decision rejected');
+  check('current evidence read through actual MCP tools');
 
   const followEvents = [];
   followController = new AbortController();
@@ -184,15 +180,21 @@ async function main() {
   }, (event) => event.type === 'done');
   // Attach rejection immediately so a failed primary turn cannot leave an unhandled rejection.
   follow.catch(() => {});
-  const accepted = await turn('Find the cause of Incident #1 now. This is a new explicit request after my earlier decline. Use the same cause-finding tool and request fresh approval.', 'accept', 'find_cause');
+  // Existing contract: cause finding is sandbox-only Level 0; handoff is Level 1.
+  const accepted = await turn('Find the cause of Incident #1 using your cause-finding tool now. Report when the recorded cause tests finish.', undefined, 'find_cause');
   assert.equal(results(accepted, 'find_cause')[0].result.structuredContent.status, 'started');
   await follow;
   assert(followEvents.some((e) => e.type === 'follow_up'), 'Automatic bisection follow-up');
   const cause = results(followEvents, 'get_incident')[0]?.result.structuredContent.incident;
   assert.equal(cause?.cause_input_id, 'in_cal_03', 'Follow-up includes current cause evidence');
   summary.cause = { input: cause.cause_input_id, rows: cause.bisection.map((r) => ({ observed: r.compromised_runs, cause: r.is_cause })), follow_up: texts(followEvents) };
-  check('fresh approved actual find_cause / recorded bisection follow-up');
-  const handoff = await turn('Prepare the handoff for Incident #1 with your coding-agent handoff tool. Request approval. Describe the recorded-only boundary, without claiming a fix was made.', 'accept', 'send_fix');
+  check('human-requested actual find_cause / recorded bisection follow-up');
+  const beforeDecline = await get('/events');
+  const decline = await turn('Prepare the handoff for Incident #1 with your coding-agent handoff tool. Request human approval and wait.', 'decline', 'send_fix');
+  assert(results(decline, 'send_fix')[0].result.isError, 'Declined tool reports refusal');
+  assert.deepEqual(await get('/events'), beforeDecline, 'Human decline causes no engine effect');
+  check('real chat approval / decline no effect / stale decision rejected');
+  const handoff = await turn('Prepare the handoff for Incident #1 now. This is a new explicit request after my earlier decline. Use the same handoff tool and request fresh approval. Describe the recorded-only boundary without claiming a fix was made.', 'accept', 'send_fix');
   const safe = results(handoff, 'send_fix')[0].result;
   assert(!safe.isError);
   assert(!JSON.stringify(safe).includes('mirage_token'), 'No token in chat tool result');
