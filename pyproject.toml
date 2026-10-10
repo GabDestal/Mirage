@@ -10,6 +10,7 @@ dependencies = [
     "langchain>=1.4",
     "langchain-aws>=1.8.1",
     "langgraph>=1.2.14",
+    "mirage-sdk",
     "pydantic>=2",
     "python-dotenv",
     "pyyaml>=6.0.3",
@@ -18,14 +19,22 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest", "ruff"]
+dev = [
+    "claude-agent-sdk>=0.2.165",
+    "openai-agents>=0.23.1",
+    "pytest",
+    "ruff",
+]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+mirage-sdk = { path = "sdk", editable = true }
 
 [tool.ruff]
 line-length = 100
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "agents"]
+testpaths = ["tests", "agents", "sdk/tests"]
 pythonpath = ["."]

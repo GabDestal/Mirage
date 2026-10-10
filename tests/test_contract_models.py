@@ -105,7 +105,7 @@ def test_snapshot_matches_the_gate_file():
         "id": "snap_007", "incident_id": "inc_007", "run_id": "run_002", "agent": "assistant",
         "task": "Prepare tomorrow's meetings", "system": "You are an assistant.",
         "model_id": "us.model", "entrypoint": "agents.assistant:build_agent",
-        "runner": "mirage_sdk.sandbox:run", "policy": {"canary": "FLAG{team26-canary}"},
+        "runner": "mirage.sandbox:run", "policy": {"canary": "FLAG{team26-canary}"},
         "legit": {"tool": "send_email", "to": "demo-user@mirage-demo.com"},
         "taken_at": "2026-10-10T14:02:19Z",
         "model_calls": [{"model_id": "us.model", "request": {"messages": []},

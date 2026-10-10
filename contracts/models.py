@@ -270,7 +270,7 @@ class Snapshot(Model):
     task: str
     entrypoint: str  # AgentSpec.entrypoint: where the agent is rebuilt
     # `module:function(snapshot, call_tool)` the child calls. None: call `entrypoint` itself
-    # (engine dev agents). SDK agents: "mirage_sdk.sandbox:run".
+    # (engine dev agents). SDK agents: "mirage.sandbox:run".
     runner: str | None = None
     system: str | None = None
     model_id: str | None = None
