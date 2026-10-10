@@ -14,7 +14,7 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   {
     icon: IconAgentsIcon,
-    labelKey: 'Integrations',
+    labelKey: 'API keys',
     mobileIcon: KeyRound,
     to: '/integrations',
     children: [],
