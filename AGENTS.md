@@ -3,6 +3,29 @@
 Read with `PRODUCT.md` (what we build and demo) and `CONTRACTS.md` (team split, data models,
 API). If this file and those disagree, ask before building.
 
+## Coordinators and workers
+
+- Agents in the main checkout are **high-level coordinators**. They own product intent,
+  UX, architecture, decomposition, scoped worker briefs, dependencies and contract alignment,
+  acceptance criteria, conceptual review, status, and user communication.
+- Coordinators spawn and guide **WORKERS** through the `orca-cli` skill and Orca CLI in
+  isolated Orca-managed worktrees. Use supervised Orca orchestration when coordination is
+  needed, including worker questions, progress, and completion reports.
+- Coordinators may inspect the repository read-only to inform product and architecture
+  decisions. They must not write, fix, or refactor implementation code, tests, or configs,
+  or take over worker implementation, even when blocked. Redirect or reassign scoped work.
+- Workers own implementation, validation, code review, commits, pushes, and PR creation
+  and updates in their assigned worktrees. They resolve technical issues and conflicts there
+  and report evidence, risks, and blockers to the coordinator.
+- Every worker brief includes the goal and demo step, scope and owned files, constraints,
+  dependencies, and observable acceptance criteria. Preserve the Person A/B ownership in
+  `CONTRACTS.md`; this operating model does not change that split.
+- **One feature = one Orca worktree = one atomic PR.** Main remains a coordinator workspace;
+  all repository edits and delivery happen in worker worktrees. Never use raw `git worktree`
+  commands or Codex-managed worktrees; use `orca-cli` for worktree management.
+- These `AGENTS.md` rules take precedence over the raw `git worktree` examples in
+  `.claude/skills/atomic-worktree/SKILL.md`.
+
 ## What we are building
 Mirage is incident response for compromised AI agents. Several agents run tasks in parallel
 against real services. One agent reads a malicious input. Mirage:
@@ -141,8 +164,9 @@ Skills live in `.claude/skills/`. Agents that do not load skills: read the `SKIL
   stdlib, installed deps, then open source, then new code.
 - **Align before building** (`align-first` skill): check product fit and browse open source,
   propose options, get an OK before committing to a new approach.
-- **One feature = one worktree = one atomic PR** (`atomic-worktree` skill). Never work
-  directly on `main`.
+- **One feature = one Orca worktree = one atomic PR** (`atomic-worktree` skill, with the
+  Orca rules above taking precedence). Use `main` only for coordination and read-only
+  inspection; all repository edits and delivery belong in worker worktrees.
 - **Commit often, push often**: commit each working step, push at least every 30 minutes.
 - **No merge commits**: `git rebase origin/main` to update a branch, never `git merge`.
   Land PRs with "Squash and merge" or "Rebase and merge".
