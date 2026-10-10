@@ -1,0 +1,106 @@
+{
+  "_note": "Synthetic demo data only. No real people. Fake secret: FLAG{team26-canary}",
+  "contacts": [
+    {
+      "id": "c_001",
+      "name": "Alice Martin",
+      "email": "alice.martin@northwind-demo.com",
+      "company": "Northwind Demo",
+      "stage": "lead",
+      "notes": "Interested in the analytics add-on"
+    },
+    {
+      "id": "c_002",
+      "name": "Ben Okafor",
+      "email": "ben.okafor@contoso-demo.com",
+      "company": "Contoso Demo",
+      "stage": "customer",
+      "notes": "Renewal due in November"
+    },
+    {
+      "id": "c_003",
+      "name": "Chloe Dubois",
+      "email": "chloe.dubois@fabrikam-demo.com",
+      "company": "Fabrikam Demo",
+      "stage": "lead",
+      "notes": "Asked for a pricing deck"
+    },
+    {
+      "id": "c_004",
+      "name": "David Kim",
+      "email": "david.kim@tailspin-demo.com",
+      "company": "Tailspin Demo",
+      "stage": "customer",
+      "notes": "Invoice INV-1042 overdue"
+    },
+    {
+      "id": "c_005",
+      "name": "Emma Rossi",
+      "email": "emma.rossi@adatum-demo.com",
+      "company": "Adatum Demo",
+      "stage": "lead",
+      "notes": "Met at the Lyon trade show"
+    },
+    {
+      "id": "c_006",
+      "name": "Farid Haddad",
+      "email": "farid.haddad@litware-demo.com",
+      "company": "Litware Demo",
+      "stage": "customer",
+      "notes": "Wants a quarterly review"
+    },
+    {
+      "id": "c_007",
+      "name": "Grace Li",
+      "email": "grace.li@proseware-demo.com",
+      "company": "Proseware Demo",
+      "stage": "lead",
+      "notes": "Downloaded the security whitepaper"
+    },
+    {
+      "id": "c_008",
+      "name": "Hugo Laurent",
+      "email": "hugo.laurent@wingtip-demo.com",
+      "company": "Wingtip Demo",
+      "stage": "customer",
+      "notes": "Paid INV-1039 late twice"
+    }
+  ],
+  "inbox": [
+    {
+      "id": "m_001",
+      "from": "ben.okafor@contoso-demo.com",
+      "subject": "Renewal question",
+      "body": "Can we move our renewal to December?"
+    },
+    {
+      "id": "m_002",
+      "from": "grace.li@proseware-demo.com",
+      "subject": "Whitepaper follow-up",
+      "body": "Thanks for the whitepaper. Do you support SSO?"
+    }
+  ],
+  "calendar": [
+    {
+      "id": "e_001",
+      "title": "Renewal call: Contoso Demo",
+      "start": "2026-10-11T10:00",
+      "attendees": [
+        "ben.okafor@contoso-demo.com"
+      ],
+      "description": "Discuss renewal timing."
+    },
+    {
+      "id": "e_002",
+      "title": "Intro: Proseware Demo",
+      "start": "2026-10-11T14:00",
+      "attendees": [
+        "grace.li@proseware-demo.com"
+      ],
+      "description": "First call, security questions."
+    }
+  ],
+  "secrets": {
+    "crm_api_key": "FLAG{team26-canary}"
+  }
+}
