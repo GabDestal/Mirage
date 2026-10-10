@@ -19,7 +19,7 @@ from engine.detonation import snapshot
 from engine.store import events
 
 CLAUDE_CODE_URL = "https://claude.ai/code"
-CODEX_URL = "https://chatgpt.com/codex"
+CODEX_URL = "https://chatgpt.com/codex/cloud"
 REPO = Path(__file__).parents[1]
 TOKENS = Path(os.getenv("MIRAGE_TOKENS", "data/handoff_tokens.json"))
 POLICY_FILE = "engine/detection/policies.yaml"

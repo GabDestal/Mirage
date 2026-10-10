@@ -227,7 +227,7 @@ export function createChatService(opts: ChatOptions) {
               : "Handoff was created in the engine, but its prompt is missing or exceeds the chat limit. Retrieve it from the incident dashboard; do not repeat this action." }];
             if (!handoffUrl) modelResult.isError = true;
             modelResult.structuredContent = {};
-            const links = { claude_code_url: "https://claude.ai/code", codex_url: "https://chatgpt.com/codex" };
+            const links = { claude_code_url: "https://claude.ai/code", codex_url: "https://chatgpt.com/codex/cloud" };
             const safeLinks = Object.fromEntries(Object.entries(links).filter(([key, url]) => result.structuredContent?.[key] === url));
             uiResult = { ...modelResult, structuredContent: { ...(handoffUrl && { handoff_url: handoffUrl }), ...safeLinks } };
           }
