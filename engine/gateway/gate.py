@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from contracts.models import AgentSpec, GateDecision, HumanAction, Run
+from engine.detection import decision_model
 from engine.detection.rules import POLICY, hard_rule
 from engine.detonation import jobs, snapshot
 from engine.dev import tools  # shortcut: in-process tool dispatch, dev harness only
@@ -173,6 +174,11 @@ def _check(run, tool, args) -> GateDecision:
 
     # A slow decision must not hold up healthy runs, STOP, or reset. Recheck authority below.
     hit = hard_rule(run.agent, tool, args, policy) if evaluate else None
+    judged = None  # layer 2: only outbound calls the hard rules allowed
+    if evaluate and not hit:
+        judged = decision_model.judge(run.agent, run.task, tool, args)
+        if judged and "policy_id" in judged:
+            hit = (None, judged["explanation"])
     with jobs.lock:
         if STOP.is_set() or run.status in ("killed", "halted", "completed"):
             hit = None
@@ -191,10 +197,15 @@ def _check(run, tool, args) -> GateDecision:
         elif hit:
             decision, rule = "freeze", hit
         else:
-            decision, rule = "allow", (None, "No rule matched.")
+            decision, rule = "allow", (None, "No rule matched." + (
+                f" Layer 2 unavailable: {judged['unavailable']}" if judged else ""))
 
+        by_model = bool(hit and judged and "policy_id" in judged)
         gate = GateDecision(call_id=call_id, tool=tool, args=args, decision=decision,
-                            layer="hard_rule", rule_id=rule[0], explanation=rule[1])
+                            layer="decision_model" if by_model else "hard_rule",
+                            rule_id=rule[0], explanation=rule[1],
+                            policy_id=judged["policy_id"] if by_model else None,
+                            p=judged["p"] if by_model else None)
         if hit:
             run.incident_id = next_id("incident")
         # Reset revokes the old run while a decision is pending; don't write its old ids into
