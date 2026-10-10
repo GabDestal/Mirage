@@ -125,6 +125,11 @@ export function createServer(opts: Options = {}) {
     return inc;
   };
 
+  async function proofFor(id?: string) {
+    const inc = await openIncident(id);
+    return proof(inc, await call<Run>("GET", `/runs/${inc.run_id}`).catch(() => undefined));
+  }
+
   function proof(inc: Incident, run?: Run) {
     const t = inc.trigger;
     const kind = (id: string) => inc.inputs.find((i) => i.id === id)?.kind ?? "agent_input";
@@ -193,11 +198,7 @@ export function createServer(opts: Options = {}) {
       "cause input, next action. Defaults to the open incident. Agent inputs are wrapped as untrusted data.",
     inputSchema: { incident_id: z.string().optional().describe("e.g. inc_001. Omit for the open incident.") },
     annotations: { readOnlyHint: true, openWorldHint: false },
-  }, safe(async ({ incident_id }) => {
-    const inc = await openIncident(incident_id);
-    const run = await call<Run>("GET", `/runs/${inc.run_id}`).catch(() => undefined);
-    return proof(inc, run);
-  }));
+  }, safe(async ({ incident_id }) => proofFor(incident_id)));
 
   server.registerTool("get_audit", {
     title: "Get audit trail",
@@ -229,10 +230,9 @@ export function createServer(opts: Options = {}) {
     const effects = r.seen.filter((e) => e.type === "detonation.effect").map((e) => e.payload);
     const tools = Object.entries(effects.reduce<Record<string, number>>((m, e) => ({ ...m, [e.tool]: (m[e.tool] ?? 0) + 1 }), {}))
       .map(([t, n]) => `${t} ×${n}`).join(", ");
-    const inc = await call<Incident>("GET", `/incidents/${incident_id}`);
-    const res = proof(inc);
+    const res = await proofFor(incident_id);
     (res.content[0] as { text: string }).text =
-      `Detonation done: ${r.done.payload.compromised_runs} runs compromised. Effects in Mirage: ${tools || "none"}.\n\n` +
+      `Detonation done: ${r.done.payload.compromised_runs} replays compromised. Effects in Mirage: ${tools || "none"}.\n\n` +
       (res.content[0] as { text: string }).text;
     return res;
   }));
@@ -247,7 +247,7 @@ export function createServer(opts: Options = {}) {
     const r = await follow(incident_id, `/incidents/${incident_id}/bisect`, ["bisection.completed", "detonation.failed"], extra);
     if (r.done?.type === "detonation.failed") return refuse(`bisection failed: ${r.done.payload.error}`);
     if (!r.done) return refuse(`no result after ${timeoutMs / 1000} s. Check get_incident later.`);
-    return proof(await call<Incident>("GET", `/incidents/${incident_id}`));
+    return proofFor(incident_id);
   }));
 
   // --- Level 1: real effects, typed human confirmation, fail closed -----------------------
