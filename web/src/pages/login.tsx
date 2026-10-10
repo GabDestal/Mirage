@@ -7,6 +7,9 @@ import { Shell } from '@/components/shell'
 import { Button } from '@/components/ui/button'
 import './login.css'
 
+const DEMO_EMAIL = 'liamszefner@gmail.com'
+const DEMO_PASSWORD = 'demo123'
+
 export function DemoEntry() {
   // shortcut: a refresh resets this fake login, replace with real auth when it is required.
   const [signedIn, setSignedIn] = useState(false)
@@ -18,6 +21,7 @@ export function DemoEntry() {
 export function Login({ onSignIn }: { onSignIn: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [visible, setVisible] = useState(false)
+  const [error, setError] = useState(false)
   useDotGridBackground(canvas)
 
   return (
@@ -36,8 +40,14 @@ export function Login({ onSignIn }: { onSignIn: () => void }) {
           className="login-form"
           autoComplete="off"
           aria-label="Demo sign-in"
+          onChange={() => setError(false)}
           onSubmit={(event) => {
             event.preventDefault()
+            const fields = new FormData(event.currentTarget)
+            if (fields.get('email') !== DEMO_EMAIL || fields.get('password') !== DEMO_PASSWORD) {
+              setError(true)
+              return
+            }
             onSignIn()
           }}
         >
@@ -47,7 +57,9 @@ export function Login({ onSignIn }: { onSignIn: () => void }) {
               type="email"
               aria-label="Email"
               placeholder="Email"
-              defaultValue="liamshaffner@gmail.com"
+              defaultValue={DEMO_EMAIL}
+              aria-invalid={error || undefined}
+              aria-describedby={error ? 'login-error' : undefined}
               autoCapitalize="none"
               spellCheck={false}
               required
@@ -60,7 +72,9 @@ export function Login({ onSignIn }: { onSignIn: () => void }) {
                 type={visible ? 'text' : 'password'}
                 aria-label="Password"
                 placeholder="Password"
-                defaultValue="mirage-demo"
+                defaultValue={DEMO_PASSWORD}
+                aria-invalid={error || undefined}
+                aria-describedby={error ? 'login-error' : undefined}
                 required
               />
               <button
@@ -76,11 +90,12 @@ export function Login({ onSignIn }: { onSignIn: () => void }) {
             <button
               type="button"
               className="login-forgot"
-              onClick={() => toast('Demo sign-in: any email and password works.')}
+              onClick={() => toast(`Demo login: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`)}
             >
               Forgot your password?
             </button>
           </div>
+          {error && <p id="login-error" role="alert" className="text-[#b91c1c]">Incorrect email or password.</p>}
           <div className="login-submit-row">
             <Button type="submit" variant="primary" className="login-submit">Sign in</Button>
           </div>

@@ -254,7 +254,7 @@ This surface is an explicit exception to the no-grid/no-glass rules above: light
 self-hosted Inter, and the dark gradient submit button. The existing Mirage mark replaces the
 Opereit mark. Keep these details when iterating the login; other surfaces keep their current system.
 
-Login is a demo entry screen: any valid email and nonempty password opens Fleet. Credentials
-are neither sent nor saved. Refreshing returns to the login. Password visibility works;
-the recovery button explains that any credentials work in this demo.
+Login is a demo entry screen: `liamszefner@gmail.com` / `demo123` opens Fleet. These values
+are prefilled; other credentials show an inline error. Credentials are neither sent nor saved.
+Refreshing returns to the login. Password visibility works; the recovery button shows the demo login.
 The background retains Opereit's reduced-motion handling and CSS dot fallback when WebGL is unavailable.
