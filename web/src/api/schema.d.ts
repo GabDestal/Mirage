@@ -209,6 +209,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/services/{service}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Service View
+         * @description The outbox / calendar / CRM panels, prod or Mirage, folded from the event log.
+         */
+        get: operations["service_view_services__service__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Approvals
+         * @description Calls layer 2 held for a human (medium risk). Oldest first.
+         */
+        get: operations["approvals_approvals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/approvals/{call_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve
+         * @description The held call runs.
+         */
+        post: operations["approve_approvals__call_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/approvals/{call_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject
+         * @description The held call never runs and the run ends; a human can approve a clean restart.
+         */
+        post: operations["reject_approvals__call_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/policies": {
         parameters: {
             query?: never;
@@ -237,6 +317,26 @@ export interface paths {
         put?: never;
         /** Stop */
         post: operations["stop_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stop/lift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lift Stop
+         * @description Lift Stop all. Halted runs stay halted until a human resumes each one.
+         */
+        post: operations["lift_stop_stop_lift_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -277,6 +377,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/runs/{run_id}/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restart
+         * @description A human approves a clean restart of a killed or halted run. The new run is created
+         *     `queued` with `restarted_from`; the agent's next start (SDK `POST /runs`) takes it over.
+         *     The engine does not launch it (resume does).
+         */
+        post: operations["restart_runs__run_id__restart_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/runs/{run_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume
+         * @description Resume a halted run after Stop all: a clean restart the engine launches itself. The agent
+         *     restarts its task from the beginning; the old run stays halted and every call is gated.
+         */
+        post: operations["resume_runs__run_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/runs/{run_id}/kill": {
         parameters: {
             query?: never;
@@ -305,8 +448,7 @@ export interface paths {
         put?: never;
         /**
          * Detonate
-         * @description Live: replay the frozen run in the sandbox in the background; results come as events.
-         *     Works for incidents frozen by any process: the snapshot is read from disk.
+         * @description Explicit retry/operator replay; initial incident detonation is automatic at freeze.
          */
         post: operations["detonate_incidents__incident_id__detonate_post"];
         delete?: never;
@@ -344,8 +486,32 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Handoff */
+        /**
+         * Handoff
+         * @description Live: the prompt + report for a coding agent, and a token for this incident only.
+         *     Returns {prompt, claude_code_url, codex_url, mirage_token, report}. The token is never logged.
+         */
         post: operations["handoff_incidents__incident_id__handoff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incidents/{incident_id}/pr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pr Opened
+         * @description The coding agent (or a human) reports the fix PR. Emits pr.opened.
+         */
+        post: operations["pr_opened_incidents__incident_id__pr_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -361,7 +527,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Verify */
+        /**
+         * Verify
+         * @description Live: check a fix in the background (current agent code + policy, from scratch).
+         *     The result comes as fix.verified {attack_blocked, legit_task_completed, passed}.
+         */
         post: operations["verify_incidents__incident_id__verify_post"];
         delete?: never;
         options?: never;
@@ -378,7 +548,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Demo Start */
+        /**
+         * Demo Start
+         * @description Live: reset, then launch the story's agents as their own process, pointed at this engine
+         *     (they join through the SDK like any customer agent). Replay: restart the recording.
+         */
         post: operations["demo_start_demo_start_post"];
         delete?: never;
         options?: never;
@@ -438,6 +612,36 @@ export interface components {
              */
             url_hosts: string[];
         };
+        /**
+         * Approval
+         * @description GET /approvals: a call layer 2 held for a human (medium risk). Approve: it runs.
+         *     Reject: it never runs and the run ends.
+         */
+        Approval: {
+            /** Call Id */
+            call_id: string;
+            /** Run Id */
+            run_id: string;
+            /** Agent */
+            agent: string;
+            /** Tool */
+            tool: string;
+            /** Args */
+            args: {
+                [key: string]: unknown;
+            };
+            /** Policy Id */
+            policy_id?: string | null;
+            /** P */
+            p?: number | null;
+            /** Explanation */
+            explanation: string;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+        };
         /** BisectionRow */
         BisectionRow: {
             /** Input Id */
@@ -459,6 +663,18 @@ export interface components {
             secrets: string[];
             /** Summary */
             summary: string;
+        };
+        /**
+         * DemoStart
+         * @description POST /demo/start body (optional). Only `calendar` is built (Liam's 4-agent fleet runner).
+         */
+        DemoStart: {
+            /**
+             * Scenario
+             * @default calendar
+             * @enum {string}
+             */
+            scenario: "calendar" | "support" | "false_positive";
         };
         /**
          * Event
@@ -485,7 +701,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "run.started" | "agent.message" | "tool.requested" | "gate.decision" | "tool.result" | "run.status" | "global.stop" | "incident.opened" | "detonation.started" | "detonation.effect" | "detonation.completed" | "detonation.failed" | "verdict.ready" | "bisection.step" | "bisection.completed" | "handoff.created" | "fix.verified" | "pr.opened" | "human.action";
+            type: "run.started" | "agent.message" | "tool.requested" | "gate.decision" | "tool.result" | "run.status" | "global.stop" | "global.stop_lifted" | "incident.opened" | "detonation.started" | "detonation.effect" | "detonation.completed" | "detonation.failed" | "verdict.ready" | "bisection.step" | "bisection.completed" | "handoff.created" | "fix.verified" | "pr.opened" | "human.action" | "agent.registered";
             /**
              * Payload
              * @default {}
@@ -614,6 +830,14 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * PullRequest
+         * @description POST /incidents/{id}/pr: the fix PR, reported by the coding agent or a human.
+         */
+        PullRequest: {
+            /** Url */
+            url: string;
+        };
         /** Run */
         Run: {
             /** Id */
@@ -673,6 +897,41 @@ export interface components {
             run_id: string;
             /** Run Token */
             run_token: string;
+        };
+        /** ServiceItem */
+        ServiceItem: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Subtitle */
+            subtitle: string;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+            /**
+             * Flag
+             * @default normal
+             * @enum {string}
+             */
+            flag: "normal" | "malicious" | "blocked";
+        };
+        /** ServiceView */
+        ServiceView: {
+            /**
+             * Service
+             * @enum {string}
+             */
+            service: "outbox" | "calendar" | "crm";
+            /**
+             * Env
+             * @enum {string}
+             */
+            env: "prod" | "mirage";
+            /** Items */
+            items: components["schemas"]["ServiceItem"][];
         };
         /**
          * ToolCheck
@@ -1150,6 +1409,129 @@ export interface operations {
             };
         };
     };
+    service_view_services__service__get: {
+        parameters: {
+            query?: {
+                env?: "prod" | "mirage";
+            };
+            header?: never;
+            path: {
+                service: "outbox" | "calendar" | "crm";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approvals_approvals_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Approval"][];
+                };
+            };
+        };
+    };
+    approve_approvals__call_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                call_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HumanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Run"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_approvals__call_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                call_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HumanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Run"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     policies_policies_get: {
         parameters: {
             query?: never;
@@ -1193,6 +1575,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Run"][];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lift_stop_stop_lift_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HumanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -1275,6 +1688,76 @@ export interface operations {
             };
         };
     };
+    restart_runs__run_id__restart_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HumanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Run"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_runs__run_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HumanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Run"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     kill_runs__run_id__kill_post: {
         parameters: {
             query?: never;
@@ -1321,7 +1804,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["HumanRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1356,7 +1843,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["HumanRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1389,7 +1880,48 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["HumanRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pr_opened_incidents__incident_id__pr_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PullRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1415,14 +1947,22 @@ export interface operations {
     };
     verify_incidents__incident_id__verify_post: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                runs?: number;
+            };
+            header?: {
+                authorization?: string;
+            };
             path: {
                 incident_id: string;
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["HumanRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -1453,7 +1993,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DemoStart"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {
@@ -1461,6 +2005,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

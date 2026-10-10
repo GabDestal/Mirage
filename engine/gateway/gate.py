@@ -165,6 +165,14 @@ def _global_stop(actor, reason):
             set_status(run, "halted", actor, reason)
 
 
+def lift_stop(actor, reason):
+    """Halted runs stay halted: a human resumes each one (POST /runs/{id}/resume)."""
+    with jobs.lock:
+        STOP.clear()
+        _human(actor, "lift_stop", "all", reason)
+        emit("global.stop_lifted", {"actor": actor, "reason": reason})
+
+
 def check(run, tool, args) -> GateDecision:
     with run.check_lock:
         return _check(run, tool, args)

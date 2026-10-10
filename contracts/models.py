@@ -24,14 +24,14 @@ IncidentStatus = Literal[
 NextAction = Literal["detonate", "find_cause", "send_fix", "open_pr", "none"]
 EventType = Literal[
     "run.started", "agent.message", "tool.requested", "gate.decision", "tool.result",
-    "run.status", "global.stop", "incident.opened", "detonation.started", "detonation.effect",
+    "run.status", "global.stop", "global.stop_lifted", "incident.opened", "detonation.started", "detonation.effect",
     "detonation.completed", "detonation.failed", "verdict.ready", "bisection.step", "bisection.completed",
     "handoff.created", "fix.verified", "pr.opened", "human.action", "agent.registered",
 ]
 InputKind = Literal["calendar_event", "email", "crm_record", "web_page", "attachment", "user_task"]
 HumanActionType = Literal[
-    "freeze", "unfreeze", "kill", "approve_restart", "global_stop", "approve", "reject",
-    "handoff", "merge", "detonate", "find_cause", "verify",
+    "freeze", "unfreeze", "kill", "approve_restart", "global_stop", "lift_stop", "resume",
+    "approve", "reject", "handoff", "merge", "detonate", "find_cause", "verify",
 ]
 
 
