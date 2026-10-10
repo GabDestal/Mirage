@@ -107,6 +107,45 @@ test("streams actual HTTP deltas and supplies the exact eight-tool MCP catalogue
   expect(app.posts).toEqual([]);
 });
 
+test.each(["", "{}"])("argument stream %j reaches MCP for no-argument incident reads", async (raw) => {
+  const read = (name: string): ConverseStreamOutput[] => [
+    { contentBlockStart: { contentBlockIndex: 0, start: { toolUse: { toolUseId: "read_0", name } } } },
+    // Claude's observed no-argument shape is one delta with input: "".
+    { contentBlockDelta: { contentBlockIndex: 0, delta: { toolUse: { input: raw } } } },
+    { contentBlockStop: { contentBlockIndex: 0 } }, { messageStop: { stopReason: "tool_use" } },
+  ];
+  const p = provider(read("list_runs"), read("get_incident"), plain("Frozen run and proof inspected"));
+  const app = await start(p.model, engine("confirmed"));
+  const events = await collect(await app.post("/chat/turn", turn));
+  expect(events.filter((e) => e.type === "tool_start").map((e) => [e.tool, e.args]))
+    .toEqual([["list_runs", {}], ["get_incident", {}]]);
+  const results = events.filter((e) => e.type === "tool_result");
+  expect(results).toHaveLength(2);
+  expect(results.every((e) => !e.result.isError)).toBe(true);
+  expect(results[0].result.structuredContent).toMatchObject({ runs: [{ id: "run_002", status: "frozen" }] });
+  expect(results[1].result.structuredContent).toMatchObject({ incident: { id: "inc_007",
+    verdict: { confirmed: true, compromised_runs: "3/3", blast_radius: { records: 40 } } } });
+  expect(p.requests[1].messages[1].content).toEqual([{ toolUse: { toolUseId: "read_0", name: "list_runs", input: {} } }]);
+  expect(JSON.stringify(p.requests[2].messages)).toContain("Synthetic proof");
+  expect(events.at(-1)).toEqual({ type: "done" });
+  expect(app.posts).toEqual([]);
+});
+
+test.each([
+  ["list_runs", " "], ["list_runs", "{bad json"], ["list_runs", "[]"],
+  ["list_runs", "null"], ["list_runs", "true"], ["list_runs", "0"], ["list_runs", '""'],
+  ["list_runs", '{"unknown":true}'], ["kill", ""], ["unfreeze", '{"run_id":"run_002"}'],
+])("invalid argument stream for %s (%j) cannot reach the backend", async (name, raw) => {
+  const p = provider([...toolUse(name, {}, 0, raw), { messageStop: { stopReason: "tool_use" } }], plain());
+  const app = await start(p.model);
+  const events = await collect(await app.post("/chat/turn", turn));
+  expect(events.filter((e) => e.type === "tool_result")).toMatchObject([{ result: { isError: true } }]);
+  expect(events.some((e) => e.type === "approval_required")).toBe(false);
+  expect(app.fetch).not.toHaveBeenCalled();
+  expect(app.posts).toEqual([]);
+  expect(events.at(-1)).toEqual({ type: "done" });
+});
+
 test("all eight tools execute via MCP, retain progress/fences/audit labels and isolate full handoff from model", async () => {
   const p = provider(calls(["list_runs", {}], ["get_incident", { incident_id: "inc_007" }], ["get_audit", {}],
     ["detonate", { incident_id: "inc_007", runs: 3 }], ["find_cause", { incident_id: "inc_007" }],
