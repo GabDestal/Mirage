@@ -69,6 +69,7 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
         <Command.Group heading="Go to">
           <Item icon={<ArrowRight />} onSelect={run(() => navigate('/'))}>Ask Miragio</Item>
           <Item icon={<ArrowRight />} onSelect={run(() => navigate('/fleet'))} hint="G F">Fleet</Item>
+          <Item icon={<ArrowRight />} onSelect={run(() => navigate('/integrations'))}>Integrations & API Keys</Item>
           <Item icon={<ArrowRight />} onSelect={run(() => navigate('/incidents'))} hint="G I">Incidents</Item>
           {runs.map((r) => (
             <Item key={r.id} icon={<AgentAvatar agent={r.agent} state={avatarState(r)} />} value={`${runLabel(r, runs)} ${r.id}`} onSelect={run(() => navigate(`/runs/${r.id}`))}>

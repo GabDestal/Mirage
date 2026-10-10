@@ -16,7 +16,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: IconAgentsIcon,
     labelKey: 'Integrations',
     mobileIcon: KeyRound,
-    disabled: true,
+    to: '/integrations',
     children: [],
   },
 ]

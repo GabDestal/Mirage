@@ -76,7 +76,7 @@ const NavItemList = ({ items }: { items: NavItem[] }) => (
 
 const NavItemContent = ({ item: { icon: Icon, mobileIcon: MobileIcon, labelKey }, hasChildren }: { item: NavItem; hasChildren?: boolean }) => (
   <>
-    {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
+    {Icon ? <Icon className={cn('size-4 shrink-0', MobileIcon && 'hidden md:block')} aria-hidden /> : null}
     {MobileIcon ? <MobileIcon className="sidebar-mobile-icon size-4 shrink-0" aria-hidden /> : null}
     <span className="sidebar-label min-w-0 truncate text-sm leading-5">{labelKey}</span>
     {hasChildren ? (
