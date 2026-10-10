@@ -460,10 +460,12 @@ def _resume(old, body, request):
 @app.post("/resume-all")
 def resume_all(body: HumanRequest, request: Request) -> ResumeAll:
     """Lift Stop all (if on) and resume every halted run that has no restart yet. Compromised
-    runs stay halted and come back in `skipped`."""
+    runs stay halted and come back in `skipped`. Managed replay only resumes its paused clock."""
     if REPLAY:
-        _recorded_control("resume all")
-        REPLAY.advance()
+        if REPLAY.managed:
+            _recorded_stop(body, lift=True)
+        else:
+            REPLAY.advance()
         return ResumeAll(resumed=[], skipped=[])
     with jobs.lock:
         if gate.STOP.is_set():

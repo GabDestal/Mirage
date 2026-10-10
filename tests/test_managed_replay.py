@@ -4,6 +4,7 @@ import json
 import math
 import runpy
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from types import SimpleNamespace
 
 import boto3
@@ -162,7 +163,8 @@ def test_bad_actions_and_controls_do_not_advance_or_write(api):
     assert api.post("/incidents/inc_001/pr", json={"url": PR}).status_code == 409
 
 
-def test_timed_auto_baseline_and_stop_preserve_position(api, monkeypatch):
+@pytest.mark.parametrize("resume_path", ["/stop/lift", "/resume-all"])
+def test_timed_auto_baseline_and_stop_preserve_position(api, monkeypatch, resume_path):
     clock = SimpleNamespace(now=1000.0)
     monkeypatch.setattr(replay, "time", SimpleNamespace(monotonic=lambda: clock.now))
     server.REPLAY.speed = 1
@@ -175,14 +177,26 @@ def test_timed_auto_baseline_and_stop_preserve_position(api, monkeypatch):
     assert "running" in api.post("/runs/run_002/unfreeze", json=HUMAN).json()["detail"]
     assert api.post("/stop", json=HUMAN).status_code == 200
     paused = api.get("/events").json()
-    assert api.get("/runs/run_002").json()["status"] == "halted"
+    assert all(r["status"] == "halted" for r in api.get("/runs").json())
+    evidence = incident(api)
     clock.now += 100
     assert api.get("/events").json() == paused
     assert post(api, "bisect").status_code == 409
     assert api.post("/stop", json=HUMAN).status_code == 409
-    assert api.post("/stop/lift", json=HUMAN).status_code == 204
+    resume_human = {"actor": "Gabi via dashboard", "reason": "Continue recorded proof"}
+    response = api.post(resume_path, json=resume_human)
+    assert response.status_code == (200 if resume_path == "/resume-all" else 204)
+    if resume_path == "/resume-all":
+        assert response.json() == {"resumed": [], "skipped": []}
+    assert incident(api) == evidence
     assert incident(api)["status"] == "detonating"
     assert api.get("/runs/run_002").json()["status"] == "frozen"
+    assert all(r["status"] == "running" for r in api.get("/runs").json()
+               if r["id"] != "run_002")
+    resumed = api.get("/events").json()
+    assert resumed[:len(paused)] == paused
+    assert api.post(resume_path, json=resume_human).status_code == 409
+    assert api.get("/events").json() == resumed
     clock.now += 20
     assert incident(api)["status"] == "confirmed"
     cursor = api.get("/events").json()[-1]["seq"]
@@ -198,8 +212,47 @@ def test_timed_auto_baseline_and_stop_preserve_position(api, monkeypatch):
     assert incident(api)["status"] == "fix_verified"
     audits = [e["payload"] for e in api.get("/events").json() if e["type"] == "human.action"]
     assert [a["action"] for a in audits][:2] == ["global_stop", "lift_stop"]
-    assert all(a["actor"] == HUMAN["actor"] and a["reason"] == HUMAN["reason"] for a in audits)
+    assert {key: audits[1][key] for key in ("actor", "reason")} == resume_human
+    assert all(a["actor"] == HUMAN["actor"] and a["reason"] == HUMAN["reason"]
+               for a in [audits[0], *audits[2:]])
     assert api.post("/stop/lift", json=HUMAN).status_code == 409
+
+
+def test_healthy_runs_continue_during_baseline_with_contiguous_cursor(api, monkeypatch):
+    clock = SimpleNamespace(now=1000.0)
+    monkeypatch.setattr(replay, "time", SimpleNamespace(monotonic=lambda: clock.now))
+    server.REPLAY.speed = 1
+    server.REPLAY.restart()
+    cursor = 0
+    ledger = []
+    for elapsed in [22.5, 41, 45, 54, 59]:
+        clock.now = 1000.0 + elapsed
+        follow = api.get(f"/events?after={cursor}").json()
+        assert follow
+        assert [e["seq"] for e in follow] == list(range(cursor + 1, follow[-1]["seq"] + 1))
+        ledger.extend(follow)
+        cursor = follow[-1]["seq"]
+        runs = {r["id"]: r for r in api.get("/runs").json()}
+        assert runs["run_002"]["agent"] == "meeting_assistant"
+        assert runs["run_002"]["status"] == "frozen"
+        assert {key: runs[key]["agent"] for key in ("run_001", "run_003", "run_004")} == {
+            "run_001": "outreach", "run_003": "support", "run_004": "pr_reviewer"}
+        assert all(runs[key]["status"] == ("running" if elapsed < 54 else "completed")
+                   for key in ("run_001", "run_003", "run_004"))
+        assert incident(api)["status"] == ("open" if elapsed < 40 else
+                                           "detonating" if elapsed < 59 else "confirmed")
+    assert api.get("/events").json() == ledger
+    timestamps = [datetime.fromisoformat(e["ts"]) for e in ledger]
+    assert timestamps == sorted(timestamps)
+    baseline = next(e["seq"] for e in ledger if e["type"] == "detonation.started")
+    verdict = next(e["seq"] for e in ledger if e["type"] == "verdict.ready")
+    for run_id, tool in [("run_001", "send_email"), ("run_003", "send_email"),
+                         ("run_004", "submit_review")]:
+        progress = [e for e in ledger if e["run_id"] == run_id and baseline < e["seq"] < verdict]
+        assert [e["type"] for e in progress] == [
+            "tool.requested", "gate.decision", "tool.result", "agent.message", "run.status"]
+        assert all(e["payload"]["tool"] == tool for e in progress[:3])
+        assert progress[-1]["payload"]["to"] == "completed"
 
 
 def test_existing_wrong_incident_and_concurrent_actions(api, tmp_path):
@@ -238,8 +291,10 @@ def test_reset_restores_recording_and_clears_decisions(api):
 def test_fleet_fixture_typed_payloads_and_no_scripted_kill():
     typed = {"detonation.effect": Effect, "detonation.completed": Detonation,
              "verdict.ready": Verdict, "fix.verified": DetonateResult, "human.action": HumanAction}
-    for line in FLEET.read_text().splitlines():
-        event = Event.model_validate_json(line)
+    events = [Event.model_validate_json(line) for line in FLEET.read_text().splitlines()]
+    assert [e.seq for e in events] == list(range(1, len(events) + 1))
+    assert [e.ts for e in events] == sorted(e.ts for e in events)
+    for event in events:
         if event.type in typed:
             typed[event.type].model_validate(event.payload)
         assert not (event.type == "run.status" and event.payload["to"] == "killed")

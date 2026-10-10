@@ -388,6 +388,9 @@ keeps the operator-driven behavior above. Launcher state paths (`MIRAGE_DB`, `MI
 `MIRAGE_TOKENS`) are isolated absolute paths; managed replay never reads or writes their stores.
 
 - Recorded production activity, freeze, baseline three-run detonation and verdict play automatically.
+  Healthy outreach, support and PR-review runs remain running when the meeting assistant freezes;
+  their final tools, results and completions continue during baseline detonation, before its verdict.
+  Fixture timestamps and sequence order form one contiguous stream across these parallel runs.
   No production agent, job, model, provider tool or sandbox subprocess is started. Real Miragio and
   MCP handlers may call this real HTTP API; their model execution belongs to the caller.
 - `/bisect`, `/handoff`, `/verify`, then `/pr` unlock only the matching next stage for the matching
@@ -404,11 +407,15 @@ keeps the operator-driven behavior above. Launcher state paths (`MIRAGE_DB`, `MI
   evidence uses `https://example.invalid/recorded-demo/pr/42`, never a real repository PR; `/pr` only
   acknowledges the fixture's exact placeholder URL after verification, and creates no GitHub PR.
   Legacy replay `/pr` returns `409` rather than writing the live store.
-- `/stop` pauses the recording clock and blocks incident-stage actions; `/stop/lift` resumes the
-  clock from that position. Both log actual actor/reason in the replay event stream. While paused,
-  active recorded runs are returned as `halted`; lift restores their prior recorded states. This is
-  a synthetic pause, not live token revocation or a clean agent restart. Historical evidence stays
-  intact. Per-run controls, approval decisions and `/resume-all` explicitly return `409`; confirmed
+- `/stop` pauses the recording clock and blocks incident-stage actions; `/stop/lift` and `/resume-all`
+  resume the clock from that position, without unlocking an incident stage. These actions log actual
+  actor/reason in the replay event stream (`global_stop` / `lift_stop`). `/resume-all` returns the existing
+  `ResumeAll` shape with `resumed: []` and `skipped: []`: no runs or models are launched or restarted. Either
+  resume route returns `409` without changing evidence when the recording is not paused. While paused,
+  active recorded runs are returned as `halted`; resume restores their prior recorded states, including
+  the compromised production run remaining `frozen`. This is a synthetic pause, not live token
+  revocation or a clean agent restart. Historical evidence stays
+  intact. Per-run controls and approval decisions explicitly return `409`; confirmed
   harmful runs specifically reject unfreeze. `/policies` supplies recorded registrations (derived
   from fixture activity if registration events are absent), without live entrypoints.
 - `/demo/start` (calendar only) and `/demo/reset` restore the original recording, clear replay-only
