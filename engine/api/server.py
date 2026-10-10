@@ -1,14 +1,16 @@
 """Mirage engine API (CONTRACTS.md §5 control plane, §11 data plane).
 
 Run: `uv run uvicorn engine.api.server:app --port 8000`. OpenAPI at /openapi.json.
-Data plane routes that act on a run need `Authorization: Bearer <run_token>`.
-shortcut: live mode only; MIRAGE_MODE=replay (fixtures) comes next.
+`MIRAGE_MODE=live` runs the engine. `MIRAGE_MODE=replay` plays a fixture through the same routes
+(MIRAGE_FIXTURE, MIRAGE_REPLAY_SPEED): POST actions move the replay forward; the SDK routes
+answer 409. Data plane routes that act on a run need `Authorization: Bearer <run_token>`.
 """
 
 import asyncio
 import os
+from pathlib import Path
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
 from contracts.models import (
@@ -25,13 +27,31 @@ from contracts.models import (
     ToolResult,
     WaitResult,
 )
+from engine.api.replay import Replay
 from engine.detection.rules import POLICY
 from engine.gateway import gate
 from engine.store import events
 
+FIXTURES = Path(__file__).parents[2] / "contracts" / "fixtures"
+
+
+def _fixture():
+    if os.getenv("MIRAGE_FIXTURE"):
+        return os.environ["MIRAGE_FIXTURE"]
+    demo = FIXTURES / "calendar_demo.jsonl"  # Liam's recorded demo, once it exists
+    return demo if demo.exists() else FIXTURES / "sample_demo.jsonl"
+
+
+MODE = os.getenv("MIRAGE_MODE", "live")
+REPLAY = (Replay(_fixture(), float(os.getenv("MIRAGE_REPLAY_SPEED", "1")))
+          if MODE == "replay" else None)
+
 app = FastAPI(title="Mirage engine", version="0.1.0")
-if os.getenv("MIRAGE_MODE", "live") != "live":
-    print("MIRAGE_MODE=replay is not implemented yet: serving live mode.")
+
+
+def live_only():
+    if REPLAY:
+        raise HTTPException(409, "Replay mode: the data plane is off (MIRAGE_MODE=live to run agents)")
 
 
 def _run(run_id) -> gate.LiveRun:
@@ -47,16 +67,25 @@ def _authed(run_id, authorization) -> gate.LiveRun:
     return run
 
 
+def _state():
+    """(runs, incidents) as contract models, in either mode."""
+    if REPLAY:
+        return REPLAY.state()
+    return {r.id: r.model() for r in gate.runs.values()}, dict(gate.incidents)
+
+
 # --- data plane: SDK -> engine ------------------------------------------------------------
 
+data_plane = {"dependencies": [Depends(live_only)]}
 
-@app.post("/agents")
+
+@app.post("/agents", **data_plane)
 def register_agent(spec: AgentSpec) -> AgentSpec:
     gate.agents[spec.name] = spec
     return spec
 
 
-@app.post("/runs")
+@app.post("/runs", **data_plane)
 def start_run(body: RunStart) -> RunStarted:
     if body.agent not in gate.agents:
         raise HTTPException(404, f"Agent {body.agent} is not registered (POST /agents)")
@@ -65,27 +94,27 @@ def start_run(body: RunStart) -> RunStarted:
     run = gate.LiveRun(id=gate.next_id("run"), agent=body.agent, task=body.task)
     gate.runs[run.id] = run
     gate.set_status(run, "running", "sdk", "Run started.")
-    events.emit("run.started", {"task": run.task}, run_id=run.id)
+    events.emit("run.started", {"task": run.task, "agent": run.agent}, run_id=run.id)
     return RunStarted(run_id=run.id, run_token=run.token)
 
 
-@app.post("/runs/{run_id}/model-calls", status_code=204)
+@app.post("/runs/{run_id}/model-calls", status_code=204, **data_plane)
 def record_model_call(run_id: str, body: ModelCall, authorization: str = Header("")):
     _authed(run_id, authorization).model_calls.append(body.model_dump())
 
 
-@app.post("/gateway/check")
+@app.post("/gateway/check", **data_plane)
 def check(body: ToolCheck, authorization: str = Header("")) -> GateDecision:
     return gate.check(_authed(body.run_id, authorization), body.tool, body.args)
 
 
-@app.post("/runs/{run_id}/tool-results", status_code=204)
+@app.post("/runs/{run_id}/tool-results", status_code=204, **data_plane)
 def record_tool_result(run_id: str, body: ToolResult, authorization: str = Header("")):
     run = _authed(run_id, authorization)
     gate.record_result(run, body.call_id, body.tool, body.result, body.error)
 
 
-@app.get("/runs/{run_id}/wait")
+@app.get("/runs/{run_id}/wait", **data_plane)
 def wait(run_id: str, timeout: float = 25, authorization: str = Header("")) -> WaitResult:
     run = _authed(run_id, authorization)  # sync route: runs in the threadpool, may block
     run.resume.wait(min(timeout, 60))
@@ -93,7 +122,7 @@ def wait(run_id: str, timeout: float = 25, authorization: str = Header("")) -> W
     return WaitResult(status=status if status != "queued" else "running")
 
 
-@app.post("/runs/{run_id}/complete")
+@app.post("/runs/{run_id}/complete", **data_plane)
 def complete_run(run_id: str, authorization: str = Header("")) -> Run:
     run = _authed(run_id, authorization)
     if run.status == "running":
@@ -106,17 +135,20 @@ def complete_run(run_id: str, authorization: str = Header("")) -> Run:
 
 @app.get("/runs")
 def list_runs() -> list[Run]:
-    return [r.model() for r in gate.runs.values()]
+    return list(_state()[0].values())
 
 
 @app.get("/runs/{run_id}")
 def get_run(run_id: str) -> Run:
-    return _run(run_id).model()
+    runs = _state()[0]
+    if run_id not in runs:
+        raise HTTPException(404, f"Unknown run {run_id}")
+    return runs[run_id]
 
 
 @app.get("/events")
 def list_events(after: int = 0) -> list[Event]:
-    return events.read(after)
+    return REPLAY.visible(after) if REPLAY else events.read(after)
 
 
 @app.get("/stream")
@@ -126,7 +158,7 @@ async def stream(request: Request, after: int = 0):
     async def gen():
         nonlocal after
         while not await request.is_disconnected():
-            for event in events.read(after):
+            for event in list_events(after):
                 after = event.seq
                 yield {"id": str(event.seq), "data": event.model_dump_json()}
             await asyncio.sleep(0.25)
@@ -136,14 +168,15 @@ async def stream(request: Request, after: int = 0):
 
 @app.get("/incidents")
 def list_incidents() -> list[Incident]:
-    return list(gate.incidents.values())
+    return list(_state()[1].values())
 
 
 @app.get("/incidents/{incident_id}")
 def get_incident(incident_id: str) -> Incident:
-    if incident_id not in gate.incidents:
+    incidents = _state()[1]
+    if incident_id not in incidents:
         raise HTTPException(404, f"Unknown incident {incident_id}")
-    return gate.incidents[incident_id]
+    return incidents[incident_id]
 
 
 @app.get("/policies")
@@ -154,11 +187,17 @@ def policies() -> dict:
 
 @app.post("/stop")
 def stop(body: HumanRequest) -> list[Run]:
-    gate.global_stop(body.actor, body.reason)
+    if REPLAY:
+        REPLAY.advance()
+    else:
+        gate.global_stop(body.actor, body.reason)
     return list_runs()
 
 
 def _act(run_id, body, action, allowed_from):
+    if REPLAY:
+        REPLAY.advance()
+        return get_run(run_id)
     run = _run(run_id)
     if run.status not in allowed_from:
         raise HTTPException(409, f"Cannot {action} a run that is {run.status}")
@@ -181,7 +220,46 @@ def kill(run_id: str, body: HumanRequest) -> Run:
     return _act(run_id, body, "kill", ("running", "frozen"))
 
 
+def _incident_step(incident_id, step) -> dict:
+    """detonate / bisect / handoff / verify. Replay: play the next segment, return its head."""
+    if not REPLAY:
+        raise HTTPException(501, f"{step} is not built yet in live mode")
+    get_incident(incident_id)
+    head = REPLAY.advance()
+    return head.payload if head else {}
+
+
+@app.post("/incidents/{incident_id}/detonate")
+def detonate(incident_id: str) -> dict:
+    return _incident_step(incident_id, "detonate")
+
+
+@app.post("/incidents/{incident_id}/bisect")
+def bisect(incident_id: str) -> dict:
+    return _incident_step(incident_id, "bisect")
+
+
+@app.post("/incidents/{incident_id}/handoff")
+def handoff(incident_id: str) -> dict:
+    return _incident_step(incident_id, "handoff")
+
+
+@app.post("/incidents/{incident_id}/verify")
+def verify(incident_id: str) -> dict:
+    return _incident_step(incident_id, "verify")
+
+
+@app.post("/demo/start", status_code=204)
+def demo_start():
+    if not REPLAY:
+        raise HTTPException(501, "Live demo start is not built yet: run agents/run_demo.py")
+    REPLAY.restart()
+
+
 @app.post("/demo/reset", status_code=204)
 def demo_reset():
+    if REPLAY:
+        REPLAY.restart()
+        return
     gate.reset()
     events.reset()
