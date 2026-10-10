@@ -9,7 +9,7 @@ visual direction. `PRODUCT.md` and `CONTRACTS.md` define product behavior and da
 Builders: load `ponytail`, `impeccable` and `emil-design-eng`.
 
 Implementation status: the login and Ask Mirage chat home follow this reference. The existing
-Fleet, sidebar and shared controls still use v2 styling; their specifications guide the next UI
+Fleet and shared controls still use v2 styling; their specifications guide the next UI
 iterations. Section 8 records the implemented chat surface and its current read-only scope.
 
 ## 1. North star
