@@ -2,7 +2,7 @@
 
 Run: `uv run uvicorn engine.api.server:app --port 8000`. OpenAPI at /openapi.json.
 `MIRAGE_MODE=live` runs the engine. `MIRAGE_MODE=replay` plays a fixture through the same routes
-(MIRAGE_FIXTURE, MIRAGE_REPLAY_SPEED): POST actions move the replay forward; the SDK routes
+(MIRAGE_FIXTURE, MIRAGE_REPLAY_SPEED: 1 = real time, 10 = 10x, inf = instant): POST actions move the replay forward; the SDK routes
 answer 409. Data plane routes that act on a run need `Authorization: Bearer <run_token>`.
 """
 

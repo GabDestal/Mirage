@@ -1,6 +1,7 @@
 """Replay mode: the sample fixture is valid, and POST actions walk the demo through the API."""
 
 import json
+import math
 import time
 
 import pytest
@@ -35,7 +36,7 @@ def test_sample_fixture_matches_the_contract():
 
 @pytest.fixture
 def api(monkeypatch):
-    monkeypatch.setattr(server, "REPLAY", Replay(SAMPLE, speed=1e6))  # whole segments at once
+    monkeypatch.setattr(server, "REPLAY", Replay(SAMPLE, speed=math.inf))  # segments at once
     return TestClient(server.app)
 
 

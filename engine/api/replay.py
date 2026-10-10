@@ -7,6 +7,7 @@ segment with its recorded timing; anything still pending in the current one show
 state can never disagree with the stream.
 """
 
+import math
 import time
 from pathlib import Path
 
@@ -44,7 +45,9 @@ class Replay:
         k = len(self.unlocked) - 1
         start = self.starts[k]
         end = self.starts[k + 1] if k + 1 < len(self.starts) else len(self.events)
-        elapsed = (time.monotonic() - self.unlocked[k]) * self.speed
+        # speed=inf: each segment shows at once (math.inf * 0 would be nan on a coarse clock)
+        elapsed = (math.inf if math.isinf(self.speed)
+                   else (time.monotonic() - self.unlocked[k]) * self.speed)
         played = self.events[:start] + [
             e for e in self.events[start:end]
             if (e.ts - self.events[start].ts).total_seconds() <= elapsed]
