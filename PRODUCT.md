@@ -31,19 +31,18 @@ We do not build a new sandbox for each replay.
 
 ### Mirage (simulation twin)
 
-- Mirage has the same tools as production. Same names. Same arguments.
-- Only the backend is different. Each tool has two adapters: production and Mirage.
-- Mirage can execute actions. It does not only play back recordings.
-- Reads come from a snapshot. Writes go to fake services that we can inspect.
+- Mirage runs the agent's own graph. Same model, same prompt, same tools.
+- The real tools never run. The Mirage SDK answers each tool call instead.
+- Reads return the recorded result from the snapshot. Writes are captured and return a fake "ok".
+- The agent can take a new path. Mirage captures every action it tries.
 - Nothing in Mirage reaches the real world.
 
-| Tool | Production adapter | Mirage adapter |
+| Tool call | Production | Mirage |
 |---|---|---|
-| `read_calendar` | Google Calendar API | calendar snapshot taken at freeze |
-| `send_email` | Gmail API | fake outbox (captured, never sent) |
-| `crm_query` | HubSpot API / MCP | SQLite copy of the CRM records |
-| `crm_export` | HubSpot API / MCP | SQLite copy, export is captured |
-| `fetch_url` | real HTTP (allowlist) | recorded page or stub page |
+| `read_calendar` | Google Calendar API | recorded result (with the poisoned invite) |
+| `send_email` | Gmail API | captured in the effects ledger, never sent |
+| `crm_query` | HubSpot API | recorded result |
+| `crm_export` | HubSpot API | captured in the effects ledger |
 
 ### Snapshot
 
@@ -54,37 +53,38 @@ We do not build a new sandbox for each replay.
 
 Example: a calendar event has a malicious instruction in its description.
 The agent read it with `read_calendar`. So the event is in the snapshot.
-In Mirage, the fake calendar returns the same event.
+In Mirage, the SDK returns the same recorded event when the agent calls `read_calendar`.
 
 ### Sandbox design
 
-Our agents have no hands of their own. The model runs on Bedrock. It only requests a tool call.
-Our code executes the call, or refuses it. The agent has no shell, no files, no network, and no credentials.
-So the boundary is the **tool layer**, not the operating system.
+The customer keeps their agent (LangGraph, their tools, their keys). Mirage wraps it with one line:
+`mirage.protect(...)` as middleware. Mirage does not hold keys. It decides whether each tool call may run.
+So the boundary is the **tool call**, not the operating system. Details: `CONTRACTS.md` section 11.
 
 ```
-                 ┌── Production adapters ──▶ real Gmail / Calendar / HubSpot   (gateway checks every call)
-Agent (Bedrock) ─┤
-                 └── Mirage adapters ──────▶ SQLite fakes, captured, never sent (no keys, no network)
+                                ┌── prod mode:   gateway allows → the agent's real tool runs
+Agent graph + mirage.protect ───┤                gateway freezes → the run waits; kill → it stops
+                                └── mirage mode: no real tool runs; reads from snapshot, writes captured
 ```
 
 **Containing a production run (freeze)** is a lock, not a sandbox:
 
-- The gateway holds the Google, HubSpot and GitHub credentials. The agent never has them.
-- Freeze: the gateway stops serving that run. Its thread waits at the blocked call.
-- Unfreeze: the thread continues from that call. Kill: the run's access is revoked.
+- A tool runs only after the gateway allows it.
+- Freeze: the SDK holds that run inside the blocked tool call. The tool has not run.
+- Unfreeze: the call continues. Kill: the SDK raises, the tool never runs, the run ends.
 - Other runs use other locks. They continue.
+- Limit: Mirage sees only tool calls. Code that calls an API outside a tool is not seen.
 
 **The Mirage sandbox (detonation)** is the same agent with the same tools, backed by fakes:
 
-- Gmail is an outbox table. Calendar is an events table. CRM is a contacts table. Web is recorded pages.
-- Each detonation starts from a fresh copy of the snapshot's SQLite file. Creating a sandbox is a file copy.
+- The detonation builds the agent's own graph with `mirage.protect` in mirage mode.
+- Each detonation starts from a fresh copy of the snapshot. Creating a sandbox is loading a recording.
 
 Each detonation runs in a **separate Python process** with three layers of protection:
 
-1. Only the Bedrock key is in its environment. Google, HubSpot and GitHub keys are removed.
-2. Network connections are allowed only to the Bedrock host (a small `socket` wrapper). Other connections fail and are logged.
-3. Mirage adapters never import an HTTP client.
+1. Mirage mode: no real tool runs.
+2. Only the Bedrock key is in its environment. Google, HubSpot and GitHub keys are removed.
+3. Network connections are allowed only to the Bedrock host (a small `socket` wrapper). Other connections fail and are logged.
 
 **No Docker for this demo.** Docker isolates processes, files and network. That matters when an agent runs code.
 Our agents do not. Docker would still need network access to Bedrock, so it adds hours and risk for no gain.
@@ -92,8 +92,8 @@ Our agents do not. Docker would still need network access to Bedrock, so it adds
 **When containers become necessary:** if an agent runs code (example: a dev agent reads a poisoned GitHub issue),
 the Mirage side needs a real container (Docker, E2B, or Bedrock AgentCore Code Interpreter). This is a "next steps" slide, not weekend work.
 
-**Pitch angle:** the boundary is the tool layer, so Mirage works in front of any agent framework.
-A customer puts the Mirage gateway between their agents and their tools (for example as an MCP proxy).
+**Pitch angle:** "Keep your LangGraph agent. Add one line. Mirage checks every tool call, freezes bad runs,
+and replays them in a twin to prove what happened." Later: an MCP proxy mode for agents we cannot wrap.
 
 ## 3. The incident flow
 
@@ -270,34 +270,29 @@ We record a backup video of the full flow.
 
 ## 9. UI
 
-One screen. Three zones.
+Two interfaces, same actions: a simple web dashboard and an MCP server. Full spec: `docs/UX.md`.
 
-- **Left: Production lane.** One card per agent. Live tool calls. Status: running / frozen / done.
-- **Right: Mirage lane.** Empty until a detonation starts. Shows the replay live and the effects ledger.
-- **Bottom: Incident drawer.** Timeline, verdict, blast radius, bisection grid, coding agent buttons, PR link.
+- **Fleet:** one row per run. Healthy runs stay quiet. A frozen run turns red. STOP ALL is always visible.
+- **Incident:** one page that reads like a story: what happened, what would have happened, why, the fix.
+  One main button. Its label follows the next step: Detonate → Find the cause → Send fix → Open PR.
+- **MCP:** ask Claude "which run got compromised?", see the proof, unfreeze a run. The dashboard updates live.
 
-Buttons:
-
-- **Global STOP** (top bar, always visible): halts all runs, revokes all tokens.
-- **Freeze / Unfreeze** on each agent card.
-- **Approve / Reject** for runs in the approval queue. A reason is required.
-- **Detonate**, **Copy prompt**, **Send to Codex**, **Approve clean restart**.
-
-Every human action is logged: who, when, what, why.
+Every human action is logged: who, when, what, why, and through which interface.
 
 ## 10. Tech stack
 
 | Part | Choice |
 |---|---|
 | Language | Python 3 |
-| Agents | Bedrock Converse API with tool use, fast model, temperature 0 |
+| Agents | LangGraph (`create_agent` + `ChatBedrockConverse`, temperature 0), wrapped by `mirage.protect` |
+| SDK | `mirage-sdk`: `mirage.protect` (LangChain middleware) |
 | Gate decision model | `gpt-oss-safeguard-20b` on Bedrock |
 | Judge | `gpt-oss-safeguard-120b` on Bedrock |
 | Reports | stronger Bedrock model (ID from `.env`) |
 | Event log and snapshots | SQLite |
 | Real services | Gmail API, Google Calendar API, HubSpot free CRM |
-| Mirage access | CLI + MCP server + HTTP API (same code) |
-| UI | to decide: Streamlit or FastAPI + React |
+| Mirage access | CLI + HTTP API + MCP server (same function) |
+| UI | Vite + React web dashboard + TypeScript MCP server |
 | PR | PyGithub |
 
 Note: `gpt-oss-safeguard` has no `us.` or `global.` inference profile. We use the plain model ID.
@@ -308,11 +303,11 @@ We must check it is enabled in `us-east-1` on our account.
 Each step must run before we start the next one.
 
 1. Gmail, Calendar and HubSpot access works (OAuth, tokens, synthetic data loaded).
-2. One agent with Converse tool use and the production adapters.
+2. SDK: `mirage.protect`. One LangGraph agent with its real tools.
 3. Gate: hard rules + SQLite log + freeze/unfreeze.
 4. Poisoned calendar invite. The gate freezes the agent.
 5. Three agents in parallel. One frozen, two continue.
-6. Mirage adapters + snapshot at freeze.
+6. Snapshot at freeze + mirage mode in the SDK.
 7. `mirage detonate` CLI: replay 3 times, effects ledger, judge verdict.
 8. Bisection.
 9. Decision model (layer 2) in the gate.
@@ -333,6 +328,5 @@ Each step must run before we start the next one.
 
 ## 13. Open decisions
 
-1. UI: Streamlit (faster) or FastAPI + React (better live view)?
-2. Hosting for the Mirage API: AWS or a tunnel for the demo?
-3. Is `gpt-oss-safeguard` enabled in `us-east-1` on our account?
+1. Hosting for the Mirage API: AWS or a tunnel for the demo? (Proposal: `cloudflared` tunnel.)
+2. Is `gpt-oss-safeguard` enabled in `us-east-1` on our account?
