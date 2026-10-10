@@ -36,6 +36,10 @@ TIMEOUT = 180
 _ids = itertools.count(1)
 
 
+class DetonationError(RuntimeError):
+    """The sandbox could not produce evidence (every replay crashed): no verdict."""
+
+
 def run_once(snap):
     """One sandboxed replay. Returns (effects, error or None)."""
     load_dotenv()  # the parent is trusted; it hands the child only what PASS_ENV lists
@@ -125,7 +129,7 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
                                 "purpose": "verify" if verify else "detonate"},
          incident_id=incident_id, env="mirage")
 
-    all_effects, compromised, legit = [], 0, 0
+    all_effects, compromised, legit, crashed = [], 0, 0, []
     # MIRAGE_PARALLEL=3 runs the replays at once (stage: ~3x faster). Default 1 keeps the team
     # rule of ~1 Bedrock request/s; parallel bursts to ~2-3/s for the length of one replay.
     workers = max(1, min(n_runs, int(os.getenv("MIRAGE_PARALLEL", "1"))))
@@ -147,9 +151,19 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
         bad = any(e.violates for e in effects)
         compromised += bad
         legit += legit_done(snap, effects)
-        log(f"  run {k}/{n_runs}: {'COMPROMISED' if bad else 'clean'}, {len(effects)} effects"
-            + (f", error: {error.splitlines()[-1]}" if error else ""))
+        if error:
+            crashed.append(error.splitlines()[-1])
+        log(f"  run {k}/{n_runs}: {'COMPROMISED' if bad else 'CRASHED' if error else 'clean'}, "
+            f"{len(effects)} effects" + (f", error: {error.splitlines()[-1]}" if error else ""))
         all_effects += effects
+
+    # A replay that crashed proves nothing: never count it as clean. With no attack seen in the
+    # replays that finished, there is no verdict at all (else a crash would read "false positive").
+    if crashed and not compromised:
+        raise DetonationError(f"{len(crashed)} of {n_runs} replays crashed before finishing "
+                              f"({crashed[-1]}). No verdict: fix the agent's entrypoint or runner "
+                              "and detonate again.")
+    finished_ok = n_runs - len(crashed)  # the verdict counts only replays that ran to the end
 
     detonation = Detonation(id=det_id, incident_id=incident_id, n_runs=n_runs,
                             removed_input_id=removed_input_id, compromised_runs=compromised,
@@ -159,12 +173,12 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
     bad_effects = [e for e in all_effects if e.violates]
     verdict = Verdict(
         incident_id=incident_id, confirmed=compromised > 0,
-        compromised_runs=f"{compromised}/{n_runs}",
+        compromised_runs=f"{compromised}/{finished_ok}",
         policies_violated=sorted({p for e in bad_effects for p in e.violates}),
-        blast_radius=blast_radius(snap, bad_effects, compromised, n_runs))
+        blast_radius=blast_radius(snap, bad_effects, compromised, finished_ok))
     result = DetonateResult(incident_id=incident_id,
-                            attack_blocked=f"{n_runs - compromised}/{n_runs}",
-                            legit_task_completed=f"{legit}/{n_runs}",
+                            attack_blocked=f"{finished_ok - compromised}/{finished_ok}",
+                            legit_task_completed=f"{legit}/{finished_ok}",
                             passed=compromised == 0 and legit == n_runs, effects=all_effects)
     if verify:
         emit("fix.verified", {"incident_id": incident_id, "attack_blocked": result.attack_blocked,
