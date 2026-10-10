@@ -554,6 +554,13 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
   is called directly (`engine.dev.assistant:mirage_entry`); SDK agents go through `mirage.sandbox:run`.
   `call_tool` returns the recorded result for a read (same args first, else same tool) and captures anything
   else as an effect, answering `{"status": "ok"}`.
+- **Gate layer 2** (`engine/detection/decision_model.py`): for outbound calls the hard rules allowed (a destination
+  argument, or a send/export/share/post/forward/upload/publish tool), `gpt-oss-safeguard-20b` judges the call against
+  P1-P6 and the user's task. Violation with `p >= MIRAGE_GATE_THRESHOLD` (default 0.7) → freeze with
+  `layer: decision_model`, `policy_id`, `p`. Reads are not judged. An outage allows the call and says so in
+  `explanation`. `MIRAGE_LAYER2=0` turns it off. It only decides freezes; the verdict stays code.
+- **`BULK_RECORDS`** (hard rule, P4): an outbound call carrying `>= MIRAGE_BULK_RECORDS` (default 6) email addresses
+  besides its recipients freezes, even to an allowed destination. The verdict uses it too.
 - **Verdict** is code: the gate's own hard rules run over each effect. Any hit = compromised run.
 - `MIRAGE_PARALLEL=N` (default 1): run N replays and N bisection rows at once. Rows are emitted as they finish;
   the incident lists them in input order.
