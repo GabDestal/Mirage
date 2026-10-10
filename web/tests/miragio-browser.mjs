@@ -82,13 +82,15 @@ try {
       await page.route(/\/api\/(runs|incidents)(\?.*)?$/, (route) => route.fulfill({ json: [] }))
       const errors = []
       page.on('pageerror', (error) => errors.push(error.message))
+      await page.clock.install()
       await page.addInitScript(instrument, { random: device === 'phone' ? 0.1 : 0.5 })
       await page.goto(base)
-      await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+      await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now() + 100)))
+      await page.getByRole('button', { name: 'Sign in', exact: true }).evaluate((button) => button.click())
       const welcome = page.locator('.chat-miragio')
       await welcome.waitFor()
       const entry = welcome.locator('[data-miragio="entry"]')
-      assert.equal(await entry.evaluate((el) => el.style.transform), 'translateX(-1050px)')
+      assert.equal(await entry.evaluate((el) => getComputedStyle(el).transform), 'none', 'First frame is already at rest')
       const initialTile = await welcome.evaluate((svg) => {
         const group = svg.querySelector('[data-miragio="entry"]')
         const paper = group.parentElement.firstElementChild
@@ -97,55 +99,73 @@ try {
           children: [...group.children].map((el) => el.dataset.miragio),
           fixed: [...group.parentElement.children].filter((el) => el !== group).map((el) => el.dataset.miragio || (el.tagName === 'rect' ? 'paper' : 'chest')),
           paperFixed: paper.tagName === 'rect' && paper.parentElement === group.parentElement && group.parentElement.hasAttribute('clip-path'),
-          offTile: box.x + box.width <= 1050,
+          visible: box.x >= 0 && box.y >= 0 && box.x + box.width <= 1000 && box.y + box.height <= 1000,
+          opacity: getComputedStyle(group).opacity,
+          origin: group.style.transformOrigin,
+          transformBox: getComputedStyle(group).transformBox,
           rect: { x: svg.getBoundingClientRect().x, y: svg.getBoundingClientRect().y, width: svg.getBoundingClientRect().width, height: svg.getBoundingClientRect().height },
         }
       })
-      assert.deepEqual(initialTile.children, ['head'], 'Only head, gaze and blink share the entry transform')
-      assert.deepEqual(initialTile.fixed, ['paper', 'chest', 'ribbon', 'ribbon'], 'Paper, chest and sea stay outside the entrance group')
-      assert.ok(initialTile.paperFixed && initialTile.offTile, 'Head is fully outside the fixed tile on the first frame')
+      assert.deepEqual(initialTile.children, ['head'], 'Only head, gaze and blink share the greeting transform')
+      assert.deepEqual(initialTile.fixed, ['paper', 'chest', 'ribbon', 'ribbon'], 'Paper, chest and sea stay outside the greeting group')
+      assert.ok(initialTile.paperFixed && initialTile.visible, 'Entire head is inside the fixed tile on the first frame')
+      assert.equal(initialTile.opacity, '1', 'No appearance fade')
+      assert.equal(initialTile.transformBox, 'fill-box')
+      assert.match(initialTile.origin, /^50% 75%( 0px)?$/, 'Greeting pivots near the lower head')
       await entry.evaluate((group) => {
         window.miragioEntrySamples = []
         const sample = () => {
           const matrix = new DOMMatrix(getComputedStyle(group).transform)
           const fixed = [...group.parentElement.children].filter((el) => el !== group).map((el) => getComputedStyle(el).transform)
-          window.miragioEntrySamples.push({ a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, x: matrix.e, y: matrix.f, fixed })
+          window.miragioEntrySamples.push({ at: performance.now(), a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, x: matrix.e, y: matrix.f, fixed })
         }
         sample()
         window.miragioEntryObserver = new MutationObserver(sample)
         window.miragioEntryObserver.observe(group, { attributes: true, attributeFilter: ['style'] })
       })
       await welcome.evaluate(watchBlinks)
-      await welcome.screenshot({ path: `${out}/${device}-${theme}-entry.png` })
-      for (const [frame, x] of [['early', -800], ['mid', -300], ['overshoot', 0]]) {
-        await page.waitForFunction((threshold) => new DOMMatrix(getComputedStyle(document.querySelector('.chat-miragio [data-miragio="entry"]')).transform).e > threshold, x, { polling: 'raf' })
-        await welcome.screenshot({ path: `${out}/${device}-${theme}-${frame}.png` })
-      }
+      const initialPose = await welcome.locator('[data-miragio="head"], [data-miragio="gaze"]').evaluateAll((els) => els.map((el) => el.style.transform))
+      await page.screenshot({ clip: initialTile.rect, path: `${out}/${device}-${theme}-first.png` })
+      await page.clock.resume()
+      await page.waitForFunction(() => new DOMMatrix(getComputedStyle(document.querySelector('.chat-miragio [data-miragio="entry"]')).transform).f < -9.8, null, { polling: 'raf' })
+      await page.screenshot({ clip: initialTile.rect, path: `${out}/${device}-${theme}-peak.png` })
       await page.waitForFunction(() => window.miragioClosed.length >= 1)
       await page.waitForTimeout(450)
-      assert.equal(await page.evaluate(() => window.miragioClosed.length), device === 'phone' ? 2 : 1, 'Deterministic single/double blink after entry')
-      assert.equal(await entry.evaluate((el) => el.style.transform), 'none', 'Entry settles at rest')
+      assert.equal(await page.evaluate(() => window.miragioClosed.length), device === 'phone' ? 2 : 1, 'Deterministic single/double blink after greeting')
+      assert.equal(await entry.evaluate((el) => el.style.transform), 'none', 'Greeting settles at rest')
       await page.evaluate(() => window.miragioEntryObserver.disconnect())
       const entrySamples = await page.evaluate(() => window.miragioEntrySamples)
-      assert.ok(entrySamples.length > 2 && entrySamples.some(({ x }) => x > -800 && x < -300), 'Observed intermediate side slide')
-      assert.ok(entrySamples.every(({ a, b, c, d, x, y }) => a === 1 && b === 0 && c === 0 && d === 1 && y === 0 && x >= -1050), 'Head enters laterally without tilt or vertical crossing')
-      assert.ok(entrySamples.some(({ x }) => x > 0), 'Reference spring overshoots before settling')
-      assert.ok(entrySamples.every(({ fixed }) => fixed.length === 4 && fixed.every((transform) => transform === 'none')), 'Paper, chest and both ribbons stay fixed throughout entry')
+      const moving = entrySamples.filter(({ y }) => y < -0.01)
+      assert.ok(moving.length > 2 && moving.some(({ y }) => y < -9.8), 'Observed tiny greeting peak')
+      assert.ok(entrySamples.every(({ a, b, c, d, x, y }) => Math.abs(x) < 0.001 && y >= -10.001 && y <= 0 && Math.abs(a * d - b * c - 1) < 0.00001 && Math.atan2(b, a) * 180 / Math.PI >= -1.501 && b <= 0), 'Greeting only lifts and tilts, with no x, scale or overshoot')
+      const motionMs = Math.round(moving.at(-1).at - moving[0].at)
+      assert.ok(motionMs >= 1650 && motionMs <= 1900, 'Greeting lasts a slow 1.8 seconds')
+      assert.ok(entrySamples.every(({ fixed }) => fixed.length === 4 && fixed.every((transform) => transform === 'none')), 'Paper, chest and both ribbons stay fixed throughout greeting')
       assert.deepEqual(await welcome.evaluate((svg) => {
         const { x, y, width, height } = svg.getBoundingClientRect()
         return { x, y, width, height }
-      }), initialTile.rect, 'Paper tile and layout stay fixed throughout entry')
-      await welcome.screenshot({ path: `${out}/${device}-${theme}-rest.png` })
+      }), initialTile.rect, 'Paper tile and layout stay fixed throughout greeting')
+      // Compare the same gaze/position, without screenshot actionability skipping animated frames.
+      await page.clock.pauseAt(new Date(await page.evaluate(() => Date.now() + 100)))
+      const rest = await welcome.evaluate((svg, pose) => {
+        const parts = [...svg.querySelectorAll('[data-miragio="head"], [data-miragio="gaze"]')]
+        const saved = parts.map((el) => el.style.transform)
+        parts.forEach((el, index) => { el.style.transform = pose[index] })
+        return saved
+      }, initialPose)
+      await page.screenshot({ clip: initialTile.rect, path: `${out}/${device}-${theme}-rest.png` })
+      await welcome.evaluate((svg, pose) => [...svg.querySelectorAll('[data-miragio="head"], [data-miragio="gaze"]')].forEach((el, index) => { el.style.transform = pose[index] }), rest)
+      await page.clock.resume()
       assert.ok(await page.evaluate(() => window.miragioSchedule.some(({ delay }) => delay === 3250 || delay === 2250)), 'Recurring gap is 2–4.5 seconds')
       await page.waitForFunction((count) => window.miragioClosed.length > count, device === 'phone' ? 2 : 1)
       await page.waitForTimeout(450)
       assert.equal(await page.evaluate(() => window.miragioClosed.length), device === 'phone' ? 4 : 2)
-      const timing = await page.evaluate(() => ({
+      const timing = { greetingMotionMs: motionMs, ...await page.evaluate(() => ({
         blinkClosesMs: window.miragioClosed.map((time) => Math.round(time - window.miragioWatchStarted)),
         entryAtBlink: window.miragioEntryAtBlink,
         ownedDelaysMs: window.miragioSchedule.map(({ delay }) => delay),
-      }))
-      assert.ok(timing.entryAtBlink.every((transform) => transform === 'none'), 'Blink starts only after entrance completes')
+      })) }
+      assert.ok(timing.entryAtBlink.every((transform) => transform === 'none'), 'Blink starts only after greeting completes')
       if (device === 'phone') {
         const doubleGap = timing.blinkClosesMs[1] - timing.blinkClosesMs[0]
         assert.ok(doubleGap >= 140 && doubleGap <= 260, 'Double blink follows sequential 180ms close/open')
@@ -165,7 +185,7 @@ try {
       const beforeReading = await welcome.locator('[data-miragio="gaze"]').getAttribute('style')
       await input.fill('Which agents need my attention?')
       await page.waitForTimeout(600)
-      assert.equal(await entry.evaluate((el) => el.style.transform), 'none', 'Typing does not replay entry')
+      assert.equal(await entry.evaluate((el) => el.style.transform), 'none', 'Typing does not replay greeting')
       assert.notEqual(await welcome.locator('[data-miragio="gaze"]').getAttribute('style'), beforeReading)
       await input.fill('')
       await input.blur()
@@ -187,7 +207,7 @@ try {
         await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); document.dispatchEvent(new Event('visibilitychange')) })
         await page.waitForTimeout(100)
         assert.deepEqual(await page.evaluate(() => window.miragioResources()), { timers: 2, pointers: 1 })
-        assert.equal(await entry.evaluate((el) => el.style.transform), 'none', 'Visibility resume does not replay entry')
+        assert.equal(await entry.evaluate((el) => el.style.transform), 'none', 'Visibility resume does not replay greeting')
       }
       await page.emulateMedia({ reducedMotion: 'reduce' })
       await page.waitForTimeout(100)
@@ -247,13 +267,13 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
       assert.deepEqual(errors, [])
       await page.screenshot({ path: `${out}/${device}-${theme}-replies.png` })
-      results.push({ device, theme, passed: true, timing, checks: ['head hidden first frame', 'head-only entry', 'lateral reference spring overshoot', 'fixed sea/chest throughout entry and idle', 'fixed tile/layout', 'one-time entry', 'single/double blink', '2–4.5s gap', 'dimensions', 'gaze', 'reading', 'reduced pixel equality', 'static/unmount resources', 'unique ids', 'read-only synthetic SSE followup', 'overflow', 'runtime errors'] })
+      results.push({ device, theme, passed: true, timing, checks: ['visible first frame matches rest', 'head-only greeting', 'tiny no-x 1.8s greeting', 'fixed sea/chest throughout greeting and idle', 'fixed tile/layout', 'one-time greeting', 'single/double blink', '2–4.5s gap', 'dimensions', 'gaze', 'reading', 'reduced pixel equality', 'static/unmount resources', 'unique ids', 'read-only synthetic SSE followup', 'overflow', 'runtime errors'] })
       const video = page.video()
       await context.close()
       if (video) await rename(await video.path(), `${out}/${device}-animation.webm`)
     }
   }
-  for (const scenario of ['initial-reduced', 'initial-hidden', 'entry-reduced', 'entry-hidden', 'first-blink-reduced', 'second-blink-hidden']) {
+  for (const scenario of ['initial-reduced', 'initial-hidden', 'greeting-reduced', 'greeting-hidden', 'first-blink-reduced', 'second-blink-hidden']) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: scenario === 'initial-reduced' ? 'reduce' : 'no-preference' })
     const page = await context.newPage()
     await page.route(/\/api\/(runs|incidents)(\?.*)?$/, (route) => route.fulfill({ json: [] }))
@@ -265,7 +285,7 @@ try {
     const welcome = page.locator('.chat-miragio')
     await welcome.waitFor()
     await welcome.evaluate(watchBlinks)
-    if (scenario.startsWith('entry-')) {
+    if (scenario.startsWith('greeting-')) {
       await page.waitForTimeout(350)
       assert.notEqual(await welcome.locator('[data-miragio="entry"]').evaluate((el) => el.style.transform), 'none')
     } else if (scenario.includes('blink')) {
@@ -280,7 +300,7 @@ try {
     await page.emulateMedia({ reducedMotion: 'no-preference' })
     await setHidden(page, false)
     await page.waitForTimeout(600)
-    assert.equal(await welcome.locator('[data-miragio="entry"]').evaluate((el) => el.style.transform), 'none', 'Resume never re-enters')
+    assert.equal(await welcome.locator('[data-miragio="entry"]').evaluate((el) => el.style.transform), 'none', 'Resume never repeats the greeting')
     assert.equal(await page.evaluate(() => window.miragioClosed.length), count, 'Resume waits for the recurring gap')
     assert.deepEqual(await page.evaluate(() => window.miragioResources()), { timers: 2, pointers: 1 })
     await page.evaluate(() => window.miragioBlinkObserver.disconnect())
@@ -291,7 +311,7 @@ try {
     assert.deepEqual(await page.evaluate(() => window.miragioResources()), { timers: 0, pointers: 0 })
     assert.equal(await page.evaluate(() => window.miragioListeners()), 0)
     assert.deepEqual(errors, [])
-    results.push({ scenario, passed: true, checks: ['immediate static resolution', 'no late second blink/timer', 'resume without entry', 'initial preference', 'listener/timer cleanup'] })
+    results.push({ scenario, passed: true, checks: ['immediate static resolution', 'no late second blink/timer', 'resume without greeting', 'initial preference', 'listener/timer cleanup'] })
     await context.close()
   }
 } finally {

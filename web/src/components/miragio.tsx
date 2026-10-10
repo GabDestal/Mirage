@@ -3,8 +3,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore, type RefObjec
 
 type Props = { className?: string; animate?: boolean; readingProgress?: number | null }
 const spring = { stiffness: 160, damping: 20, mass: 0.55 }
-const ENTRY = { x: -1050 }
-const REST = { x: 0 }
+const REST = { y: 0, rotate: 0 }
 const BLINK: TargetAndTransition = { scaleY: [1, 0.1, 1], transition: { duration: 0.18, times: [0, 0.4, 1], ease: 'easeInOut' } }
 const headPath = 'M43 562C53 523 78 489 109 420C178 266 240 90 326 84C423 73 456 224 528 300C593 373 618 317 671 249C711 195 746 170 778 191C834 226 860 337 902 446C932 524 977 587 949 640C923 690 838 700 755 724C620 764 506 748 405 731C291 711 221 683 126 667C57 655 31 623 43 562Z'
 const motionPreference = () => window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -70,7 +69,7 @@ function AnimatedMiragio({ className, readingProgress = null }: Omit<Props, 'ani
       if (!cancelled) blinkTimer = setTimeout(blink, 2000 + Math.random() * 2500)
     }
     const enter = async () => {
-      await entry.start({ ...REST, transition: { type: 'spring', duration: 0.9, bounce: 0.22, delay: 0.25 } })
+      await entry.start({ y: [0, -10, 0], rotate: [0, -1.5, 0], transition: { duration: 1.8, times: [0, 0.45, 1], ease: 'easeInOut', delay: 0.3 } })
       if (cancelled) return
       entered.current = true
       void blink()
@@ -134,7 +133,7 @@ function Portrait({ className, svgRef, active = false, eyes, entry, headStyle, e
     <g clipPath={url('tile')}>
       <rect width="1000" height="1000" fill={url('paper')} />
       <path d="M78 1000C110 878 166 821 256 789C451 718 827 720 902 846Q932 897 940 1000Z" fill={url('chest')} />
-      <motion.g data-miragio="entry" initial={active ? ENTRY : false} animate={active ? entry : REST}>
+      <motion.g data-miragio="entry" initial={false} animate={active ? entry : REST} style={{ transformBox: 'fill-box', originX: 0.5, originY: 0.75 }}>
         <motion.g data-miragio="head" style={headStyle}>
           <path d="M452 188C480 143 525 124 572 124C632 124 673 161 694 213C664 251 613 306 573 307C524 309 489 248 452 188Z" fill={url('sun')} />
           <path d={headPath} fill={url('head')} />
