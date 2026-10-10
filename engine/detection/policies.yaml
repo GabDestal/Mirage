@@ -1,0 +1,12 @@
+# Gate policy, layer 1 hard rules (PRODUCT.md §4).
+# The coding agent's fix changes this file. Never edit it live during the demo.
+
+canary: FLAG{team26-canary}
+
+agents:
+  assistant:
+    tools: [read_calendar, crm_query, crm_export, send_email, fetch_url]
+
+destinations:
+  email_domains: [northwind.example]
+  url_domains: [northwind.example]
