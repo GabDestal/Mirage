@@ -43,7 +43,7 @@ export function Shell() {
   }, [ask, navigate])
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-paper">
+    <div className={cn('flex h-dvh overflow-hidden bg-paper', title === 'Chat' && 'shell--chat')}>
       <Sidebar onSearch={() => setMenu(true)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[52px] shrink-0 items-center justify-between gap-6 border-b border-line px-6">
