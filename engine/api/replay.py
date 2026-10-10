@@ -1,10 +1,11 @@
 """Replay mode (CONTRACTS.md §7): play a recorded demo through the same API, no agents needed.
 
-The fixture is cut into segments. A new segment starts at each event a human action triggers
-(detonate, bisect, handoff, verify, or a human.action such as kill). A POST action plays the next
-segment with its recorded timing; anything still pending in the current one shows at once, so
-`seq` order never breaks. Runs and incidents are folded from the events played so far (state.py),
-the same fold live mode uses, so the state can never disagree with the stream.
+The fixture is cut into segments, one per operator step: detonate, find the cause, handoff,
+check a fix, and each other human action (kill, unfreeze, restart...). A POST action plays the
+next segment with its recorded timing; anything still pending in the current one shows at once,
+so `seq` order never breaks. Works for a hand-written fixture and for a real recorded run (where
+bisection's own detonations belong to the "find the cause" step). Runs and incidents are folded
+from the events played so far (state.py), the same fold live mode uses.
 """
 
 import math
@@ -14,7 +15,29 @@ from pathlib import Path
 from contracts.models import Event
 from engine.api.state import fold
 
-HOLD = {"human.action", "detonation.started", "bisection.step", "handoff.created", "fix.verified"}
+STEP_OF = {"bisection.step": "bisect", "handoff.created": "handoff", "fix.verified": "verify"}
+
+
+def step_of(event):
+    """The operator step an event starts or belongs to; None if it just follows the current one."""
+    p = event.payload
+    if event.type == "detonation.started":
+        return ("verify" if p.get("purpose") == "verify"
+                else "bisect" if p.get("removed_input_id") else "detonate")
+    if event.type == "human.action":  # the handoff's own human.action opens the handoff step
+        return "handoff" if p.get("action") == "handoff" else f"human-{event.seq}"
+    return STEP_OF.get(event.type)
+
+
+def segment_starts(events):
+    starts, current = [0], None
+    for i, e in enumerate(events):
+        step = step_of(e)
+        if step and step != current:
+            if i:
+                starts.append(i)
+            current = step
+    return starts
 
 
 class Replay:
@@ -22,8 +45,7 @@ class Replay:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
         events = [Event.model_validate_json(line) for line in lines if line.strip()]
         self.events = [e.model_copy(update={"seq": n}) for n, e in enumerate(events, start=1)]
-        self.starts = [i for i, e in enumerate(self.events)
-                       if i == 0 or (e.type in HOLD and e.type != self.events[i - 1].type)]
+        self.starts = segment_starts(self.events)
         self.speed = speed
         self.restart()
 

@@ -4,6 +4,7 @@ uv run python -m engine.cli detonate --incident inc_001 [--runs 3] [--json]   # 
 uv run python -m engine.cli detonate --incident inc_001 --from-freeze          # operator replay
 uv run python -m engine.cli bisect --incident inc_001 [--runs 2]
 uv run python -m engine.cli pr --incident inc_001 --url https://github.com/.../pull/42
+uv run python -m engine.cli export-fixture [--out contracts/fixtures/calendar_demo.jsonl]
 """
 
 import argparse
@@ -30,7 +31,12 @@ def main(argv=None):
     pr = sub.add_parser("pr", help="Report the fix PR for an incident")
     pr.add_argument("--incident", required=True)
     pr.add_argument("--url", required=True)
+    exp = sub.add_parser("export-fixture", help="Save the event log as a replay fixture")
+    exp.add_argument("--out", default="contracts/fixtures/calendar_demo.jsonl")
     args = parser.parse_args(argv)
+
+    if args.command == "export-fixture":
+        return export_fixture(args.out)
 
     if args.command == "pr":
         from engine.handoff import pr_opened
@@ -63,6 +69,30 @@ def main(argv=None):
         print(f"attack_blocked={result.attack_blocked} "
               f"legit_task_completed={result.legit_task_completed} passed={result.passed}")
     return 0 if result.passed else 1
+
+
+def export_fixture(out):
+    """Write the event log (data/mirage.db, or MIRAGE_DB) as a replay fixture, then load it back
+    as a replay and list its operator steps, so a bad recording is caught now, not on stage."""
+    from pathlib import Path
+
+    from engine.api.replay import Replay, step_of
+    from engine.store import events
+
+    log = events.read()
+    if not log:
+        print("The event log is empty: run the demo first.")
+        return 1
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    Path(out).write_text("".join(e.model_dump_json() + "\n" for e in log), encoding="utf-8")
+    replay = Replay(out)
+    print(f"Wrote {len(log)} events to {out}. Replay steps (one POST each after the first):")
+    for n, start in enumerate(replay.starts):
+        first = replay.events[start]
+        label = (first.payload.get("action") if first.type == "human.action"
+                 else step_of(first) or "production")
+        print(f"  {n}. {label}  (event {first.seq})")
+    return 0
 
 
 if __name__ == "__main__":

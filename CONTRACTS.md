@@ -335,10 +335,11 @@ mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json
 - Starter fixture: `contracts/fixtures/sample_demo.jsonl` (story 1, valid against `models.py`). The server
   plays `calendar_demo.jsonl` when it exists, else the sample. Override with `MIRAGE_FIXTURE=<path>`.
 - Speed: `MIRAGE_REPLAY_SPEED=10` plays 10x faster (UI work, tests).
-- How POSTs move the replay: the fixture is cut into segments. A segment starts at each event a human triggers:
-  `detonation.started`, the first `bisection.step`, `handoff.created`, `fix.verified`, and every `human.action`.
-  Any POST action (`/detonate`, `/bisect`, `/handoff`, `/verify`, `/kill`, `/unfreeze`, `/freeze`, `/stop`)
-  plays the next segment. `/demo/start` and `/demo/reset` restart from the beginning.
+- How POSTs move the replay: the fixture is cut into one segment per operator step: detonate, find the cause
+  (bisection, including its own detonations), handoff, check a fix, and each other `human.action` (kill,
+  unfreeze, restart...). Any POST action plays the next segment. `/demo/start` and `/demo/reset` restart.
+- Record a real run as the fixture: run the demo live, then `uv run python -m engine.cli export-fixture`
+  (writes `contracts/fixtures/calendar_demo.jsonl` and lists the replay steps).
 - `/runs` and `/incidents` are folded from the events played so far, including `next_action`.
 - Data plane routes (§11) answer `409` in replay mode.
 
