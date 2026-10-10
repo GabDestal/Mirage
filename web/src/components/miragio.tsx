@@ -1,8 +1,11 @@
-import { motion, useAnimationControls, useSpring, useTransform, type MotionStyle } from 'motion/react'
+import { motion, useAnimationControls, useSpring, useTransform, type MotionStyle, type TargetAndTransition } from 'motion/react'
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
 
 type Props = { className?: string; animate?: boolean; readingProgress?: number | null }
 const spring = { stiffness: 160, damping: 20, mass: 0.55 }
+const ENTRY = { x: -100, y: 270, rotate: -10 }
+const REST = { x: 0, y: 0, rotate: 0 }
+const BLINK: TargetAndTransition = { scaleY: [1, 0.1, 1], transition: { duration: 0.18, times: [0, 0.4, 1], ease: 'easeInOut' } }
 const headPath = 'M43 562C53 523 78 489 109 420C178 266 240 90 326 84C423 73 456 224 528 300C593 373 618 317 671 249C711 195 746 170 778 191C834 226 860 337 902 446C932 524 977 587 949 640C923 690 838 700 755 724C620 764 506 748 405 731C291 711 221 683 126 667C57 655 31 623 43 562Z'
 const motionPreference = () => window.matchMedia('(prefers-reduced-motion: reduce)')
 function subscribeMotionPreference(onChange: () => void) {
@@ -24,6 +27,8 @@ function AnimatedMiragio({ className, readingProgress = null }: Omit<Props, 'ani
   const ref = useRef<SVGSVGElement>(null)
   const reading = useRef(readingProgress !== null)
   const lastPointer = useRef(0)
+  const entered = useRef(false)
+  const entry = useAnimationControls()
   const eyes = useAnimationControls()
   const lookX = useSpring(0, spring)
   const lookY = useSpring(0, spring)
@@ -48,13 +53,27 @@ function AnimatedMiragio({ className, readingProgress = null }: Omit<Props, 'ani
   }, [readingProgress, active, lookX, lookY])
 
   useEffect(() => {
-    if (!active) { eyes.stop(); eyes.set({ scaleY: 1 }); return }
+    if (!active) {
+      entered.current = true
+      entry.stop(); entry.set(REST)
+      eyes.stop(); eyes.set({ scaleY: 1 })
+      return
+    }
     let cancelled = false
     let blinkTimer: ReturnType<typeof setTimeout>
     let glanceTimer: ReturnType<typeof setTimeout>
     const blink = async () => {
-      await eyes.start({ scaleY: [1, 0.1, 1], transition: { duration: 0.18, times: [0, 0.4, 1], ease: 'easeInOut' } })
-      if (!cancelled) blinkTimer = setTimeout(blink, 2500 + Math.random() * 4000)
+      if (cancelled) return
+      await eyes.start(BLINK)
+      if (cancelled) return
+      if (Math.random() < 0.2) await eyes.start(BLINK)
+      if (!cancelled) blinkTimer = setTimeout(blink, 2000 + Math.random() * 2500)
+    }
+    const enter = async () => {
+      await entry.start({ ...REST, transition: { type: 'spring', duration: 0.9, bounce: 0.15, delay: 0.25 } })
+      if (cancelled) return
+      entered.current = true
+      void blink()
     }
     const glance = () => {
       if (!reading.current && Date.now() - lastPointer.current > 2500) {
@@ -72,7 +91,8 @@ function AnimatedMiragio({ className, readingProgress = null }: Omit<Props, 'ani
       lookY.set(clamp((event.clientY - rect.top - rect.height / 2) / (innerHeight / 2.5)))
     }
     const centre = () => { if (!reading.current) { lookX.set(0); lookY.set(0) } }
-    blinkTimer = setTimeout(blink, 2500 + Math.random() * 4000)
+    if (entered.current) blinkTimer = setTimeout(blink, 2000 + Math.random() * 2500)
+    else void enter()
     glanceTimer = setTimeout(glance, 2500)
     window.addEventListener('pointermove', pointer, { passive: true })
     document.documentElement.addEventListener('pointerleave', centre)
@@ -80,20 +100,21 @@ function AnimatedMiragio({ className, readingProgress = null }: Omit<Props, 'ani
       cancelled = true
       clearTimeout(blinkTimer)
       clearTimeout(glanceTimer)
+      entry.stop()
       eyes.stop()
       window.removeEventListener('pointermove', pointer)
       document.documentElement.removeEventListener('pointerleave', centre)
     }
-  }, [active, eyes, lookX, lookY])
+  }, [active, entry, eyes, lookX, lookY])
 
-  return <Portrait className={className} svgRef={ref} active={active} eyes={active ? eyes : undefined}
+  return <Portrait className={className} svgRef={ref} active={active} eyes={active ? eyes : undefined} entry={entry}
     headStyle={active ? { x: headX, y: headY, rotate: headRotate, originX: 0.5, originY: 0.75 } : { x: 0, y: 0, rotate: 0 }}
     eyeStyle={active ? { x: eyeX, y: eyeY } : { x: 0, y: 0 }} />
 }
 
-function Portrait({ className, svgRef, active = false, eyes, headStyle, eyeStyle }: {
+function Portrait({ className, svgRef, active = false, eyes, entry, headStyle, eyeStyle }: {
   className?: string; svgRef?: RefObject<SVGSVGElement | null>; active?: boolean
-  eyes?: ReturnType<typeof useAnimationControls>; headStyle?: MotionStyle; eyeStyle?: MotionStyle
+  eyes?: ReturnType<typeof useAnimationControls>; entry?: ReturnType<typeof useAnimationControls>; headStyle?: MotionStyle; eyeStyle?: MotionStyle
 }) {
   const id = useId()
   const url = (name: string) => `url(#${id}-${name})`
@@ -113,18 +134,20 @@ function Portrait({ className, svgRef, active = false, eyes, headStyle, eyeStyle
     <g clipPath={url('tile')}>
       <rect width="1000" height="1000" fill={url('paper')} />
       <path d="M78 1000C110 878 166 821 256 789C451 718 827 720 902 846Q932 897 940 1000Z" fill={url('chest')} />
-      <motion.g data-miragio="head" style={headStyle}>
-        <path d="M452 188C480 143 525 124 572 124C632 124 673 161 694 213C664 251 613 306 573 307C524 309 489 248 452 188Z" fill={url('sun')} />
-        <path d={headPath} fill={url('head')} />
-        <path d={headPath} fill={url('crest')} />
-        <path d={headPath} fill={url('edge')} />
-        <path d="M188 521C198 440 299 331 397 326C487 319 514 383 586 397C637 408 690 382 744 404C806 424 827 484 821 573C816 660 778 697 699 720C605 748 513 743 432 723C323 697 177 650 188 521Z" fill={url('face')} />
-        <motion.g data-miragio="gaze" style={eyeStyle}>
-          <motion.g data-miragio="blink" animate={eyes} style={{ transformBox: 'fill-box', originY: 0.5, ...(!active ? { scaleY: 1 } : {}) }}>
-            <path d="M345 552C349 488 367 422 405 422C451 420 450 470 441 540C435 586 426 615 392 615C353 615 341 593 345 552Z" fill={url('eye')} />
-            <path d="M607 578C611 518 622 458 657 457C700 454 701 500 691 566C685 612 675 640 646 640C612 640 603 617 607 578Z" fill={url('eye')} />
-            <ellipse cx="417" cy="457" rx="13" ry="19" transform="rotate(-12 417 457)" fill="#fff" />
-            <ellipse cx="668" cy="489" rx="12" ry="17" transform="rotate(-14 668 489)" fill="#fff" />
+      <motion.g data-miragio="entry" initial={active ? ENTRY : false} animate={active ? entry : REST}>
+        <motion.g data-miragio="head" style={headStyle}>
+          <path d="M452 188C480 143 525 124 572 124C632 124 673 161 694 213C664 251 613 306 573 307C524 309 489 248 452 188Z" fill={url('sun')} />
+          <path d={headPath} fill={url('head')} />
+          <path d={headPath} fill={url('crest')} />
+          <path d={headPath} fill={url('edge')} />
+          <path d="M188 521C198 440 299 331 397 326C487 319 514 383 586 397C637 408 690 382 744 404C806 424 827 484 821 573C816 660 778 697 699 720C605 748 513 743 432 723C323 697 177 650 188 521Z" fill={url('face')} />
+          <motion.g data-miragio="gaze" style={eyeStyle}>
+            <motion.g data-miragio="blink" animate={eyes} style={{ transformBox: 'fill-box', originY: 0.5, ...(!active ? { scaleY: 1 } : {}) }}>
+              <path d="M345 552C349 488 367 422 405 422C451 420 450 470 441 540C435 586 426 615 392 615C353 615 341 593 345 552Z" fill={url('eye')} />
+              <path d="M607 578C611 518 622 458 657 457C700 454 701 500 691 566C685 612 675 640 646 640C612 640 603 617 607 578Z" fill={url('eye')} />
+              <ellipse cx="417" cy="457" rx="13" ry="19" transform="rotate(-12 417 457)" fill="#fff" />
+              <ellipse cx="668" cy="489" rx="12" ry="17" transform="rotate(-14 668 489)" fill="#fff" />
+            </motion.g>
           </motion.g>
         </motion.g>
       </motion.g>
