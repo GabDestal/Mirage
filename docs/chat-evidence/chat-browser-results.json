@@ -1,0 +1,94 @@
+[
+  {
+    "device": "desktop",
+    "name": "welcome and light shell",
+    "passed": true
+  },
+  {
+    "device": "desktop",
+    "name": "suggestions keyboard and IME",
+    "passed": true
+  },
+  {
+    "device": "desktop",
+    "name": "tool evidence and handoff",
+    "passed": true
+  },
+  {
+    "device": "desktop",
+    "name": "approval validation retry and decision",
+    "passed": true
+  },
+  {
+    "device": "desktop",
+    "name": "error preserved draft and recovery",
+    "passed": true
+  },
+  {
+    "device": "desktop",
+    "name": "stop and new chat fence",
+    "passed": true
+  },
+  {
+    "device": "desktop",
+    "name": "long content scroll and safe rendering",
+    "passed": true
+  },
+  {
+    "device": "desktop",
+    "name": "offline draft and reduced motion",
+    "passed": true
+  },
+  {
+    "device": "desktop",
+    "name": "runtime errors",
+    "passed": true,
+    "errors": []
+  },
+  {
+    "device": "mobile",
+    "name": "welcome and light shell",
+    "passed": true
+  },
+  {
+    "device": "mobile",
+    "name": "suggestions keyboard and IME",
+    "passed": true
+  },
+  {
+    "device": "mobile",
+    "name": "tool evidence and handoff",
+    "passed": true
+  },
+  {
+    "device": "mobile",
+    "name": "approval validation retry and decision",
+    "passed": true
+  },
+  {
+    "device": "mobile",
+    "name": "error preserved draft and recovery",
+    "passed": true
+  },
+  {
+    "device": "mobile",
+    "name": "stop and new chat fence",
+    "passed": true
+  },
+  {
+    "device": "mobile",
+    "name": "long content scroll and safe rendering",
+    "passed": true
+  },
+  {
+    "device": "mobile",
+    "name": "offline draft and reduced motion",
+    "passed": true
+  },
+  {
+    "device": "mobile",
+    "name": "runtime errors",
+    "passed": true,
+    "errors": []
+  }
+]

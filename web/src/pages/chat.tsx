@@ -16,6 +16,7 @@ const ease = [0.23, 1, 0.32, 1] as const
 
 export function Chat() {
   const chat = useChat()
+  const stopChat = chat.stop
   const runs = useRuns()
   const [draft, setDraft] = useState('')
   const [online, setOnline] = useState(navigator.onLine)
@@ -31,11 +32,11 @@ export function Chat() {
   const lastError = latest?.status === 'error' ? latest.error : undefined
 
   useEffect(() => {
-    const sync = () => { setOnline(navigator.onLine); if (!navigator.onLine) chat.stop() }
+    const sync = () => { setOnline(navigator.onLine); if (!navigator.onLine) stopChat() }
     window.addEventListener('online', sync)
     window.addEventListener('offline', sync)
     return () => { window.removeEventListener('online', sync); window.removeEventListener('offline', sync) }
-  }, [chat.stop])
+  }, [stopChat])
 
   function jump() {
     follow.current = true
