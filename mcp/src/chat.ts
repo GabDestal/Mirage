@@ -375,7 +375,8 @@ async function modelReply(provider: ModelProvider, messages: Message[], tools: T
       let input: Record<string, unknown> = {};
       let malformed = false;
       try {
-        const parsed = JSON.parse(block.raw ?? "");
+        // Claude streams exactly empty arguments for tools with no supplied fields.
+        const parsed = block.raw === "" ? {} : JSON.parse(block.raw ?? "");
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || Buffer.byteLength(block.raw ?? "") > 8192) malformed = true;
         else input = parsed;
       } catch { malformed = true; }

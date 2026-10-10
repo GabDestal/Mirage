@@ -23,8 +23,17 @@ The coordinator/user authorized this approach and the additive user-only handoff
 
 From repo root, configure the gitignored `.env` with a short-term
 `AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION=us-east-1`, and `BEDROCK_CHAT_MODEL_ID`.
-An empty chat ID falls back to the existing agent ID, then generic model ID. IDs are
-never hardcoded. The model must support ConverseStream and tool use.
+Set `BEDROCK_CHAT_MODEL_ID=us.anthropic.claude-opus-4-8` explicitly, as in `.env.example`,
+to select the verified Opus model for chat independently of the agent/report models.
+An empty chat ID falls back to `BEDROCK_AGENT_MODEL_ID`, then `BEDROCK_MODEL_ID`;
+`BEDROCK_REPORT_MODEL_ID` does not select the chat model. IDs come only from the
+environment; no provider model is hardcoded in the service. The model must support
+ConverseStream and tool use. Restart the chat service after changing its environment.
+
+Exactly empty streamed tool arguments are treated as `{}` (Claude's observed shape
+for `list_runs` and `get_incident` with its optional ID omitted). Nonempty arguments
+still require a JSON object; malformed JSON, whitespace-only input, arrays, primitives,
+unknown fields and missing required arguments remain rejected by chat/MCP validation.
 
 ```sh
 cd mcp
@@ -59,6 +68,23 @@ action. The service never automatically retries Bedrock or effect calls, and blo
 same-tool/same-target repeat effects within a turn. Bounds and expiry are in §13.
 
 ## Evidence (2026-10-10)
+
+Empty-argument compatibility follow-up:
+
+- Regression before the parser fix: the observed empty-delta read test failed; the
+  explicit `{}` variant and rejection tests passed.
+- `cd mcp && npm run build && npm test`: passed, 41 tests across three files. The
+  added HTTP/SSE tests use the real MCP transport/handlers to inspect frozen runs and
+  the open incident proof with both empty and `{}` arguments. Ten rejection cases
+  assert zero backend requests; existing approval and no-retry tests still pass.
+- Provider-live Opus (`us.anthropic.claude-opus-4-8`, `us-east-1`): a local inline
+  harness connected the real chat HTTP/SSE service and MCP handlers to a synthetic
+  loopback HTTP backend. Both `list_runs` and `get_incident` streamed empty arguments
+  and succeeded; model continuation received the frozen run and deterministic proof.
+  Two model requests, 1194 response characters, three GETs (`/runs`, `/incidents`,
+  `/runs/run_002`), zero engine effects. No real engine/service was contacted.
+
+Original backend delivery evidence:
 
 - `cd mcp && npm run build`: passed.
 - `cd mcp && npm test`: 29 tests passed across three files. Real local HTTP/SSE and actual
