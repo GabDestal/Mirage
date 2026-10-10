@@ -10,8 +10,6 @@ import asyncio
 import os
 import subprocess
 import sys
-import threading
-import time
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -43,7 +41,7 @@ from engine.api import services
 from engine.api.replay import Replay
 from engine.api.state import fold
 from engine.detection.rules import POLICY
-from engine.detonation import sandbox, snapshot
+from engine.detonation import jobs, sandbox, snapshot
 from engine.gateway import gate
 from engine.store import events
 
@@ -76,7 +74,10 @@ def restore():
 async def lifespan(app):
     if not REPLAY:
         restore()
+        jobs.start()
     yield
+    if not REPLAY:
+        jobs.shutdown()
     _stop_demo_agents()  # a normal shutdown (Ctrl+C) does not leave the demo fleet running
 
 
@@ -263,16 +264,17 @@ def freeze(run_id: str, body: HumanRequest) -> Run:
 
 @app.post("/runs/{run_id}/unfreeze")
 def unfreeze(run_id: str, body: HumanRequest) -> Run:
-    if not REPLAY:
-        runs, incidents = _state()
-        inc = incidents.get(runs[run_id].incident_id) if run_id in runs else None
-        if inc and inc.status == "detonating":
-            raise HTTPException(409, "Cannot unfreeze: detonation is running. Wait for the verdict.")
-        if inc and (inc.status not in ("open", "false_positive")
-                    or (inc.verdict and inc.verdict.confirmed)):
-            raise HTTPException(409, "Cannot unfreeze: detonation confirmed this run is compromised. "
-                                     "Kill it and approve a clean restart.")
-    return _act(run_id, body, "unfreeze", ("frozen",))
+    with jobs.lock:
+        if not REPLAY:
+            runs, incidents = _state()
+            inc = incidents.get(runs[run_id].incident_id) if run_id in runs else None
+            if inc and (inc.status == "detonating" or jobs.running(inc.id)):
+                raise HTTPException(409, "Cannot unfreeze: detonation is running. Wait for the verdict.")
+            if inc and (inc.status not in ("open", "false_positive")
+                        or (inc.verdict and inc.verdict.confirmed)):
+                raise HTTPException(409, "Cannot unfreeze: detonation confirmed this run is compromised. "
+                                         "Kill it and approve a clean restart.")
+        return _act(run_id, body, "unfreeze", ("frozen",))
 
 
 @app.post("/runs/{run_id}/restart")
@@ -322,35 +324,27 @@ def _incident_step(incident_id, step) -> dict:
     return head.payload if head else {}
 
 
-_detonating = set()  # incident ids with a detonation running in this API process
+def _schedule(incident_id, work, *, purpose="detonate", runs=3, body=None):
+    try:
+        return jobs.submit(incident_id, work, purpose=purpose, n_runs=runs,
+                           audit=lambda: _audit("find_cause" if purpose == "bisect" else purpose,
+                                                incident_id, body))
+    except jobs.Busy as error:
+        raise HTTPException(409, str(error)) from error
+    except Exception as error:
+        raise HTTPException(503, "Sandbox scheduling failed; retry explicitly") from error
 
 
 @app.post("/incidents/{incident_id}/detonate")
 def detonate(incident_id: str, runs: int = 3, body: HumanRequest | None = None) -> dict:
-    """Live: replay the frozen run in the sandbox in the background; results come as events.
-    Works for incidents frozen by any process: the snapshot is read from disk."""
+    """Explicit retry/operator replay; initial incident detonation is automatic at freeze."""
     if REPLAY:
         return _incident_step(incident_id, "detonate")
-    get_incident(incident_id)
-    if incident_id in _detonating:
-        raise HTTPException(409, "A detonation is already running for this incident")
-    _detonating.add(incident_id)
-    _audit("detonate", incident_id, body)
-    detonation_id = f"det_{incident_id.removeprefix('inc_')}_{int(time.time())}"
-
-    def work():
-        try:
-            sandbox.detonate(incident_id, runs, detonation_id=detonation_id)
-        except Exception as e:  # noqa: BLE001 - keep the API up; the operator can retry
-            events.emit("detonation.failed", {"incident_id": incident_id,
-                                              "detonation_id": detonation_id,
-                                              "error": f"{type(e).__name__}: {e}"},
-                        incident_id=incident_id, env="mirage")
-        finally:
-            _detonating.discard(incident_id)
-
-    threading.Thread(target=work, daemon=True).start()
-    return {"detonation_id": detonation_id}
+    with jobs.lock:
+        get_incident(incident_id)
+        det_id = _schedule(incident_id, lambda det_id: sandbox.detonate(
+            incident_id, runs, detonation_id=det_id, emit_started=False), runs=runs, body=body)
+        return {"detonation_id": det_id}
 
 
 @app.post("/incidents/{incident_id}/bisect")
@@ -358,26 +352,13 @@ def bisect(incident_id: str, runs: int = 2, body: HumanRequest | None = None) ->
     """Live: remove one input at a time in the background; rows come as bisection.step events."""
     if REPLAY:
         return _incident_step(incident_id, "bisect")
-    incident = get_incident(incident_id)
-    if not (incident.verdict and incident.verdict.confirmed):
-        raise HTTPException(409, "Detonate first: bisection needs a confirmed compromise")
-    if incident_id in _detonating:
-        raise HTTPException(409, "A detonation or bisection is already running")
-    _detonating.add(incident_id)
-    _audit("find_cause", incident_id, body)
-
-    def work():
-        try:
-            engine_bisect.bisect(incident_id, runs)
-        except Exception as e:  # noqa: BLE001 - keep the API up; the operator can retry
-            events.emit("bisection.completed", {"incident_id": incident_id,
-                                                "cause_input_id": None, "error": str(e)},
-                        incident_id=incident_id, env="mirage")
-        finally:
-            _detonating.discard(incident_id)
-
-    threading.Thread(target=work, daemon=True).start()
-    return {"incident_id": incident_id, "status": "bisecting"}
+    with jobs.lock:
+        incident = get_incident(incident_id)
+        if not (incident.verdict and incident.verdict.confirmed):
+            raise HTTPException(409, "Detonate first: bisection needs a confirmed compromise")
+        _schedule(incident_id, lambda _: engine_bisect.bisect(incident_id, runs),
+                  purpose="bisect", runs=runs, body=body)
+        return {"incident_id": incident_id, "status": "bisecting"}
 
 
 @app.post("/incidents/{incident_id}/handoff")
@@ -409,26 +390,14 @@ def verify(incident_id: str, runs: int = 3, authorization: str = Header(""), bod
     The result comes as fix.verified {attack_blocked, legit_task_completed, passed}."""
     if REPLAY:
         return _incident_step(incident_id, "verify")
-    get_incident(incident_id)
-    if PUBLIC and not engine_handoff.token_ok(incident_id, authorization):
-        raise HTTPException(401, "This API is public: send the incident's mirage_token")
-    if incident_id in _detonating:
-        raise HTTPException(409, "A detonation is already running for this incident")
-    _detonating.add(incident_id)
-    _audit("verify", incident_id, body)
-
-    def work():
-        try:
-            sandbox.detonate(incident_id, runs, verify=True)
-        except Exception as e:  # noqa: BLE001 - keep the API up; the operator can retry
-            events.emit("detonation.failed", {"incident_id": incident_id, "detonation_id": "",
-                                              "error": f"{type(e).__name__}: {e}"},
-                        incident_id=incident_id, env="mirage")
-        finally:
-            _detonating.discard(incident_id)
-
-    threading.Thread(target=work, daemon=True).start()
-    return {"incident_id": incident_id, "status": "verifying"}
+    with jobs.lock:
+        get_incident(incident_id)
+        if PUBLIC and not engine_handoff.token_ok(incident_id, authorization):
+            raise HTTPException(401, "This API is public: send the incident's mirage_token")
+        _schedule(incident_id, lambda det_id: sandbox.detonate(
+            incident_id, runs, verify=True, detonation_id=det_id, emit_started=False),
+            purpose="verify", runs=runs, body=body)
+        return {"incident_id": incident_id, "status": "verifying"}
 
 
 DEMO_RUNNER = ["-m", "agents.run_demo_fleet"]  # Liam's fleet: 4 agents, one gets poisoned
@@ -448,12 +417,17 @@ def _stop_demo_agents():
 def _reset_live():
     """A clean slate: stop the demo agents, forget runs and agents, lift STOP, clear the log,
     the snapshots and the handoff tokens."""
-    _stop_demo_agents()
-    gate.reset()
-    events.reset()
-    for file in snapshot.SNAP_DIR.glob("*.json"):
-        file.unlink()
-    engine_handoff.TOKENS.unlink(missing_ok=True)
+    try:
+        with jobs.resetting():
+            _stop_demo_agents()
+            gate.reset()
+            events.reset()
+            for file in snapshot.SNAP_DIR.glob("*.json"):
+                file.unlink()
+            engine_handoff.TOKENS.unlink(missing_ok=True)
+    except jobs.Busy as error:
+        raise HTTPException(409, str(error)) from error
+
 
 
 @app.post("/demo/start", status_code=204)
