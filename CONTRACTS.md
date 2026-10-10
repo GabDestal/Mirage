@@ -337,7 +337,7 @@ contracts/           # shared (A + B agree)
   models.py          # Pydantic models, source of truth
   fixtures/          # recorded demo events and state
 sdk/                 # Liam: `mirage-sdk`, the package customer agents install
-  mirage/         
+  mirage/
     core.py          # data plane client: check, hold, record (all decisions in the engine)
     protect.py       # mirage.protect(agent): detects the framework, picks an adapter
     sandbox.py       # run(snapshot, call_tool): the detonation runner for SDK agents
