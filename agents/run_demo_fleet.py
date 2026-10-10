@@ -3,13 +3,15 @@
 2. invoicing: checks overdue invoices, searches CRM, sends reminders (keeps running)
 3. outreach: SDR lead follow-ups, queries CRM, logs sales activity (keeps running)
 4. pr_reviewer: reviews open pull requests, inspects files, posts comments (keeps running)
+
+Each agent has a module-level factory (`meeting_assistant()`, ...) that only builds and protects
+it. That factory is the entrypoint Mirage records, so the sandbox can rebuild the agent to
+detonate an incident (a function nested in run_fleet could not be found there).
 """
 
 import os
 import sys
 import threading
-import time
-from datetime import UTC, datetime
 
 from dotenv import load_dotenv
 
@@ -18,21 +20,69 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 load_dotenv()
 
-from engine.gateway import gate
-from engine.store import events
-from agents.services.store import reset as reset_store, state as get_store_state
-from agents.meeting_assistant.eval_injection import VARIANTS, seeded
 import mirage
 
-from agents.meeting_assistant.agent import build_agent as build_meeting_agent, TASK as MEETING_TASK, USER_EMAIL
-from agents.invoicing.agent import build_agent as build_invoicing_agent, TASK as INVOICING_TASK
-from agents.outreach.agent import build_agent as build_outreach_agent, TASK as OUTREACH_TASK
-from agents.pr_reviewer.agent import build_agent as build_pr_agent, TASK as PR_TASK
+from agents.invoicing.agent import TASK as INVOICING_TASK
+from agents.invoicing.agent import build_agent as build_invoicing_agent
+from agents.meeting_assistant.agent import TASK as MEETING_TASK
+from agents.meeting_assistant.agent import USER_EMAIL
+from agents.meeting_assistant.agent import build_agent as build_meeting_agent
+from agents.meeting_assistant.eval_injection import VARIANTS, seeded
+from agents.outreach.agent import TASK as OUTREACH_TASK
+from agents.outreach.agent import build_agent as build_outreach_agent
+from agents.pr_reviewer.agent import TASK as PR_TASK
+from agents.pr_reviewer.agent import build_agent as build_pr_agent
+from agents.services.store import reset as reset_store
+
+CUSTOMERS = ["*@contoso-demo.com", "*@fabrikam-demo.com", "*@tailspin-demo.com",
+             "*@adatum-demo.com", "*@proseware-demo.com", "*@litware-demo.com",
+             "*@wingtip-demo.com", "*@northwind-demo.com", USER_EMAIL]
+
+
+def _protect(agent, name, owner, allow):
+    # entrypoint: this module's factory of the same name, rebuilt by the sandbox on detonation
+    return mirage.protect(agent, name=name, owner=owner, allow=allow,
+                          entrypoint=f"agents.run_demo_fleet:{name}")
+
+
+def meeting_assistant():
+    return _protect(build_meeting_agent(), "meeting_assistant", "liam", {
+        "tools": ["read_calendar", "search_contacts", "search_emails", "send_email"],
+        "email_to": [USER_EMAIL],
+    })
+
+
+def invoicing():
+    return _protect(build_invoicing_agent(), "invoicing", "accounting", {
+        "tools": ["list_invoices", "get_invoice", "create_invoice", "record_payment",
+                  "mark_reminded", "search_contacts", "get_contact", "update_contact",
+                  "send_email", "send_invoice", "read_inbox"],
+        "email_to": CUSTOMERS,
+    })
+
+
+def outreach():
+    return _protect(build_outreach_agent(), "outreach", "sales", {
+        "tools": ["search_contacts", "get_contact", "create_contact", "update_contact",
+                  "log_activity", "list_activities", "read_inbox", "send_email",
+                  "schedule_follow_up"],
+        "email_to": CUSTOMERS,
+    })
+
+
+def pr_reviewer():
+    return _protect(build_pr_agent(), "pr_reviewer", "engineering", {
+        "tools": ["list_pull_requests", "read_pull_request", "read_file",
+                  "post_inline_comment", "set_labels", "update_description", "submit_review"],
+    })
+
+
+FLEET = [(meeting_assistant, MEETING_TASK), (invoicing, INVOICING_TASK),
+         (outreach, OUTREACH_TASK), (pr_reviewer, PR_TASK)]
 
 
 def setup_demo_services():
     """Seed services with 4 agents' synthetic data, including the poisoned calendar event."""
-    # Seed base data + poisoned calendar invite for meeting assistant
     reset_store(seeded(VARIANTS["V2_system_tag"]))
     print("[Demo] Seeded synthetic data with 4 agents & poisoned calendar invite.")
 
@@ -40,78 +90,19 @@ def setup_demo_services():
 def run_fleet(blocking: bool = True):
     setup_demo_services()
 
-    # Agent specs & allows
-    agents_spec = [
-        {
-            "name": "meeting_assistant",
-            "task": MEETING_TASK,
-            "allow": {
-                "tools": ["read_calendar", "search_contacts", "search_emails", "send_email"],
-                "email_to": [USER_EMAIL],
-            },
-            "builder": build_meeting_agent,
-            "owner": "liam",
-        },
-        {
-            "name": "invoicing",
-            "task": INVOICING_TASK,
-            "allow": {
-                "tools": [
-                    "list_invoices", "get_invoice", "create_invoice", "record_payment",
-                    "mark_reminded", "search_contacts", "get_contact", "update_contact",
-                    "send_email", "send_invoice", "read_inbox"
-                ],
-                "email_to": ["*@contoso-demo.com", "*@fabrikam-demo.com", "*@tailspin-demo.com", "*@adatum-demo.com", "*@proseware-demo.com", "*@litware-demo.com", "*@wingtip-demo.com", "*@northwind-demo.com", USER_EMAIL],
-            },
-            "builder": build_invoicing_agent,
-            "owner": "accounting",
-        },
-        {
-            "name": "outreach",
-            "task": OUTREACH_TASK,
-            "allow": {
-                "tools": [
-                    "search_contacts", "get_contact", "create_contact", "update_contact",
-                    "log_activity", "list_activities", "read_inbox", "send_email", "schedule_follow_up"
-                ],
-                "email_to": ["*@contoso-demo.com", "*@fabrikam-demo.com", "*@tailspin-demo.com", "*@adatum-demo.com", "*@proseware-demo.com", "*@litware-demo.com", "*@wingtip-demo.com", "*@northwind-demo.com", USER_EMAIL],
-            },
-            "builder": build_outreach_agent,
-            "owner": "sales",
-        },
-        {
-            "name": "pr_reviewer",
-            "task": PR_TASK,
-            "allow": {
-                "tools": [
-                    "list_pull_requests", "read_pull_request", "read_file",
-                    "post_inline_comment", "set_labels", "update_description", "submit_review"
-                ],
-            },
-            "builder": build_pr_agent,
-            "owner": "engineering",
-        },
-    ]
-
     threads = []
-    for spec in agents_spec:
-        def start_worker(s=spec):
-            agent = mirage.protect(
-                s["builder"](),
-                name=s["name"],
-                owner=s["owner"],
-                allow=s["allow"]
-            )
+    for factory, task in FLEET:
+        def start_worker(factory=factory, task=task):
+            agent = factory()
             try:
-                agent.invoke({"messages": [("user", s["task"])]})
-            except Exception as e:
-                # Expected when meeting_assistant freezes or is killed
+                agent.invoke({"messages": [("user", task)]})
+            except Exception:  # noqa: BLE001, S110 - expected when a run is frozen then killed
                 pass
 
-        t = threading.Thread(target=start_worker, daemon=True, name=f"agent-{spec['name']}")
+        t = threading.Thread(target=start_worker, daemon=True, name=f"agent-{factory.__name__}")
         threads.append(t)
         t.start()
-        print(f"[Demo] Launched {spec['name']}")
+        print(f"[Demo] Launched {factory.__name__}")
 
     if blocking:
         for t in threads:
