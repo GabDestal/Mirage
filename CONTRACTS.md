@@ -98,14 +98,14 @@ Event types and their `payload`:
 
 | `type` | `payload` |
 |---|---|
-| `run.started` | `{task}` |
+| `run.started` | `{task, agent}` |
 | `agent.message` | `{role, text}` |
 | `tool.requested` | `{call_id, tool, args}` |
 | `gate.decision` | `GateDecision` (below) |
 | `tool.result` | `{call_id, tool, result, error}` |
 | `run.status` | `{from, to, actor, reason}` |
 | `global.stop` | `{actor, reason}` |
-| `incident.opened` | `{incident_id, trigger_call_id}` |
+| `incident.opened` | `{incident_id, trigger_call_id, inputs?}` (`inputs`: `Input[]`, what the run read) |
 | `detonation.started` | `{incident_id, detonation_id, n_runs}` |
 | `detonation.effect` | `Effect` (below) |
 | `detonation.completed` | `Detonation` (below) |
@@ -326,6 +326,15 @@ mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json
   Same endpoints, same OpenAPI. There is no separate mock server, so nothing can drift.
 - POST actions in replay mode move the replay forward (example: `/incidents/{id}/detonate` plays the detonation events).
 - Person B writes the first fixtures by hand in hour 1. Later, Person A replaces them with a real recorded run.
+- Starter fixture: `contracts/fixtures/sample_demo.jsonl` (story 1, valid against `models.py`). The server
+  plays `calendar_demo.jsonl` when it exists, else the sample. Override with `MIRAGE_FIXTURE=<path>`.
+- Speed: `MIRAGE_REPLAY_SPEED=10` plays 10x faster (UI work, tests).
+- How POSTs move the replay: the fixture is cut into segments. A segment starts at each event a human triggers:
+  `detonation.started`, the first `bisection.step`, `handoff.created`, `fix.verified`, and every `human.action`.
+  Any POST action (`/detonate`, `/bisect`, `/handoff`, `/verify`, `/kill`, `/unfreeze`, `/freeze`, `/stop`)
+  plays the next segment. `/demo/start` and `/demo/reset` restart from the beginning.
+- `/runs` and `/incidents` are folded from the events played so far, including `next_action`.
+- Data plane routes (§11) answer `409` in replay mode.
 
 ## 8. Repo layout
 
