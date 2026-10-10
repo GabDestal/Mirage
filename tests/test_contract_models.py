@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from contracts.models import Event, GateDecision, Incident, Run
+from contracts.models import AgentSpec, Event, GateDecision, Incident, Run, ToolCheck
 
 GATE = {
     "call_id": "call_014",
@@ -47,6 +47,7 @@ INCIDENT = {
                    "compromised_runs": "0/2", "is_cause": True}],
     "cause_input_id": "in_cal_03",
     "pr_url": None,
+    "next_action": "send_fix",
 }
 
 
@@ -74,3 +75,17 @@ def test_drift_fails_loudly():
         GateDecision.model_validate({**GATE, "decision": "quarantine"})
     with pytest.raises(ValidationError):
         GateDecision.model_validate({**GATE, "unknown_field": 1})
+
+
+def test_data_plane_models():
+    spec = AgentSpec.model_validate({
+        "name": "assistant", "owner": "liam",
+        "tools": ["read_calendar", "crm_query", "crm_export", "send_email"],
+        "allow": {"tools": ["read_calendar", "crm_query", "send_email"],
+                  "email_to": ["northwind.example"]},
+        "entrypoint": "agents.assistant:build_agent",
+    })
+    assert spec.allow.url_hosts == []
+    ToolCheck.model_validate({"run_id": "run_002", "tool": "send_email", "args": {"to": "x"}})
+    with pytest.raises(ValidationError):
+        Incident.model_validate({**INCIDENT, "next_action": "merge"})  # no tool merges a PR

@@ -21,6 +21,7 @@ IncidentStatus = Literal[
     "open", "detonating", "false_positive", "confirmed", "bisecting", "root_caused",
     "fix_pending", "fix_verified", "pr_open", "merged", "closed",
 ]
+NextAction = Literal["detonate", "find_cause", "send_fix", "open_pr", "none"]
 EventType = Literal[
     "run.started", "agent.message", "tool.requested", "gate.decision", "tool.result",
     "run.status", "global.stop", "incident.opened", "detonation.started", "detonation.effect",
@@ -135,6 +136,8 @@ class Incident(Model):
     bisection: list[BisectionRow] = []
     cause_input_id: str | None = None
     pr_url: str | None = None
+    # Set by the engine. The dashboard's one main button and the MCP suggestion both read it.
+    next_action: NextAction = "detonate"
 
 
 class HumanAction(Model):
@@ -143,6 +146,13 @@ class HumanAction(Model):
     target: str
     reason: str
     ts: datetime
+
+
+class HumanRequest(Model):
+    """Body of every POST that is a human action (CONTRACTS.md §5): unfreeze, kill, stop..."""
+
+    actor: str  # MCP calls use "<actor> via <client> (MCP)" (§12)
+    reason: str
 
 
 class ServiceItem(Model):
@@ -167,3 +177,69 @@ class DetonateResult(Model):
     legit_task_completed: str  # "3/3"
     passed: bool  # true only if both values are "n/n"
     effects: list[Effect]
+
+
+# --- Data plane: SDK -> engine (CONTRACTS.md §11) ----------------------------------------
+# Auth: the SDK sends the run's token as `Authorization: Bearer <run_token>`.
+
+
+class Allowlist(Model):
+    tools: list[str]  # tools this agent may call; anything else trips TOOL_NOT_ALLOWED
+    email_to: list[str] = []  # allowed email domains or full addresses
+    url_hosts: list[str] = []  # allowed hosts for web fetches
+
+
+class AgentSpec(Model):
+    """POST /agents. Registers a protected agent. The engine uses `entrypoint` to rebuild it
+    in mirage mode for detonation."""
+
+    name: str
+    owner: str
+    tools: list[str]  # every tool the agent has, allowed or not
+    allow: Allowlist
+    entrypoint: str  # "agents.assistant:build_agent"
+
+
+class RunStart(Model):
+    """POST /runs."""
+
+    agent: str
+    task: str
+    env: Env = "prod"
+    restarted_from: str | None = None
+
+
+class RunStarted(Model):
+    run_id: str
+    run_token: str
+
+
+class ModelCall(Model):
+    """POST /runs/{id}/model-calls. One provider call, as the SDK saw it."""
+
+    model_id: str
+    request: dict[str, Any]  # system prompt, messages, tools, inference settings
+    response: dict[str, Any]
+
+
+class ToolCheck(Model):
+    """POST /gateway/check. Returns a GateDecision; the engine assigns `call_id`."""
+
+    run_id: str
+    tool: str
+    args: dict[str, Any]
+
+
+class ToolResult(Model):
+    """POST /runs/{id}/tool-results. The snapshot is built from these."""
+
+    call_id: str
+    tool: str
+    result: Any = None
+    error: str | None = None
+
+
+class WaitResult(Model):
+    """GET /runs/{id}/wait. Long poll while frozen."""
+
+    status: Literal["running", "killed", "halted"]

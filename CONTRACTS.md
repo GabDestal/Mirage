@@ -459,14 +459,17 @@ Limit: Mirage sees only what goes through tools. Code that calls an API outside 
 
 ### Data plane API (SDK → engine)
 
-| Method | Path | Does |
-|---|---|---|
-| POST | `/agents` | Register an agent: name, owner, tools, allowlist, entrypoint (`agents.assistant:build_agent`). |
-| POST | `/runs` | Start a run. Returns `{run_id, run_token}`. Emits `run.started`. |
-| POST | `/runs/{id}/model-calls` | Record one model call (request + response). |
-| POST | `/gateway/check` | Check one tool call. Returns `GateDecision`. |
-| POST | `/runs/{id}/tool-results` | Record one tool result (this is what the snapshot is made of). |
-| GET | `/runs/{id}/wait` | Long poll while frozen. Returns `{status: running \| killed \| halted}`. |
+| Method | Path | Body → Returns (models in `contracts/models.py`) | Does |
+|---|---|---|---|
+| POST | `/agents` | `AgentSpec` `{name, owner, tools, allow: {tools, email_to, url_hosts}, entrypoint}` | Register an agent. `entrypoint` example: `agents.assistant:build_agent`. |
+| POST | `/runs` | `RunStart` `{agent, task, env, restarted_from}` → `RunStarted` `{run_id, run_token}` | Start a run. Emits `run.started`. |
+| POST | `/runs/{id}/model-calls` | `ModelCall` `{model_id, request, response}` | Record one model call. |
+| POST | `/gateway/check` | `ToolCheck` `{run_id, tool, args}` → `GateDecision` | Check one tool call. The engine assigns `call_id`. |
+| POST | `/runs/{id}/tool-results` | `ToolResult` `{call_id, tool, result, error}` | Record one tool result (this is what the snapshot is made of). |
+| GET | `/runs/{id}/wait` | → `WaitResult` `{status: running \| killed \| halted}` | Long poll while frozen. |
+
+The SDK sends the run token as `Authorization: Bearer <run_token>`.
+Human-action POSTs from web and MCP (§5) send `HumanRequest` `{actor, reason}`.
 
 ### Snapshot and replay
 
