@@ -27,4 +27,7 @@ def protect(agent, name, allow=None, owner="unknown", entrypoint=None):
     if kind.startswith("claude_agent_sdk"):
         from mirage.adapters import claude_agent
         return claude_agent.protect(agent, name, allow, owner, entrypoint)
+    if kind.startswith("agents.") and hasattr(agent, "tools") and hasattr(agent, "instructions"):
+        from mirage.adapters import openai_agents  # duck-typed: `agents` is also a local name
+        return openai_agents.protect(agent, name, allow, owner, entrypoint)
     raise TypeError(f"mirage.protect: no adapter for {type(agent).__name__} ({kind}).")
