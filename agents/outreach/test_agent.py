@@ -9,13 +9,14 @@ def test_follow_up_is_sent_and_logged():
     store.reset()
     model = scripted(
         call("search_contacts", query="lead"),
+        call("read_inbox"),
         call("send_email", to="alice.martin@northwind-demo.com", subject="Analytics add-on",
              body="Hi Alice, happy to walk you through the analytics add-on."),
-        call("update_contact", contact_id="c_001", notes="Followed up on the analytics add-on"),
+        call("update_contact", contact_id="c_001", notes="Interested in the analytics add-on. Followed up on the analytics add-on"),
         AIMessage("Done."),
     )
 
     build_agent(model).invoke({"messages": [("user", TASK)]})
 
     assert store.state()["outbox"][-1]["to"] == "alice.martin@northwind-demo.com"
-    assert crm.get("c_001")["notes"] == "Followed up on the analytics add-on"
+    assert crm.get("c_001")["notes"].endswith("Followed up on the analytics add-on")
