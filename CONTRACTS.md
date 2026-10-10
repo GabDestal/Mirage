@@ -466,7 +466,11 @@ Limit: Mirage sees only what goes through tools. Code that calls an API outside 
 | POST | `/runs/{id}/model-calls` | `ModelCall` `{model_id, request, response}` | Record one model call. |
 | POST | `/gateway/check` | `ToolCheck` `{run_id, tool, args}` → `GateDecision` | Check one tool call. The engine assigns `call_id`. |
 | POST | `/runs/{id}/tool-results` | `ToolResult` `{call_id, tool, result, error}` | Record one tool result (this is what the snapshot is made of). |
-| GET | `/runs/{id}/wait` | → `WaitResult` `{status: running \| killed \| halted}` | Long poll while frozen. |
+| GET | `/runs/{id}/wait?timeout=25` | → `WaitResult` `{status: running \| frozen \| killed \| halted}` | Long poll while frozen. Returns as soon as the run leaves `frozen`, or `frozen` after `timeout` seconds (max 60): poll again. Set the HTTP client timeout above it. |
+| POST | `/runs/{id}/complete` | → `Run` | The agent finished its task. Emits `run.status` → `completed`. |
+
+Destination checks read the `to` and `url` arguments of **any** tool, so tool names are free.
+`allow.email_to` takes domains (`mirage-demo.com`) or full addresses (`demo-user@mirage-demo.com`).
 
 The SDK sends the run token as `Authorization: Bearer <run_token>`.
 Human-action POSTs from web and MCP (§5) send `HumanRequest` `{actor, reason}`.
