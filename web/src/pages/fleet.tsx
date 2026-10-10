@@ -208,29 +208,38 @@ export function Fleet() {
               </button>
             </div>
           ) : (
-            <table className="fleet-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '260px' }}>Agent & Task</th>
-                  <th style={{ width: '130px' }}>Status</th>
-                  <th>Recent Tool Activity</th>
-                  <th style={{ width: '120px', textAlign: 'right' }}>Action</th>
-                  <th style={{ width: '90px', textAlign: 'right' }}>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRuns.map((run, i) => (
-                  <AgentTableRow
-                    key={run.id}
-                    run={run}
-                    runs={runs}
-                    events={events}
-                    now={now}
-                    selected={i === selected}
-                  />
-                ))}
-              </tbody>
-            </table>
+            <div className="fleet-table-region" role="region" aria-label="Fleet runs" tabIndex={0}>
+              <table className="fleet-table">
+                <colgroup>
+                  <col className="fleet-col-agent" />
+                  <col className="fleet-col-status" />
+                  <col />
+                  <col className="fleet-col-action" />
+                  <col className="fleet-col-time" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Agent & Task</th>
+                    <th>Status</th>
+                    <th>Recent Tool Activity</th>
+                    <th className="fleet-action-cell">Action</th>
+                    <th className="fleet-time-cell">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRuns.map((run, i) => (
+                    <AgentTableRow
+                      key={run.id}
+                      run={run}
+                      runs={runs}
+                      events={events}
+                      now={now}
+                      selected={i === selected}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
@@ -274,7 +283,7 @@ function AgentTableRow({
             >
               {label}
             </Link>
-            <span className="fleet-agent-task" title={run.task}>
+            <span className="fleet-agent-task" title={sentence.text || run.task}>
               {sentence.text || run.task}
             </span>
           </div>
@@ -306,7 +315,7 @@ function AgentTableRow({
       </td>
 
       {/* Quick Action Button */}
-      <td style={{ textAlign: 'right' }}>
+      <td className="fleet-action-cell">
         {isFrozen && run.incident_id ? (
           <Button asChild variant="secondary" onClick={(e) => e.stopPropagation()}>
             <Link to={`/incidents/${run.incident_id}`}>Review Incident</Link>
@@ -323,7 +332,7 @@ function AgentTableRow({
       </td>
 
       {/* Relative Time */}
-      <td style={{ textAlign: 'right', color: 'var(--fleet-ink-3)', fontSize: '12px' }}>
+      <td className="fleet-time-cell">
         {relTime(when, now)}
       </td>
     </tr>
@@ -334,7 +343,12 @@ const MAX_STEPS = 4
 
 function InlineTraceStrip({ run, events }: { run: Run; events: MirageEvent[] }) {
   const all = steps(events, run.id)
-  const shown = all.slice(-MAX_STEPS)
+  const recent = all.slice(-MAX_STEPS)
+  const lastBlocked = all.findLast((step) => step.blocked)
+  // Keep the last denied call visible even after subsequent tool activity.
+  const shown = lastBlocked && !recent.includes(lastBlocked)
+    ? [lastBlocked, ...all.slice(-(MAX_STEPS - 1))]
+    : recent
   const hidden = all.length - shown.length
 
   if (all.length === 0) {
@@ -344,15 +358,21 @@ function InlineTraceStrip({ run, events }: { run: Run; events: MirageEvent[] }) 
   return (
     <div className="fleet-trace-strip" aria-label="Tool call sequence">
       {hidden > 0 && (
-        <span style={{ fontSize: '11px', color: 'var(--fleet-ink-3)' }}>+{hidden}</span>
+        <Link
+          className="fleet-trace-more"
+          to={`/runs/${run.id}`}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`View full trace, ${hidden} more tool calls`}
+        >+{hidden}</Link>
       )}
       {shown.map((step, idx) => (
-        <span key={step.callId} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+        <span key={step.callId} className="trace-step">
           {idx > 0 && <span className="trace-arrow">→</span>}
           <span
             className={`trace-step-tag ${step.blocked ? 'blocked' : idx === shown.length - 1 && run.status === 'running' ? 'active' : ''}`}
+            title={`${step.tool}${step.blocked ? ' — blocked' : ''}`}
           >
-            {step.tool}
+            <span className="trace-tool-name">{step.tool}</span>
             {step.blocked && ' ✕'}
           </span>
         </span>
