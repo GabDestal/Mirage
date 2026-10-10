@@ -10,7 +10,6 @@ Incidents live only in the event log (engine/api/state.py folds them). Live runs
 are in memory: a run's thread and its freeze lock belong to the process that runs it.
 """
 
-import itertools
 import secrets
 import threading
 from dataclasses import dataclass, field
@@ -21,6 +20,7 @@ from contracts.models import AgentSpec, GateDecision, HumanAction, Run
 from engine.detection.rules import POLICY, hard_rule
 from engine.detonation import snapshot
 from engine.dev import tools  # shortcut: in-process tool dispatch, dev harness only
+from engine.store import events
 from engine.store.events import emit
 
 STOP = threading.Event()  # global STOP: halts every run
@@ -29,11 +29,15 @@ agents: dict[str, AgentSpec] = {}
 runs: dict[str, "LiveRun"] = {}
 
 PREFIX = {"run": "run", "call": "call", "incident": "inc"}
-_ids = {k: itertools.count(1) for k in PREFIX}
+_last = dict.fromkeys(PREFIX, 0)
+_id_lock = threading.Lock()
 
 
 def next_id(kind):
-    return f"{PREFIX[kind]}_{next(_ids[kind]):03d}"
+    """Next id, after both this process's last one and the highest in the shared log."""
+    with _id_lock:
+        _last[kind] = max(_last[kind], events.max_number(PREFIX[kind])) + 1
+        return f"{PREFIX[kind]}_{_last[kind]:03d}"
 
 
 @dataclass
@@ -56,6 +60,7 @@ class LiveRun:
     system: str = ""
     model_id: str = ""
     legit: dict = field(default_factory=dict)  # "legit task completed" check: {tool, to}
+    restarted_from: str | None = None  # a clean restart of this run, approved by a human
     # dev harness only
     user_name: str = ""
     user_email: str = ""
@@ -66,14 +71,15 @@ class LiveRun:
     def model(self) -> Run:
         return Run(id=self.id, agent=self.agent, env="prod", task=self.task, status=self.status,
                    started_at=self.started_at, ended_at=self.ended_at,
-                   incident_id=self.incident_id, tool_calls=self.tool_calls)
+                   incident_id=self.incident_id, tool_calls=self.tool_calls,
+                   restarted_from=self.restarted_from)
 
 
 def reset():
     STOP.clear()
     agents.clear()
     runs.clear()
-    _ids.update({k: itertools.count(1) for k in PREFIX})
+    _last.update(dict.fromkeys(PREFIX, 0))
 
 
 def policy_for(agent):

@@ -23,7 +23,8 @@ def fold(events):
         run = runs.get(e.run_id)
         if e.type == "run.started":
             runs[e.run_id] = Run(id=e.run_id, agent=p.get("agent", "agent"), env=e.env,
-                                 task=p["task"], status="running", started_at=e.ts)
+                                 task=p["task"], status=p.get("status", "running"),
+                                 started_at=e.ts, restarted_from=p.get("restarted_from"))
         elif e.type == "run.status" and run:
             run.status = p["to"]
             run.incident_id = e.incident_id or run.incident_id

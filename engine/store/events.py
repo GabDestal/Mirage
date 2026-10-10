@@ -5,6 +5,7 @@ Each row is hash-chained to the previous one, so the log is tamper-evident.
 
 import hashlib
 import os
+import re
 import sqlite3
 import threading
 from datetime import UTC, datetime
@@ -73,3 +74,12 @@ def read(after=0) -> list[Event]:
     with _lock:
         rows = _db().execute("SELECT body FROM events WHERE seq > ? ORDER BY seq", (after,))
         return [Event.model_validate_json(body) for (body,) in rows]
+
+
+def max_number(prefix):
+    """Highest n in any `<prefix>_<n>` in the log: new ids continue from it, so two processes
+    writing the same log (API, dev runner, CLI) do not reuse an id."""
+    pattern = re.compile(r"\b" + re.escape(prefix) + r"_(\d+)\b")
+    with _lock:
+        bodies = [b for (b,) in _db().execute("SELECT body FROM events")]
+    return max((int(n) for body in bodies for n in pattern.findall(body)), default=0)

@@ -98,10 +98,17 @@ def start_run(body: RunStart) -> RunStarted:
         raise HTTPException(404, f"Agent {body.agent} is not registered (POST /agents)")
     if gate.STOP.is_set():
         raise HTTPException(409, "Global STOP is on")
-    run = gate.LiveRun(id=gate.next_id("run"), agent=body.agent, task=body.task)
+    queued = next((r for r in gate.runs.values()
+                   if r.agent == body.agent and r.status == "queued"), None)
+    if queued:  # an approved clean restart: this run takes it over
+        gate.set_status(queued, "running", "sdk", f"Clean restart of {queued.restarted_from}.")
+        return RunStarted(run_id=queued.id, run_token=queued.token)
+    run = gate.LiveRun(id=gate.next_id("run"), agent=body.agent, task=body.task,
+                       restarted_from=body.restarted_from)
     gate.runs[run.id] = run
     gate.set_status(run, "running", "sdk", "Run started.")
-    events.emit("run.started", {"task": run.task, "agent": run.agent}, run_id=run.id)
+    events.emit("run.started", {"task": run.task, "agent": run.agent,
+                                "restarted_from": run.restarted_from}, run_id=run.id)
     return RunStarted(run_id=run.id, run_token=run.token)
 
 
@@ -233,6 +240,30 @@ def unfreeze(run_id: str, body: HumanRequest) -> Run:
             raise HTTPException(409, "Cannot unfreeze: detonation confirmed this run is compromised. "
                                      "Kill it and approve a clean restart.")
     return _act(run_id, body, "unfreeze", ("frozen",))
+
+
+@app.post("/runs/{run_id}/restart")
+def restart(run_id: str, body: HumanRequest) -> Run:
+    """A human approves a clean restart of a killed or halted run. The new run is created
+    `queued` with `restarted_from`; the agent's next start (SDK `POST /runs`) takes it over.
+    The engine never launches agents itself."""
+    if REPLAY:
+        REPLAY.advance()
+        return get_run(run_id)
+    old = get_run(run_id)
+    if old.status not in ("killed", "halted"):
+        raise HTTPException(409, f"Cannot restart a run that is {old.status}: kill it first")
+    if gate.STOP.is_set():
+        raise HTTPException(409, "Global STOP is on")
+    events.emit("human.action", {"actor": body.actor, "action": "approve_restart",
+                                 "target": run_id, "reason": body.reason,
+                                 "ts": datetime.now(UTC).isoformat()})
+    run = gate.LiveRun(id=gate.next_id("run"), agent=old.agent, task=old.task,
+                       restarted_from=run_id)
+    gate.runs[run.id] = run
+    events.emit("run.started", {"task": run.task, "agent": run.agent, "restarted_from": run_id,
+                                "status": "queued"}, run_id=run.id)
+    return get_run(run.id)
 
 
 @app.post("/runs/{run_id}/kill")
