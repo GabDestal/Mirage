@@ -115,24 +115,47 @@ function applyEvent(turn: ChatTurn, event: ChatEvent): ChatTurn {
   return { ...turn, parts }
 }
 
-// Text deltas render once per frame, not once per token; any other event flushes them first to keep order.
-function batchDeltas(update: (change: (turn: ChatTurn) => ChatTurn) => void) {
+// Bedrock sends ~120-char bursts every ~430ms, so text is revealed a few characters per frame: the backlog
+// drains over ~LAG ms (faster when it grows). Other events wait behind the text and speed up the drain to keep order.
+const LAG = 300
+const FINISH_LAG = 80
+export function batchDeltas(update: (change: (turn: ChatTurn) => ChatTurn) => void) {
   let text = ''
+  let queue: ChatEvent[] = []
   let frame = 0
-  const flush = () => {
+  let last = 0
+  let waiting: (() => void)[] = []
+  const reveal = (chunk: string) => { if (chunk) update((turn) => applyEvent(turn, { type: 'text_delta', text: chunk })) }
+  const settle = () => {
     cancelAnimationFrame(frame)
     frame = 0
-    if (!text) return
-    const chunk = text
-    text = ''
-    update((turn) => applyEvent(turn, { type: 'text_delta', text: chunk }))
+    last = 0
+    for (const event of queue) update((turn) => applyEvent(turn, event))
+    queue = []
+    for (const resolve of waiting) resolve()
+    waiting = []
+  }
+  const flush = () => { reveal(text); text = ''; settle() }
+  const tick = (now: number) => {
+    const elapsed = last ? Math.min(now - last, 100) : 16
+    last = now
+    let count = Math.max(1, Math.ceil(text.length * elapsed / (queue.length ? FINISH_LAG : LAG)))
+    if (/[\uD800-\uDBFF]/.test(text[count - 1] ?? '')) count++
+    reveal(text.slice(0, count))
+    text = text.slice(count)
+    if (text) frame = requestAnimationFrame(tick)
+    else settle()
   }
   const apply = (event: ChatEvent) => {
-    if (event.type === 'text_delta') { text += event.text; frame ||= requestAnimationFrame(flush); return }
-    flush()
-    update((turn) => applyEvent(turn, event))
+    if (event.type === 'text_delta' && !queue.length) text += event.text
+    else if (text) queue.push(event)
+    else { update((turn) => applyEvent(turn, event)); return }
+    if (document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) flush()
+    else frame ||= requestAnimationFrame(tick)
   }
-  return { apply, flush }
+  // Resolves once every buffered event is on screen.
+  const drained = () => text || queue.length ? new Promise<void>((resolve) => waiting.push(resolve)) : Promise.resolve()
+  return { apply, flush, drained }
 }
 
 export function useChat() {
@@ -185,7 +208,8 @@ export function useChat() {
       controller.abort()
       return false
     } finally {
-      batch.flush()
+      if (controller.signal.aborted) batch.flush()
+      else await batch.drained()
       if (active.current === controller) {
         active.current = null
         pending.current.clear()
