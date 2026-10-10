@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { ArrowRight, Bot, CheckCircle2, Play, Search, ShieldAlert, Sparkles } from 'lucide-react'
+import { ArrowRight, Bot, CheckCircle2, Play, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { api, useEvents, useRuns, type MirageEvent, type Run } from '@/api/client'
 import { resetStream, useNow } from '@/api/stream'
 import { useAsk } from '@/components/actions'
@@ -57,7 +57,8 @@ export function Fleet() {
     const active = runs.filter((r) => r.status === 'running').length
     const frozen = runs.filter((r) => r.status === 'frozen').length
     const completed = runs.filter((r) => r.status === 'completed').length
-    return { active, frozen, completed, total: runs.length }
+    const toolCalls = runs.reduce((acc, r) => acc + (r.tool_calls || 0), 0)
+    return { active, frozen, completed, toolCalls, total: runs.length }
   }, [runs])
 
   const handleStartDemo = async () => {
@@ -110,7 +111,7 @@ export function Fleet() {
               {startingDemo ? 'Starting…' : 'Run 4-agent demo'}
             </button>
             <Button asChild variant="primary">
-              <Link to="/">Ask Mirage</Link>
+              <Link to="/">Ask Miragio</Link>
             </Button>
           </div>
         </div>
@@ -148,13 +149,13 @@ export function Fleet() {
 
           <div className="fleet-stat-card">
             <div className="fleet-stat-header">
-              <span>Protection Mode</span>
-              <Sparkles size={15} color="var(--fleet-mirage)" />
+              <span>Tool Calls Gated</span>
+              <ShieldCheck size={15} color="var(--fleet-mirage)" />
             </div>
-            <div className="fleet-stat-value" style={{ fontSize: '18px', color: 'var(--fleet-mirage)' }}>
-              Deterministic Twin
+            <div className="fleet-stat-value" style={{ color: 'var(--fleet-mirage)' }}>
+              {stats.toolCalls}
             </div>
-            <div className="fleet-stat-sub">Pre-call interception enabled</div>
+            <div className="fleet-stat-sub">Pre-execution policy checks</div>
           </div>
         </div>
 

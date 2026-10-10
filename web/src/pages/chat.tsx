@@ -136,7 +136,7 @@ export function Chat() {
 function Activity({ turn }: { turn: ChatTurn }) {
   const approval = turn.parts.some((part) => part.kind === 'approval' && ['waiting', 'sending'].includes(part.status))
   const tool = turn.parts.findLast((part) => part.kind === 'tool' && part.status === 'running')
-  return <ChatActivity state={approval ? 'approval' : tool ? 'tool' : 'thinking'} label={approval ? 'Waiting for your decision' : tool?.kind === 'tool' ? `Running ${tool.tool.replaceAll('_', ' ')}` : turn.parts.at(-1)?.kind === 'text' ? 'Responding' : 'Waiting for Mirage’s reply'} />
+  return <ChatActivity state={approval ? 'approval' : tool ? 'tool' : 'thinking'} label={approval ? 'Waiting for your decision' : tool?.kind === 'tool' ? `Running ${tool.tool.replaceAll('_', ' ')}` : turn.parts.at(-1)?.kind === 'text' ? 'Responding' : 'Waiting for Miragio’s reply'} />
 }
 
 const TranscriptTurn = memo(function TranscriptTurn({ turn, onRespond }: { turn: ChatTurn; onRespond: (id: string, action: 'accept' | 'decline', content?: Record<string, unknown>) => Promise<void> }) {
@@ -158,7 +158,7 @@ const TranscriptTurn = memo(function TranscriptTurn({ turn, onRespond }: { turn:
         })}
         {turn.status === 'error' ? <p className="chat-error" role="alert">{turn.error}</p> : null}
         {turn.status === 'stopped' ? <p className="chat-stopped" role="status">Reply stopped. Actions already started may still be running; check the incident before trying again.</p> : null}
-        {turn.status === 'done' && !turn.parts.length ? <p className="chat-stopped">Mirage finished without a reply. Ask a follow-up or start a new conversation.</p> : null}
+        {turn.status === 'done' && !turn.parts.length ? <p className="chat-stopped">Miragio finished without a reply. Ask a follow-up or start a new conversation.</p> : null}
         {response && turn.status !== 'running' ? <CopyButton text={String(sanitize(response))} label="Copy response" /> : null}
       </div>
     </div>

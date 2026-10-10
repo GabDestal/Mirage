@@ -20,7 +20,7 @@ export type ApprovalField = {
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
 const metadata = ['title', 'description', '$schema']
 const fieldKeys = [...metadata, 'type', 'default', 'enum', 'const', 'minLength', 'maxLength', 'minimum', 'maximum', 'pattern', 'format']
-const unsupported = 'This confirmation form is not supported. Decline this request and ask Mirage for a supported form.'
+const unsupported = 'This confirmation form is not supported. Decline this request and ask Miragio for a supported form.'
 
 /** Only accept constraints we can enforce; unknown schemas never enable approval. */
 export function readApprovalSchema(schema: Record<string, unknown>): { fields: ApprovalField[]; error?: string } {

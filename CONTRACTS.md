@@ -572,7 +572,7 @@ Rules:
 - All checks run in the engine, not in the MCP server.
 - No tool merges a PR.
 
-## 13. Ask Mirage operator chat (additive, Person B)
+## 13. Ask Miragio operator chat (additive, Person B)
 
 Node HTTP/SSE service in `mcp/`, bound to `127.0.0.1:8001`. Engine stays on
 `localhost:8000`. It uses Bedrock ConverseStream in `us-east-1`, model from

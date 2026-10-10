@@ -1,6 +1,6 @@
-# Ask Mirage operator chat
+# Ask Miragio operator chat
 
-Ask Mirage now streams the real operator service response and its MCP activity into the existing light chat layout. It serves the full demo operator path: review runs, inspect evidence and audit, detonate, find the cause, resolve false positives, end a run, and hand an incident to a coding agent. The page accepts all eight tool names (`list_runs`, `get_incident`, `get_audit`, `detonate`, `find_cause`, `unfreeze`, `kill`, `send_fix`) through the shared event contract; it does not implement their handlers or send engine mutations directly.
+Ask Miragio now streams the real operator service response and its MCP activity into the existing light chat layout. It serves the full demo operator path: review runs, inspect evidence and audit, detonate, find the cause, resolve false positives, end a run, and hand an incident to a coding agent. The page accepts all eight tool names (`list_runs`, `get_incident`, `get_audit`, `detonate`, `find_cause`, `unfreeze`, `kill`, `send_fix`) through the shared event contract; it does not implement their handlers or send engine mutations directly.
 
 ## Run
 

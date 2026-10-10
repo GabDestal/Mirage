@@ -61,12 +61,12 @@ export function ChatComposer({ value, onChange, onSubmit, disabled = false, busy
       onMouseDown={event => { if (!(event.target as HTMLElement).closest('button, textarea')) { event.preventDefault(); input.current?.focus() } }}>
       <textarea ref={input}
         value={value} onChange={event => onChange(event.target.value)} rows={2} disabled={disabled} readOnly={busy}
-        aria-label="Message Mirage" aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} placeholder={placeholder}
+        aria-label="Message Miragio" aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} placeholder={placeholder}
         onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
         onKeyDown={event => { if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229 || composing.current) return; event.preventDefault(); if (canSend) onSubmit() }} />
       <div className="mirage-composer-actions">
         <div className="mirage-send-slot">
-          <button className="mirage-send" type={busy ? 'button' : 'submit'} disabled={busy ? disabled || !onStop : !canSend} aria-label={busy ? onStop ? 'Stop response' : 'Waiting for Mirage' : 'Send message'} onClick={busy && onStop ? onStop : undefined}>
+          <button className="mirage-send" type={busy ? 'button' : 'submit'} disabled={busy ? disabled || !onStop : !canSend} aria-label={busy ? onStop ? 'Stop response' : 'Waiting for Miragio' : 'Send message'} onClick={busy && onStop ? onStop : undefined}>
             <span className="mirage-icon-slot" aria-hidden="true"><AnimatePresence initial={false} mode="popLayout"><motion.span key={busy ? 'stop' : 'send'} initial={animate ? { opacity: 0, scale: 0.8, filter: 'blur(2px)' } : false} animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }} exit={{ opacity: 0, scale: 0.8 }} transition={animate ? quick : { duration: 0 }}>{busy ? <Square size={14} fill="currentColor" /> : <ArrowUp size={18} />}</motion.span></AnimatePresence></span>
           </button>
         </div>

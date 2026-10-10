@@ -1,6 +1,6 @@
 # Mirage chat primitives
 
-This Person B feature supports the incident-response demo's Ask Mirage tool activity and human approval step. It refines the incumbent light chat rather than replacing its layout. No engine, MCP, API, page, shell, or contract code changes.
+This Person B feature supports the incident-response demo's Ask Miragio tool activity and human approval step. It refines the incumbent light chat rather than replacing its layout. No engine, MCP, API, page, shell, or contract code changes.
 
 Import `ChatComposer`, `ChatActivity`, `ChatToolCard`, and `ChatApprovalCard` from `@/components/chat-primitives`. The agreed props remain unchanged; the composer also accepts optional `inputRef: Ref<HTMLTextAreaElement>` for page-owned focus. The parent owns draft, submission, busy, stop, real activity labels, and pending approval. It must mark approval pending while a decision is sent. Use a stable request key when rendering multiple approval requests.
 

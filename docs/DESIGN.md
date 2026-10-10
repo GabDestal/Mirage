@@ -8,7 +8,7 @@ visual direction. `PRODUCT.md` and `CONTRACTS.md` define product behavior and da
 `docs/UX.md` defines the incident story. On look and feel, this file wins over earlier drafts.
 Builders: load `ponytail`, `impeccable` and `emil-design-eng`.
 
-Implementation status: the login and Ask Mirage chat home follow this reference. The existing
+Implementation status: the login and Ask Miragio chat home follow this reference. The existing
 Fleet and shared controls still use v2 styling; their specifications guide the next UI
 iterations. Section 8 records the implemented chat surface and its current read-only scope.
 
@@ -173,9 +173,9 @@ Current fake login: `liamszefner@gmail.com` / `demo123`, prefilled. Incorrect cr
 show an inline error. Values are neither sent nor stored; refreshing returns to login.
 The recovery control displays the demo credentials. Real authentication is separate product work.
 
-## 8. Ask Mirage chat home
+## 8. Ask Miragio chat home
 
-`/` opens Ask Mirage; `/fleet` keeps the existing Fleet as a secondary view. The home uses the
+`/` opens Ask Miragio; `/fleet` keeps the existing Fleet as a secondary view. The home uses the
 supplied Opereit dashboard screenshot and `agent-home.tsx` composition: a centred, left-aligned
 column (672 px maximum, 24 px horizontal clearance) on a white workspace.
 

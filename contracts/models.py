@@ -296,7 +296,7 @@ class Snapshot(Model):
     inputs: list[SnapshotInput] = []
 
 
-# Ask Mirage operator chat (CONTRACTS.md §13). A separate Node service, not engine events.
+# Ask Miragio operator chat (CONTRACTS.md §13). A separate Node service, not engine events.
 class ChatTurn(Model):
     session_id: str | None = None
     message: str = Field(min_length=1, max_length=8000)

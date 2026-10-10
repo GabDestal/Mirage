@@ -1,6 +1,6 @@
-# Ask Mirage delivery evidence
+# Ask Miragio delivery evidence
 
-Goal: connect the existing polished, light Ask Mirage surface to server-owned Bedrock/MCP operator chat for every demo operator step, while preserving the incumbent welcome and typography. Scope: page/transcript, SSE client/session lifecycle, exact-ID/schema approvals, explicit-click handoff, Vite proxy and chat-route shell theme. No engine/MCP/contracts/dependency implementations are owned by this feature.
+Goal: connect the existing polished, light Ask Miragio surface to server-owned Bedrock/MCP operator chat for every demo operator step, while preserving the incumbent welcome and typography. Scope: page/transcript, SSE client/session lifecycle, exact-ID/schema approvals, explicit-click handoff, Vite proxy and chat-route shell theme. No engine/MCP/contracts/dependency implementations are owned by this feature.
 
 ## Local and synthetic acceptance
 

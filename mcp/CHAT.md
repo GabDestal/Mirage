@@ -1,4 +1,4 @@
-# Ask Mirage backend delivery
+# Ask Miragio backend delivery
 
 Goal and demo step: make the natural-language operator interface cover incident inspection,
 detonation, deterministic proof, bisection, false-positive unfreeze, kill and coding-agent
