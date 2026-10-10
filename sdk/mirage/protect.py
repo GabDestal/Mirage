@@ -24,4 +24,7 @@ def protect(agent, name, allow=None, owner="unknown", entrypoint=None):
     if kind.startswith("langgraph"):
         from mirage.adapters import langchain
         return langchain.protect(agent, name, allow, owner, entrypoint)
+    if kind.startswith("claude_agent_sdk"):
+        from mirage.adapters import claude_agent
+        return claude_agent.protect(agent, name, allow, owner, entrypoint)
     raise TypeError(f"mirage.protect: no adapter for {type(agent).__name__} ({kind}).")
