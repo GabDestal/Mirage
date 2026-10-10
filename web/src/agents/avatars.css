@@ -1,7 +1,5 @@
-/* Agent avatars: DESIGN.md §8 (states) and §9 (motion). Token fallbacks are the light theme. */
-
+/* Shared avatar treatment across the fleet, sidebar and incident surfaces. */
 .mav-bot-frame {
-  --av-ease: var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -14,22 +12,31 @@
 }
 
 .mav-bot-frame .mav-bot-canvas {
-  pointer-events: auto;
+  pointer-events: none;
   user-select: none;
 }
 
-/* Frozen / Alert state:
-   The avatar is frozen, overlaid with a translucent ice boundary box and warning alarm glow.
-*/
+/* Built-in hops and spins are paused in the renderer, including reduced motion. */
+.mav-bot-frame[data-state='working'] .mav-bot-canvas {
+  animation: mav-working-drift 4.8s ease-in-out infinite;
+}
+
+@keyframes mav-working-drift {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-0.6px); }
+}
+
+/* The blue bot sits behind a translucent front, top and right ice face. */
+.mav-bot-frame[data-state='frozen'] .mav-bot-canvas {
+  transform: translate(-3%, 6%) scale(0.82);
+}
+
 .mav-bot-ice {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   pointer-events: none;
   z-index: 2;
-  animation: mav-freeze-in 240ms var(--av-ease) forwards;
+  filter: drop-shadow(0 1px 1px rgb(38 119 157 / 0.16));
 }
 
 .mav-bot-ice svg {
@@ -37,72 +44,49 @@
   overflow: visible;
 }
 
-.mav-bot-ice rect {
-  fill: color-mix(in srgb, var(--paper, #FCFCFA) 45%, transparent);
-  stroke: var(--alarm, #D93A2B);
-  stroke-width: 1.5px;
-  vector-effect: non-scaling-stroke;
-}
-
+.mav-bot-ice rect,
 .mav-bot-ice path {
+  stroke: #58b3d7;
+  stroke-width: 0.8;
+  stroke-linejoin: round;
+}
+
+.mav-bot-ice rect {
+  fill: rgb(189 234 250 / 0.26);
+}
+
+.mav-bot-ice .mav-ice-top {
+  fill: rgb(221 247 255 / 0.65);
+}
+
+.mav-bot-ice .mav-ice-side {
+  fill: rgb(104 193 227 / 0.35);
+}
+
+.mav-bot-ice .mav-ice-highlight {
   fill: none;
-  stroke: var(--paper, #FCFCFA);
-  stroke-width: 1.25;
+  stroke: #ffffff;
+  stroke-width: 1.1;
   stroke-linecap: round;
-  opacity: 0.95;
+  opacity: 0.9;
 }
 
-.mav-bot-frame[data-size='20'] .mav-bot-ice path {
-  display: none;
-}
-
-.mav-bot-frame[data-state='frozen'] {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--alarm, #D93A2B) 35%, transparent);
-}
-
-@keyframes mav-freeze-in {
-  from {
-    opacity: 0;
-    transform: scale(0.85);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Killed: desaturated, motionless */
+/* Killed: desaturated, motionless. Mirage retains a quiet, static teal marker. */
 .mav-bot-frame[data-state='killed'] {
   filter: grayscale(1) opacity(0.55);
-}
-
-/* Mirage: simulation twin state with distinct teal shimmer ring */
-.mav-bot-frame[data-state='mirage'] {
-  filter: drop-shadow(0 0 4px var(--mirage, #0E8C86));
 }
 
 .mav-bot-mirage-ring {
   position: absolute;
   inset: -1px;
   border-radius: 6px;
-  border: 1.5px dashed var(--mirage, #0E8C86);
+  border: 1px dashed var(--mirage, #0e8c86);
   pointer-events: none;
   z-index: 2;
-  animation: mav-spin-ring 8s linear infinite;
-}
-
-@keyframes mav-spin-ring {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mav-bot-ice,
-  .mav-bot-mirage-ring {
-    animation: none !important;
+  .mav-bot-frame[data-state='working'] .mav-bot-canvas {
+    animation: none;
   }
 }

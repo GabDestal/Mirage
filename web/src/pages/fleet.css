@@ -20,6 +20,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100%;
+  min-width: 0;
   padding: 32px 36px 64px;
   background: var(--fleet-surface);
   color: var(--fleet-ink);
@@ -31,6 +32,7 @@
 
 .fleet-container {
   width: 100%;
+  min-width: 0;
   max-width: 1120px;
   margin-inline: auto;
   display: flex;
@@ -66,6 +68,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .fleet-btn {
@@ -228,15 +231,26 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
+.fleet-table-region {
+  overflow-x: auto;
+}
+
 .fleet-table {
   width: 100%;
+  min-width: 880px;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 13px;
 }
 
+.fleet-col-agent { width: 240px; }
+.fleet-col-status { width: 116px; }
+.fleet-col-action { width: 156px; }
+.fleet-col-time { width: 92px; }
+
 .fleet-table th {
-  padding: 10px 18px;
+  padding: 12px 16px;
   text-align: left;
   font-weight: 500;
   font-size: 12px;
@@ -267,9 +281,21 @@
 }
 
 .fleet-table td {
-  padding: 14px 18px;
+  padding: 16px;
   border-bottom: 1px solid var(--fleet-line-subtle);
   vertical-align: middle;
+}
+
+.fleet-table .fleet-action-cell,
+.fleet-table .fleet-time-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.fleet-table td.fleet-time-cell {
+  color: var(--fleet-ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .fleet-table tr:last-child td {
@@ -294,6 +320,9 @@
   font-size: 13.5px;
   color: var(--fleet-ink);
   text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fleet-agent-name:hover {
@@ -355,12 +384,28 @@
 /* Inline Compact Trace */
 .fleet-trace-strip {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   font-family: 'Geist Mono', 'Sidebar JetBrains Mono', monospace;
   font-size: 11.5px;
-  overflow-x: auto;
-  white-space: nowrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fleet-trace-more {
+  font-size: 11px;
+  color: var(--fleet-ink-2);
+  text-decoration: underline;
+  padding-block: 4px;
+}
+
+.trace-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .trace-step-tag {
@@ -372,6 +417,15 @@
   background: var(--fleet-wash);
   border: 1px solid var(--fleet-line);
   color: var(--fleet-ink-2);
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.trace-tool-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .trace-step-tag.active {
@@ -428,4 +482,44 @@
   max-width: 380px;
   font-size: 13px;
   margin: 0;
+}
+
+@media (max-width: 767px) {
+  .fleet-page { padding: 24px 16px 40px; }
+  .fleet-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fleet-stat-card { min-width: 0; padding: 12px; }
+  .fleet-stat-header { gap: 8px; }
+  .fleet-stat-header svg { flex: none; }
+  .fleet-search-wrap { min-width: 0; width: 100%; }
+  .fleet-tabs { flex-wrap: wrap; }
+  .fleet-tab { padding-inline: 6px; font-size: 12px; min-height: 36px; }
+  .fleet-actions > a, .fleet-btn { min-height: 40px; }
+  .fleet-search-input { height: 40px; }
+
+  /* A compact run layout keeps actions visible without sideways swiping. */
+  .fleet-table { min-width: 0; }
+  .fleet-table colgroup { display: none; }
+  .fleet-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .fleet-table tbody { display: block; }
+  .fleet-table tr.fleet-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 16px;
+    border-bottom: 1px solid var(--fleet-line);
+  }
+  .fleet-table tr.fleet-row:last-child { border-bottom: none; }
+  .fleet-table td { min-width: 0; padding: 0; border-bottom: none; }
+  .fleet-table td:nth-child(3) { grid-column: 1 / -1; }
+  .fleet-table .fleet-action-cell { text-align: left; }
+  .fleet-table td.fleet-time-cell { align-self: center; }
+  .fleet-agent-cell { gap: 8px; }
+  .fleet-action-link, .fleet-action-cell > a { min-height: 40px; }
+  .fleet-trace-more { padding-block: 8px; }
 }

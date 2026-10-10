@@ -65,17 +65,8 @@ export function AgentAvatar({
   const type = agentBotType(agent);
   const seed = useMemo(() => (hash(agent) % 1000) / 1000, [agent]);
 
-  // Map agent operational states to bot-avatars states:
-  // - working: hopping & spinning with laughs
-  // - sleeping (for waiting / paused states)
-  // - default: idle looking around with occasional jumps
-  // - frozen: held motionless in place, iced over with warning halo
   const isFrozen = state === 'frozen';
-  const isKilled = state === 'killed';
   const isMirage = state === 'mirage';
-
-  const botState = state === 'working' ? 'working' : state === 'waiting' ? 'sleeping' : 'default';
-  const isPaused = isFrozen || isKilled;
 
   const numericSize = typeof size === 'number' ? size : 20;
 
@@ -94,20 +85,25 @@ export function AgentAvatar({
       <BotAvatar
         type={type}
         size={numericSize}
-        state={botState}
+        state={state === 'waiting' ? 'sleeping' : 'default'}
         face="mouth"
         shading="plastic"
         seed={seed}
-        paused={isPaused}
-        interactive={!isPaused}
+        color={isFrozen ? '#78c9ea' : undefined}
+        saturation={isFrozen ? 1 : undefined}
+        // Hold the renderer still; CSS adds only a tiny working-state drift.
+        paused
+        interactive={false}
         className="mav-bot-canvas"
       />
 
       {isFrozen && (
         <span className="mav-bot-ice" aria-hidden="true">
           <svg viewBox="0 0 24 24" width={numericSize} height={numericSize}>
-            <rect x="1" y="1" width="22" height="22" rx="4.5" />
-            <path d="M4.5 9V6.5a2 2 0 0 1 2-2H9" />
+            <path className="mav-ice-top" d="M2 5 6 1H23L19 5Z" />
+            <path className="mav-ice-side" d="m19 5 4-4v17l-4 4Z" />
+            <rect x="2" y="5" width="17" height="17" rx="2" />
+            <path className="mav-ice-highlight" d="M4 12V8a1 1 0 0 1 1-1h5M5 19h5M21 5v9" />
           </svg>
         </span>
       )}
