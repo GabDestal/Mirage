@@ -39,6 +39,16 @@ export const untrusted = (source: string, text: unknown) =>
   `<untrusted_input source="${source}">${String(typeof text === "string" ? text : JSON.stringify(text))
     .replace(/<\/?untrusted_input/gi, "&lt;untrusted_input")}</untrusted_input>`;
 
+// Readable names for people, same rules as web/src/lib/runs.ts. Raw IDs stay next to them for follow-up tool calls.
+const ACRONYMS = new Set(["pr", "crm", "ai"]);
+const agentName = (agent: string) => (agent ?? "").replace(/[_-]+/g, " ").trim().split(" ")
+  .map((w, i) => ACRONYMS.has(w) ? w.toUpperCase() : i ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+/** "Meeting assistant", or "Meeting assistant, run 2" when the same agent has several runs. */
+const runLabel = (run: Run, runs: Run[]) => runs.filter((r) => r.agent === run.agent).length > 1
+  ? `${agentName(run.agent)}, run ${Number(run.id.replace(/\D/g, "")) || run.id}` : agentName(run.agent);
+const statusLabel = (s: string) => agentName(s.toLowerCase());
+const incidentLabel = (id: string) => `Incident #${Number(id.replace(/\D/g, "")) || id}`;
+
 const text = (t: string, structured?: Record<string, unknown>): CallToolResult =>
   ({ content: [{ type: "text", text: t }], ...(structured && { structuredContent: structured }) });
 const refuse = (t: string): CallToolResult => ({ content: [{ type: "text", text: `Not done: ${t}` }], isError: true });
@@ -172,11 +182,11 @@ export function createServer(opts: Options = {}) {
     const v = inc.verdict;
     const lines = [
       UNTRUSTED_NOTE, "",
-      `# Incident ${inc.id} · ${inc.status}`,
-      `Headline: ${inc.run_id}${run ? ` (${run.agent})` : ""} read ${inc.inputs.length} inputs, then tried ` +
+      `# ${incidentLabel(inc.id)} · ${statusLabel(inc.status)} (incident_id ${inc.id}, run_id ${inc.run_id})`,
+      `Headline: ${run ? agentName(run.agent) : "The run"} read ${inc.inputs.length} inputs, then tried ` +
         `\`${t.tool}\`${dest ? ` → ${untrusted("tool_args", dest)}` : ""}. Blocked by the gate ` +
-        `(${t.rule_id ?? t.policy_id ?? "rule"}: ${t.explanation}). Run is ${run?.status ?? "frozen"}.`,
-      `Attack chain: ${cause ? `${cause.kind} → ` : ""}${run?.agent ?? inc.run_id} → ${t.tool}${dest ? " → external destination" : ""}`,
+        `(${t.rule_id ?? t.policy_id ?? "rule"}: ${t.explanation}). Run is ${run ? statusLabel(run.status).toLowerCase() : "frozen"}.`,
+      `Attack chain: ${cause ? `${cause.kind} → ` : ""}${run ? agentName(run.agent) : "the run"} → ${t.tool}${dest ? " → external destination" : ""}`,
       "",
       "## Inputs the run read",
       ...inc.inputs.map((i) => `- ${i.id} (${i.kind}${i.source_tool ? ` via ${i.source_tool}` : ""}): ` +
@@ -205,6 +215,7 @@ export function createServer(opts: Options = {}) {
     const structured = {
       untrusted_note: UNTRUSTED_NOTE,
       incident: {
+        label: incidentLabel(inc.id), status_label: statusLabel(inc.status), ...(run && { agent_label: agentName(run.agent) }),
         ...inc,
         trigger: { ...t, args: untrusted("tool_args", t.args) },
         inputs: inc.inputs.map((i) => ({ ...i, label: untrusted(i.kind, i.label), preview: untrusted(i.kind, i.preview) })),
@@ -224,9 +235,11 @@ export function createServer(opts: Options = {}) {
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, safe(async () => {
     const runs = await call<Run[]>("GET", "/runs");
-    const lines = runs.map((r) => `- ${r.id} · ${r.agent} · ${r.status}${r.incident_id ? ` · incident ${r.incident_id}` : ""}` +
-      ` · ${r.tool_calls} tool calls · task: ${r.task}`);
-    return text(lines.length ? lines.join("\n") : "No runs yet.", { runs });
+    const readable = runs.map((r) => ({ label: runLabel(r, runs), status_label: statusLabel(r.status),
+      ...(r.incident_id && { incident_label: incidentLabel(r.incident_id) }), ...r }));
+    const lines = readable.map((r) => `- ${r.label} · ${r.status_label}${r.incident_label ? ` · ${r.incident_label}` : ""}` +
+      ` · ${r.tool_calls} tool calls · task: ${r.task} (run_id ${r.id}${r.incident_id ? `, incident_id ${r.incident_id}` : ""})`);
+    return text(lines.length ? lines.join("\n") : "No runs yet.", { runs: readable });
   }));
 
   server.registerTool("get_incident", {

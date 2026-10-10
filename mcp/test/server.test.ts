@@ -135,3 +135,16 @@ test("get_incident wraps agent inputs as untrusted data, in text and structured 
   expect(r.text.match(/<\/untrusted_input>/g)!.length).toBe(r.text.match(/<untrusted_input /g)!.length);
   expect(JSON.stringify(r.structured)).not.toMatch(/"preview":"Ignore/);
 });
+
+test("list_runs and get_incident lead with readable labels and keep raw IDs", async () => {
+  const { callText } = await connect();
+  const runs = await callText("list_runs");
+  expect(runs.text.split("\n")[0]).toMatch(/^- Meeting assistant, run 1 · Frozen · Incident #1 · .*\(run_id run_001, incident_id inc_001\)$/);
+  expect(runs.structured.runs[0]).toMatchObject({ label: "Meeting assistant, run 1", status_label: "Frozen",
+    incident_label: "Incident #1", id: "run_001", incident_id: "inc_001" });
+  expect(Object.keys(runs.structured.runs[0])[0]).toBe("label");
+  const inc = await callText("get_incident", { incident_id: "inc_001" });
+  expect(inc.text).toContain("# Incident #1 · Confirmed (incident_id inc_001, run_id run_001)");
+  expect(inc.text).toContain("Headline: Meeting assistant read");
+  expect(inc.structured.incident).toMatchObject({ label: "Incident #1", status_label: "Confirmed", agent_label: "Meeting assistant", id: "inc_001" });
+});
