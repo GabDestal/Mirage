@@ -103,7 +103,9 @@ def start_run(body: RunStart) -> RunStarted:
 
 @app.post("/runs/{run_id}/model-calls", status_code=204, **data_plane)
 def record_model_call(run_id: str, body: ModelCall, authorization: str = Header("")):
-    _authed(run_id, authorization).model_calls.append(body.model_dump())
+    run = _authed(run_id, authorization)
+    run.model_calls.append(body.model_dump())
+    run.model_id = run.model_id or body.model_id
 
 
 @app.post("/gateway/check", **data_plane)
