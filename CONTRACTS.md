@@ -338,10 +338,13 @@ contracts/           # shared (A + B agree)
   fixtures/          # recorded demo events and state
 sdk/                 # Liam: `mirage-sdk`, the package customer agents install
   mirage_sdk/
-    core.py          # tool wrapper + model wrapper, prod/mirage modes, talks to the data plane API
+    core.py          # data plane client: check, hold, record (all decisions in the engine)
     protect.py       # mirage.protect(agent): detects the framework, picks an adapter
+    sandbox.py       # run(snapshot, call_tool): the detonation runner for SDK agents
     adapters/
       langchain.py   # LangChain / LangGraph middleware (built for the demo)
+      openai_agents.py
+      claude_agent.py
 engine/              # Gabi: the Mirage service
   api/               # FastAPI: data plane (SDK) + control plane (web, mcp) + SSE, MIRAGE_MODE=replay|live
   gateway/           # check(tool call), freeze/kill, log
@@ -389,7 +392,7 @@ Rule: everything runs on one laptop. AWS is used only for Bedrock.
 | API | FastAPI + uvicorn, `sse-starlette` for `/stream` |
 | Contract | Pydantic v2 in `contracts/models.py` |
 | Demo agents | LangGraph for the demo (`create_agent` + `langchain-aws` `ChatBedrockConverse`, temperature 0), wrapped by `mirage.protect`. The SDK is framework-agnostic (section 11). |
-| SDK | `mirage-sdk`: LangChain middleware, talks to the engine with `httpx` |
+| SDK | `mirage-sdk`: adapters for LangGraph, OpenAI Agents SDK, Claude Agent SDK; talks to the engine with `httpx` |
 | Concurrency | One thread per run in the agents process. Freeze: the SDK waits on `GET /runs/{id}/wait` inside that run's tool call. Only that thread pauses. Global STOP is one engine flag. |
 | Gmail + Calendar (demo agent tools, `agents/`) | `google-api-python-client` + `google-auth-oauthlib` |
 | CRM (demo agent tools, `agents/`) | HubSpot free CRM via its REST SDK |
@@ -417,45 +420,46 @@ Rule: everything runs on one laptop. AWS is used only for Bedrock.
 
 Owner: Liam. The SDK goes **into the customer's agent**, not into our engine. It is the developer experience.
 
-The customer keeps their agent as it is: any framework, their tools, their keys. Mirage wraps the agent.
-Mirage does not hold keys. It decides whether each tool call may run.
+Principle: **with or without Mirage, the agent runs in production exactly as it would without it.**
+Same tools, same keys, same results. The SDK only sits in front of each tool call and records the run.
+When the gate trips, the run freezes in prod and the agent **keeps running in the sandbox from the frozen
+call**, with its full context, where every action is traced and nothing reaches the real world.
+
+Two lines, any supported framework:
 
 ```python
 import mirage
-
-agent = mirage.protect(agent, name="assistant", owner="liam",
-                       allow={"tools": ["read_calendar", "crm_query", "send_email"],
-                              "email_to": ["demo-user@..."]})
+agent = mirage.protect(agent, name="assistant")      # LangGraph graph, OpenAI Agents `Agent`
+options = mirage.protect(options, name="assistant")  # Claude Agent SDK `ClaudeAgentOptions`
 ```
 
-### Framework-agnostic by design
+`allow={...}` (the allowlist, `Allowlist`) is optional. The SDK is a thin client: **every decision is in
+the engine.** It has three parts:
 
-Every framework has the same two things: **tools** (functions the model can call) and a **model client**.
-The SDK core wraps those two. Framework adapters only find them inside the agent.
+1. **Adapters** find, inside the agent: run start (task), every tool call, every model call, run end.
+2. **Core** is the data plane client below: register, start run, record model calls, check each tool call
+   (run it on allow, wait while frozen, raise on kill), record its result, complete.
+3. **Sandbox runner** (`mirage_sdk.sandbox:run`): rebuilds the agent and routes its tools to the engine's
+   `call_tool` (see "Snapshot and replay"). The SDK never reads tool answers from the snapshot itself.
 
-| Layer | Does | Works with |
-|---|---|---|
-| Core: tool wrapper | Wraps each tool function: check → hold → run (prod) or answer from snapshot (mirage). | Any framework. Fallback: `mirage.tools([...])` wraps a plain list of functions. |
-| Core: model wrapper | Wraps the provider client and records each call (prompt, messages, model ID, settings, response). | Bedrock (`boto3`), OpenAI, Anthropic clients. Fallback: `mirage.wrap_model(client)`. |
-| Adapter: LangChain / LangGraph | Uses LangChain middleware (`wrap_tool_call`, `wrap_model_call`). | `create_agent` graphs. **Built for the demo.** |
-| Adapter: others | OpenAI Agents SDK, AWS Strands, CrewAI, Google ADK: their tool and model hooks. | Next steps. One adapter each. |
+### Where each adapter plugs in
 
-`mirage.protect(agent)` detects the framework and picks the adapter. If none fits, the customer uses the two
-core wrappers directly. The engine never knows which framework the agent uses: it only sees tool calls and
-model calls in the contract format.
+Checked against the docs (OpenAI Agents SDK 0.23, Claude Agent SDK 0.2.165), not run yet.
 
-### Two modes
+| | LangGraph (demo) | OpenAI Agents SDK | Claude Agent SDK |
+|---|---|---|---|
+| Run start + task | wrap `invoke` / `stream` | `agent.hooks` `on_start` (`turn_input`) | `UserPromptSubmit` hook (`prompt`) |
+| Tool call: check, freeze, kill | middleware `wrap_tool_call` | wrap `FunctionTool.on_invoke_tool` | `PreToolUse` hook (deny, or wait; raise its `timeout`, default 600 s) |
+| Sandbox: answer instead of running | yes | yes | custom tools only (wrap the handler); built-ins (Bash, WebFetch) are denied |
+| Model calls recorded | `wrap_model_call` | wrap `agent.model` | session transcript (`options.session_store`) |
+| Sandbox: replay replies to the freeze | yes | yes | no (the model runs in the CLI); fork the session instead (to check) |
+| Run end | after `invoke` | `on_end` (+ catch errors) | `Stop` hook |
 
-| Mode | Model call | Tool call |
-|---|---|---|
-| `prod` | Recorded. | Checked with `POST /gateway/check`. Allow: the agent's own tool runs. Freeze: waits on `GET /runs/{id}/wait`. Kill or block: raises. The tool does not run. The result is recorded. |
-| `mirage` | Recorded. | **Never runs the real tool.** Reads return the recorded result from the snapshot. Writes are captured in the effects ledger and return a fake "ok". |
+Verified in two spikes with the LangGraph adapter (LangChain 1.4): waiting inside the tool hook holds the run
+until release; raising stops it before the tool runs; in mirage mode no real tool ran and the write was captured.
 
-Verified in two spikes with the LangChain adapter (LangChain 1.4, LangGraph):
-- Production: waiting inside the tool hook holds the run until release, then it finishes. Raising stops it before the tool runs.
-- Mirage: the middleware answered every tool call from the snapshot. No real tool ran. The write was captured.
-
-Limit: Mirage sees only what goes through tools. Code that calls an API outside a tool is not seen.
+Limits: Mirage sees only tool calls. Code that calls an API outside a tool, and OpenAI hosted tools
+(web search, code interpreter), are not seen.
 
 ### Data plane API (SDK → engine)
 
@@ -477,13 +481,17 @@ Human-action POSTs from web and MCP (§5) send `HumanRequest` `{actor, reason}`.
 
 ### Snapshot and replay
 
-- The snapshot is the recorded run: task, model calls, and every tool call with its result.
+- The snapshot is `Snapshot` in `models.py`, written by the gate at freeze (`data/snapshots/<incident_id>.json`):
+  task, entrypoint, model calls up to the freeze, every tool call with its result, and the inputs.
+- **Only the engine reads and writes it.** The SDK never parses it to answer tools; it gets a `call_tool`.
 - A tool result can hold several inputs (example: `read_calendar` returns 4 events). Each one is an `Input`.
-- Detonation: the engine starts a subprocess. It builds the agent from its entrypoint with the SDK in `mirage` mode,
-  the gate off, and the snapshot loaded. It runs the same task. The poisoned invite comes back from the
-  snapshot, so the agent takes the same path. The subprocess also has no third-party keys and network access
-  only to Bedrock.
-- Bisection: remove one `Input` from the snapshot (example: the invite from `read_calendar`'s result). Run again.
+- Detonation: the engine starts a jailed child process (no third-party keys, network only to Bedrock).
+  The child calls `runner(snapshot, call_tool)` (`runner` defaults to `entrypoint`). For SDK agents the runner is
+  `mirage_sdk.sandbox:run`: it rebuilds the agent from `entrypoint`, replays the recorded model replies up to
+  the frozen call, then runs live from there. Every tool call goes to `call_tool(tool, args)`, owned by the
+  engine: a read returns its recorded result, anything else is captured as an effect and answered `{"status": "ok"}`.
+- Bisection: remove one `Input` from the snapshot (example: the invite from `read_calendar`'s result) and run
+  again **from the start** (no replay of model replies), so the agent's path can change.
 
 ## 12. MCP server (operator interface)
 

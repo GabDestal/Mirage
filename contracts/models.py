@@ -243,3 +243,42 @@ class WaitResult(Model):
     """GET /runs/{id}/wait. Long poll while frozen. `frozen`: still frozen, poll again."""
 
     status: Literal["running", "frozen", "killed", "halted"]
+
+
+# --- Snapshot: engine -> sandbox (CONTRACTS.md §11) --------------------------------------
+
+
+class SnapshotToolResult(Model):
+    call_id: str
+    tool: str
+    args: dict[str, Any]
+    result: Any = None
+
+
+class SnapshotInput(Input):
+    item: Any = None  # the raw record inside a tool result; bisection drops it
+
+
+class Snapshot(Model):
+    """`data/snapshots/<incident_id>.json`, written by the gate at freeze. The sandbox's only
+    input. The SDK never reads it in prod; in the sandbox the child hands it to the runner."""
+
+    id: str
+    incident_id: str
+    run_id: str
+    agent: str
+    task: str
+    entrypoint: str  # AgentSpec.entrypoint: where the agent is rebuilt
+    # `module:function(snapshot, call_tool)` the child calls. None: call `entrypoint` itself
+    # (engine dev agents). SDK agents: "mirage_sdk.sandbox:run".
+    runner: str | None = None
+    system: str | None = None
+    model_id: str | None = None
+    policy: dict[str, Any] = {}  # the gate policy at freeze; the verdict reuses it
+    legit: dict[str, Any] = {}  # "legit task completed" check, e.g. {tool, to}
+    taken_at: datetime
+    # In order, up to the frozen call. The sandbox replays these replies, then goes live
+    # from the frozen call: the run continues where prod stopped.
+    model_calls: list[ModelCall] = []
+    tool_results: list[SnapshotToolResult] = []
+    inputs: list[SnapshotInput] = []
