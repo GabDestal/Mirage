@@ -101,7 +101,7 @@ Event types and their `payload`:
 
 | `type` | `payload` |
 |---|---|
-| `run.started` | `{task, agent}` |
+| `run.started` | `{task, agent, restarted_from?, status?}` (`status: queued` for an approved restart not started yet) |
 | `agent.message` | `{role, text}` |
 | `tool.requested` | `{call_id, tool, args}` |
 | `gate.decision` | `GateDecision` (below) |
@@ -287,7 +287,7 @@ All POST bodies with a human action carry `{actor, reason}`.
 | POST | `/runs/{id}/freeze` | Freeze one run. |
 | POST | `/runs/{id}/unfreeze` | Resume a frozen run. 409 if its incident is `detonating` or confirmed (only `open` / `false_positive` allowed). |
 | POST | `/runs/{id}/kill` | End a frozen run. |
-| POST | `/runs/{id}/restart` | Approve a clean restart. Returns the new `Run`. |
+| POST | `/runs/{id}/restart` | Approve a clean restart of a `killed` or `halted` run (else 409). Returns the new `Run`, `queued`, with `restarted_from`. The engine never launches agents: the agent's next `POST /runs` takes over the queued run. |
 | POST | `/incidents/{id}/detonate` | Start detonation. Returns `{detonation_id}`. Results come as events. |
 | POST | `/incidents/{id}/bisect` | Start bisection. Results come as events. |
 | POST | `/incidents/{id}/handoff` | Optional body `{actor, reason}`. Needs a confirmed verdict (409). Returns `{prompt, codex_url, mirage_token, report}`: the prompt for a coding agent (facts, fenced untrusted input, where the code is, the check command), the report (markdown), a token for this incident only (never logged). Incident → `fix_pending`. |
