@@ -8,6 +8,7 @@ export type ChatEvent =
   | { type: 'tool_progress'; call_id: string; message: string }
   | { type: 'tool_result'; call_id: string; tool: string; result: ToolResult }
   | { type: 'approval_required'; approval_id: string; call_id: string; message: string; schema: Record<string, unknown> }
+  | { type: 'follow_up'; title: string }
   | { type: 'done' }
   | { type: 'error'; code: string; message: string }
 
@@ -18,7 +19,7 @@ export function parseChatEvent(data: string): ChatEvent {
   const fields: Record<string, string[]> = {
     session: ['session_id'], text_delta: ['text'], tool_start: ['call_id', 'tool'],
     tool_progress: ['call_id', 'message'], tool_result: ['call_id', 'tool'],
-    approval_required: ['approval_id', 'call_id', 'message'], done: [], error: ['code', 'message'],
+    approval_required: ['approval_id', 'call_id', 'message'], follow_up: ['title'], done: [], error: ['code', 'message'],
   }
   const type = value.type
   if (typeof type !== 'string' || !Object.hasOwn(fields, type) || fields[type].some((key) => typeof value[key] !== 'string')
@@ -92,12 +93,53 @@ export type ChatPart =
   | { kind: 'text'; text: string }
   | { kind: 'tool'; id: string; tool: string; args: Record<string, unknown>; status: 'running' | 'complete' | 'error'; progress?: string; result?: ToolResult }
   | { kind: 'approval'; id: string; callId: string; message: string; schema: Record<string, unknown>; status: 'waiting' | 'sending' | 'accepted' | 'declined' | 'cancelled'; error?: string }
-export type ChatTurn = { id: string; question: string; parts: ChatPart[]; status: 'running' | 'done' | 'error' | 'stopped'; error?: string }
+// auto: Miragio's unprompted follow-up (e.g. a finished detonation); question holds its title.
+export type ChatTurn = { id: string; question: string; auto?: boolean; parts: ChatPart[]; status: 'running' | 'done' | 'error' | 'stopped'; error?: string }
+
+function applyEvent(turn: ChatTurn, event: ChatEvent): ChatTurn {
+  const parts = [...turn.parts]
+  switch (event.type) {
+    case 'text_delta': {
+      const last = parts.at(-1)
+      if (last?.kind === 'text') parts[parts.length - 1] = { ...last, text: last.text + event.text }
+      else parts.push({ kind: 'text', text: event.text })
+      break
+    }
+    case 'tool_start': parts.push({ kind: 'tool', id: event.call_id, tool: event.tool, args: event.args, status: 'running' }); break
+    case 'tool_progress': return { ...turn, parts: parts.map((part) => part.kind === 'tool' && part.id === event.call_id ? { ...part, progress: event.message } : part) }
+    case 'tool_result': return { ...turn, parts: parts.map((part) => part.kind === 'tool' && part.id === event.call_id ? { ...part, status: event.result.isError ? 'error' : 'complete', result: event.result, progress: undefined } : part) }
+    case 'approval_required': parts.push({ kind: 'approval', id: event.approval_id, callId: event.call_id, message: event.message, schema: event.schema, status: 'waiting' }); break
+    case 'done': return { ...turn, status: 'done' }
+    case 'error': return { ...turn, status: 'error', error: event.message }
+  }
+  return { ...turn, parts }
+}
+
+// Text deltas render once per frame, not once per token; any other event flushes them first to keep order.
+function batchDeltas(update: (change: (turn: ChatTurn) => ChatTurn) => void) {
+  let text = ''
+  let frame = 0
+  const flush = () => {
+    cancelAnimationFrame(frame)
+    frame = 0
+    if (!text) return
+    const chunk = text
+    text = ''
+    update((turn) => applyEvent(turn, { type: 'text_delta', text: chunk }))
+  }
+  const apply = (event: ChatEvent) => {
+    if (event.type === 'text_delta') { text += event.text; frame ||= requestAnimationFrame(flush); return }
+    flush()
+    update((turn) => applyEvent(turn, event))
+  }
+  return { apply, flush }
+}
 
 export function useChat() {
   const [turns, setTurns] = useState<ChatTurn[]>([])
   const [busy, setBusy] = useState(false)
   const session = useRef<string | undefined>(undefined)
+  const [sessionId, setSessionId] = useState<string>()
   const active = useRef<AbortController | null>(null)
   const pending = useRef(new Set<string>())
   const decisions = useRef(new Set<string>())
@@ -129,42 +171,13 @@ export function useChat() {
       if (active.current !== controller) return
       setTurns((previous) => previous.map((turn) => turn.id === id ? change(turn) : turn))
     }
-    // Text deltas render once per frame, not once per token; any other event flushes them first to keep order.
-    let text = ''
-    let frame = 0
-    const flush = () => {
-      cancelAnimationFrame(frame)
-      frame = 0
-      if (!text) return
-      const chunk = text
-      text = ''
-      update((turn) => {
-        const parts = [...turn.parts]
-        const last = parts.at(-1)
-        if (last?.kind === 'text') parts[parts.length - 1] = { ...last, text: last.text + chunk }
-        else parts.push({ kind: 'text', text: chunk })
-        return { ...turn, parts }
-      })
-    }
+    const batch = batchDeltas(update)
     try {
       await streamTurn({ session_id: session.current, message: question, actor: 'liam' }, controller.signal, (event) => {
         if (active.current !== controller) return
-        if (event.type === 'session') { session.current = event.session_id; return }
-        if (event.type === 'text_delta') { text += event.text; frame ||= requestAnimationFrame(flush); return }
-        flush()
+        if (event.type === 'session') { session.current = event.session_id; setSessionId(event.session_id); return }
         if (event.type === 'approval_required') pending.current.add(event.approval_id)
-        update((turn) => {
-          const parts = [...turn.parts]
-          switch (event.type) {
-            case 'tool_start': parts.push({ kind: 'tool', id: event.call_id, tool: event.tool, args: event.args, status: 'running' }); break
-            case 'tool_progress': return { ...turn, parts: parts.map((part) => part.kind === 'tool' && part.id === event.call_id ? { ...part, progress: event.message } : part) }
-            case 'tool_result': return { ...turn, parts: parts.map((part) => part.kind === 'tool' && part.id === event.call_id ? { ...part, status: event.result.isError ? 'error' : 'complete', result: event.result, progress: undefined } : part) }
-            case 'approval_required': parts.push({ kind: 'approval', id: event.approval_id, callId: event.call_id, message: event.message, schema: event.schema, status: 'waiting' }); break
-            case 'done': return { ...turn, status: 'done' }
-            case 'error': return { ...turn, status: 'error', error: event.message }
-          }
-          return { ...turn, parts }
-        })
+        batch.apply(event)
       })
       return true
     } catch (cause) {
@@ -172,7 +185,7 @@ export function useChat() {
       controller.abort()
       return false
     } finally {
-      flush()
+      batch.flush()
       if (active.current === controller) {
         active.current = null
         pending.current.clear()
@@ -204,7 +217,30 @@ export function useChat() {
     } finally { decisions.current.delete(id); if (!decisions.current.size) approvalRequests.current.clear() }
   }, [])
 
-  const reset = useCallback(() => { stop(); session.current = undefined; setTurns([]) }, [stop])
+  // Unprompted follow-ups (finished detonation / bisection) arrive on the session stream as their own turn.
+  useEffect(() => {
+    if (!sessionId) return
+    const source = new EventSource(`/chat/sessions/${encodeURIComponent(sessionId)}/events`)
+    let batch: ReturnType<typeof batchDeltas> | null = null
+    source.onmessage = (message) => {
+      let event: ChatEvent
+      try { event = parseChatEvent(message.data) } catch { return }
+      if (event.type === 'follow_up') {
+        batch?.flush()
+        const id = crypto.randomUUID()
+        batch = batchDeltas((change) => setTurns((previous) => previous.map((turn) => turn.id === id && turn.status === 'running' ? change(turn) : turn)))
+        setBusy(true)
+        setTurns((previous) => [...previous, { id, question: event.title, auto: true, parts: [], status: 'running' }])
+        return
+      }
+      if (!batch) return
+      batch.apply(event)
+      if (event.type === 'done' || event.type === 'error') { batch = null; setBusy(false) }
+    }
+    return () => { batch?.flush(); source.close() }
+  }, [sessionId])
+
+  const reset = useCallback(() => { stop(); session.current = undefined; setSessionId(undefined); setTurns([]) }, [stop])
   return { turns, busy, send, stop, reset, respond }
 }
 

@@ -99,6 +99,24 @@ test("detonate and find_cause tell the engine who asked (audit trail)", async ()
       body: { actor: "liam via Claude Code (MCP)", reason: "Bisection requested via MCP" } }]);
 });
 
+test("detonate waits for the verdict by default; wait=false returns at start", async () => {
+  DB["GET /events"] = [{ seq: 4, type: "run.started", run_id: "run_009", incident_id: null, payload: {} }];
+  DB["POST /incidents/inc_001/detonate?runs=3"] = { detonation_id: "det_1" };
+  DB["GET /events?after=4"] = [{ seq: 5, type: "verdict.ready", run_id: null, incident_id: "inc_001", payload: { compromised_runs: "3/3" } }];
+  const { posts, callText } = await connect();
+  const waited = await callText("detonate", { incident_id: "inc_001" });
+  expect(waited.text).toMatch(/^Detonation done: 3\/3 replays compromised/);
+  const started = await callText("detonate", { incident_id: "inc_001", wait: false });
+  expect(started.isError).toBe(false);
+  expect(started.text).toMatch(/^Detonation started in Mirage for inc_001/);
+  expect(started.structured).toEqual({ status: "started", incident_id: "inc_001", after: 4 });
+  // People-facing wording never suggests a tool name (the tool stays in a marked note for assistants).
+  expect(waited.text).toContain("Next step: detonate it in Mirage. (Tool: detonate. Never show tool names to people.)");
+  expect(waited.text).not.toMatch(/Next action|→ detonate|tool `/);
+  expect(posts.map((p) => p.path)).toEqual(["/incidents/inc_001/detonate?runs=3", "/incidents/inc_001/detonate?runs=3"]);
+  delete DB["GET /events?after=4"];
+});
+
 test("unfreeze on a confirmed incident refuses without asking", async () => {
   let asked = false;
   const { posts, callText } = await connect({ elicit: () => { asked = true; return { action: "decline" }; } });

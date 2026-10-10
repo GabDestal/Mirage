@@ -12,7 +12,7 @@ fixture = Path(__file__).resolve().parents[2] / "contracts/fixtures/chat_demo.js
 examples = [json.loads(line) for line in fixture.read_text().splitlines()]
 for example in examples:
     assert adapter.validate_python(example).model_dump(mode="json", by_alias=True, exclude_none=True) == example
-assert len({event["type"] for event in examples}) == 8
+assert len({event["type"] for event in examples}) == 9
 ChatTurn(message="Which run is frozen?", actor="liam")
 ChatApproval(action="accept", content={"confirm": "kill run_002", "reason": "Contained"})
 ChatApprovalAccepted(accepted=True)

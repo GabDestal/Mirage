@@ -152,7 +152,7 @@ const answerMiragio = <Miragio className="chat-answer-miragio" />
 const TranscriptTurn = memo(function TranscriptTurn({ turn, onRespond }: { turn: ChatTurn; onRespond: (id: string, action: 'accept' | 'decline', content?: Record<string, unknown>) => Promise<void> }) {
   const response = turn.parts.filter((part) => part.kind === 'text').map((part) => part.text).join('\n\n')
   return <article className="chat-turn" aria-label="Conversation turn">
-    <div className="chat-question"><span className="sr-only">You: </span>{turn.question}</div>
+    {turn.auto ? <h3 className="sr-only">{turn.question}</h3> : <div className="chat-question"><span className="sr-only">You: </span>{turn.question}</div>}
     <div className="chat-answer">
       {answerMiragio}
       <div className="chat-answer-content">

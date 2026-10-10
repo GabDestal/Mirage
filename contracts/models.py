@@ -363,6 +363,13 @@ class ChatApprovalRequired(Model):
     requested_schema: dict[str, Any] = Field(alias="schema")
 
 
+class ChatFollowUp(Model):
+    """Opens an automatic turn on GET /chat/sessions/{id}/events (e.g. a finished detonation)."""
+
+    type: Literal["follow_up"] = "follow_up"
+    title: str
+
+
 class ChatDone(Model):
     type: Literal["done"] = "done"
 
@@ -375,6 +382,6 @@ class ChatError(Model):
 
 ChatEvent = Annotated[
     ChatSession | ChatTextDelta | ChatToolStart | ChatToolProgress | ChatToolResult
-    | ChatApprovalRequired | ChatDone | ChatError,
+    | ChatApprovalRequired | ChatFollowUp | ChatDone | ChatError,
     Field(discriminator="type"),
 ]
