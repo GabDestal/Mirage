@@ -216,6 +216,15 @@ def freeze(run_id: str, body: HumanRequest) -> Run:
 
 @app.post("/runs/{run_id}/unfreeze")
 def unfreeze(run_id: str, body: HumanRequest) -> Run:
+    if not REPLAY:
+        runs, incidents = _state()
+        inc = incidents.get(runs[run_id].incident_id) if run_id in runs else None
+        if inc and inc.status == "detonating":
+            raise HTTPException(409, "Cannot unfreeze: detonation is running. Wait for the verdict.")
+        if inc and (inc.status not in ("open", "false_positive")
+                    or (inc.verdict and inc.verdict.confirmed)):
+            raise HTTPException(409, "Cannot unfreeze: detonation confirmed this run is compromised. "
+                                     "Kill it and approve a clean restart.")
     return _act(run_id, body, "unfreeze", ("frozen",))
 
 
