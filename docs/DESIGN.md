@@ -317,9 +317,13 @@ sidebar captions described above. Use the pinned login effect and surface treatm
 
 ## 14. Keyboard
 
-Keep `⌘K` command menu, `G F` Fleet, `G I` Incidents, `J/K` selection, Enter to open,
-Esc to close, `U` to request unfreeze and `⇧⌘.` to request Stop all. Every action preserves
-its reason and authority checks. Shortcuts stay inactive while typing in a field or textarea.
+Use `⌘1` Ask Miragio, `⌘2` Fleet, `⌘3` Incidents and `⌘4` Integrations & API Keys.
+Keep `⌘K` command menu and `⇧⌘.` to request Stop all. In Fleet, `J/K` selects a run,
+Enter opens it and Esc clears selection. `⌘U` requests unfreeze for the selected frozen run;
+`⌘⌫` or `⌘X` requests kill for the selected running or frozen run. Plain `U/X` remain fallbacks.
+Ctrl works in place of Command. Run navigation is available through the command menu,
+without index shortcuts. Every action preserves its reason and authority checks.
+Shortcuts stay inactive in editable fields and while a dialog is open; Esc closes dialogs.
 
 ## 15. Source references
 
