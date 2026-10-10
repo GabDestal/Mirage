@@ -71,6 +71,8 @@ def view(events, service, env) -> ServiceView:
         if item.id not in seen:
             seen.add(item.id)
             items.append(item)
+        elif item.flag == "normal":  # a held call a human released, which then ran: it was sent
+            items[:] = [item if i.id == item.id else i for i in items]
 
     main_detonations = set()
     for e in events:
@@ -86,7 +88,9 @@ def view(events, service, env) -> ServiceView:
         elif e.type == "tool.result" and env == "prod" and not p.get("error"):
             args = requested.get(p["call_id"], {}).get("args", {})
             if service == "outbox" and "to" in args:
-                add(_email_item(p["call_id"], args, e.ts, "normal"))
+                released = p["call_id"] in seen  # it was held first, then a human released it
+                add(_email_item(p["call_id"], args, e.ts, "normal",
+                                "sent after a human unfroze the run" if released else ""))
             elif _service_of(p["tool"]) == service:
                 for record in _records(p["result"]):
                     add(_record_item(service, record, e.ts, causes))

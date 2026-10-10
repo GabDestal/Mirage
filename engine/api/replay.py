@@ -16,6 +16,7 @@ from contracts.models import Event
 from engine.api.state import fold
 
 STEP_OF = {"bisection.step": "bisect", "handoff.created": "handoff", "fix.verified": "verify"}
+AUDITED = {"handoff": "handoff", "detonate": "detonate", "find_cause": "bisect", "verify": "verify"}
 
 
 def step_of(event):
@@ -24,8 +25,8 @@ def step_of(event):
     if event.type == "detonation.started":
         return ("verify" if p.get("purpose") == "verify"
                 else "bisect" if p.get("removed_input_id") else "detonate")
-    if event.type == "human.action":  # the handoff's own human.action opens the handoff step
-        return "handoff" if p.get("action") == "handoff" else f"human-{event.seq}"
+    if event.type == "human.action":  # an audit record opens the step it records (one click)
+        return AUDITED.get(p.get("action"), f"human-{event.seq}")
     return STEP_OF.get(event.type)
 
 

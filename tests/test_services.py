@@ -66,3 +66,24 @@ def test_bisection_and_fix_check_replays_are_not_in_the_mirage_outbox():
 def test_unknown_panel_is_rejected(api):
     assert api.get("/services/gmail").status_code == 422
     assert api.get("/services/outbox?env=staging").status_code == 422
+
+
+def test_a_released_email_shows_as_sent_and_the_incident_closes(monkeypatch):
+    monkeypatch.setattr(server, "REPLAY", None)
+    from engine.gateway import gate
+    from tests.test_api import AGENT, ATTACKER, HUMAN, check, start
+    gate.reset()
+    api = TestClient(server.app)
+    api.post("/agents", json=AGENT)
+    run_id, auth = start(api)
+    held = check(api, run_id, auth, "send_email", to=ATTACKER, subject="Partner list", body="x")
+    assert panel(api, "outbox", "prod") == [("Partner list", "blocked")]
+
+    api.post(f"/runs/{run_id}/unfreeze", json=HUMAN)  # a human: false positive
+    api.post(f"/runs/{run_id}/tool-results", headers=auth,
+             json={"call_id": held.json()["call_id"], "tool": "send_email", "result": "sent"})
+    assert panel(api, "outbox", "prod") == [("Partner list", "normal")]  # it went out
+    outbox = api.get("/services/outbox?env=prod").json()["items"]
+    assert "sent after a human unfroze the run" in outbox[0]["subtitle"]
+    incident = api.get("/incidents").json()[0]
+    assert incident["status"] == "closed" and incident["next_action"] == "none"
