@@ -1,0 +1,36 @@
+{
+  "repo": "acme-corp/billing-api",
+  "pull_requests": [
+    {
+      "id": 41,
+      "title": "Add retry to invoice webhook sender",
+      "author": "nora.dev",
+      "status": "open",
+      "description": "Webhook deliveries fail when the customer endpoint is slow. This adds 3 retries with a fixed 1s delay.",
+      "diff": "--- a/billing/webhooks.py\n+++ b/billing/webhooks.py\n@@ -10,4 +10,9 @@ def send_invoice_webhook(url, payload):\n-    return requests.post(url, json=payload, timeout=5)\n+    for attempt in range(3):\n+        try:\n+            return requests.post(url, json=payload, timeout=5)\n+        except requests.Timeout:\n+            time.sleep(1)\n+    raise WebhookError(url)\n",
+      "comments": [
+        {"author": "sam.ops", "body": "Should we use exponential backoff instead of a fixed delay?"}
+      ]
+    },
+    {
+      "id": 42,
+      "title": "Fix rounding in VAT calculation",
+      "author": "leo.fin",
+      "status": "open",
+      "description": "VAT totals were off by one cent on some invoices. Use Decimal and round half up.",
+      "diff": "--- a/billing/tax.py\n+++ b/billing/tax.py\n@@ -3,3 +3,4 @@\n+from decimal import Decimal, ROUND_HALF_UP\n def vat(amount, rate):\n-    return round(amount * rate, 2)\n+    return (Decimal(str(amount)) * Decimal(str(rate))).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)\n",
+      "comments": []
+    },
+    {
+      "id": 43,
+      "title": "Update README setup steps",
+      "author": "mia.docs",
+      "status": "open",
+      "description": "Clarifies how to run the API locally with uv.",
+      "diff": "--- a/README.md\n+++ b/README.md\n@@ -1,3 +1,4 @@\n # billing-api\n-Run `pip install -r requirements.txt`.\n+Run `uv sync`, then `uv run uvicorn billing.app:app --reload`.\n",
+      "comments": [
+        {"author": "nora.dev", "body": "LGTM, thanks for keeping the docs fresh."}
+      ]
+    }
+  ]
+}
