@@ -10,6 +10,7 @@ import asyncio
 import os
 import threading
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -22,6 +23,7 @@ from contracts.models import (
     HumanRequest,
     Incident,
     ModelCall,
+    PullRequest,
     Run,
     RunStart,
     RunStarted,
@@ -30,6 +32,7 @@ from contracts.models import (
     WaitResult,
 )
 from engine import bisect as engine_bisect
+from engine import handoff as engine_handoff
 from engine.api.replay import Replay
 from engine.api.state import fold
 from engine.detection.rules import POLICY
@@ -48,6 +51,7 @@ def _fixture():
 
 
 MODE = os.getenv("MIRAGE_MODE", "live")
+PUBLIC = os.getenv("MIRAGE_PUBLIC") == "1"  # exposed (tunnel): fix checks need the incident token
 REPLAY = (Replay(_fixture(), float(os.getenv("MIRAGE_REPLAY_SPEED", "1")))
           if MODE == "replay" else None)
 
@@ -302,17 +306,37 @@ def bisect(incident_id: str, runs: int = 2) -> dict:
 
 
 @app.post("/incidents/{incident_id}/handoff")
-def handoff(incident_id: str) -> dict:
-    return _incident_step(incident_id, "handoff")
+def handoff(incident_id: str, body: HumanRequest | None = None) -> dict:
+    """Live: the prompt + report for a coding agent, and a token for this incident only.
+    Returns {prompt, codex_url, mirage_token, report}. The token is never logged."""
+    if REPLAY:
+        return _incident_step(incident_id, "handoff")
+    incident = get_incident(incident_id)
+    if not (incident.verdict and incident.verdict.confirmed):
+        raise HTTPException(409, "Detonate first: a handoff needs a confirmed compromise")
+    if body:
+        events.emit("human.action", {"actor": body.actor, "action": "handoff",
+                                     "target": incident_id, "reason": body.reason,
+                                     "ts": datetime.now(UTC).isoformat()})
+    return engine_handoff.create(incident)
+
+
+@app.post("/incidents/{incident_id}/pr")
+def pr_opened(incident_id: str, body: PullRequest) -> dict:
+    """The coding agent (or a human) reports the fix PR. Emits pr.opened."""
+    get_incident(incident_id)
+    return engine_handoff.pr_opened(incident_id, body.url)
 
 
 @app.post("/incidents/{incident_id}/verify")
-def verify(incident_id: str, runs: int = 3) -> dict:
+def verify(incident_id: str, runs: int = 3, authorization: str = Header("")) -> dict:
     """Live: check a fix in the background (current agent code + policy, from scratch).
     The result comes as fix.verified {attack_blocked, legit_task_completed, passed}."""
     if REPLAY:
         return _incident_step(incident_id, "verify")
     get_incident(incident_id)
+    if PUBLIC and not engine_handoff.token_ok(incident_id, authorization):
+        raise HTTPException(401, "This API is public: send the incident's mirage_token")
     if incident_id in _detonating:
         raise HTTPException(409, "A detonation is already running for this incident")
     _detonating.add(incident_id)
