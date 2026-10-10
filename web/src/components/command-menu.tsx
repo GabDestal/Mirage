@@ -6,7 +6,8 @@ import { useNavigate } from 'react-router'
 import { useEvents, useIncidents, useRuns } from '@/api/client'
 import { useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
-import { avatarState, canResume, resumeAllOn, resumeBlock, runLabel } from '@/lib/runs'
+import { avatarState, canResume, resumeAllOn, resumeBlock, runLabel, stopOn } from '@/lib/runs'
+import { isDemo } from '@/lib/demo'
 
 export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate()
@@ -14,7 +15,7 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
   const { data: runs = [] } = useRuns()
   const { data: incidents = [] } = useIncidents()
   const { data: events = [] } = useEvents()
-  const resumable = resumeAllOn(runs, incidents, events)
+  const resumable = isDemo ? stopOn(events) : resumeAllOn(runs, incidents, events)
   const run = (fn: () => void) => () => {
     onOpenChange(false)
     fn()
@@ -46,16 +47,16 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
               Kill {runLabel(r, runs)}
             </Item>
           ))}
-          {runs.filter((r) => canResume(r, runs) && !resumeBlock(r, incidents)).map((r) => (
+          {runs.filter((r) => !isDemo && canResume(r, runs) && !resumeBlock(r, incidents)).map((r) => (
             <Item key={`r${r.id}`} icon={<Play />} onSelect={run(() => ask('resume', r))}>
               Resume {runLabel(r, runs)}
             </Item>
           ))}
           {resumable ? (
-            <Item icon={<Play />} onSelect={run(() => ask('resumeAll'))}>Resume all agents</Item>
+            <Item icon={<Play />} onSelect={run(() => ask('resumeAll'))}>{isDemo ? 'Resume recording' : 'Resume all agents'}</Item>
           ) : (
             <Item icon={<OctagonAlert />} onSelect={run(() => ask('stop'))} hint="⇧⌘.">
-              <span className="text-alarm">Stop all agents</span>
+              <span className="text-alarm">{isDemo ? 'Pause recording' : 'Stop all agents'}</span>
             </Item>
           )}
         </Command.Group>

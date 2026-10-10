@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { api, queryClient, useIncidents, useRuns, type HumanRequest, type MirageEvent, type ResumeAll, type Run } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { blockedCall, canResume, resumeBlock, runLabel } from '@/lib/runs'
+import { isDemo } from '@/lib/demo'
 
 // shortcut: one operator for the demo, upgrade to a sign-in when Mirage has users.
 export const ACTOR = 'liam'
@@ -25,6 +26,12 @@ const REASONS: Record<ActionKind, string[]> = {
 const VERB = { unfreeze: 'Unfreeze', kill: 'Kill', resume: 'Resume', stop: 'Stop all', resumeAll: 'Resume all' }
 
 function copy(kind: ActionKind, run: Run | undefined, runs: Run[]) {
+  if (isDemo && kind === 'stop') return {
+    title: 'Pause recording?', effect: 'Recording pauses and active recorded runs show as halted. Resume recording restores their prior state and continues from here.',
+  }
+  if (isDemo && kind === 'resumeAll') return {
+    title: 'Resume recording?', effect: 'Stop all is lifted. Recording continues from its paused position and prior recorded run states are restored. No agents or providers are launched.',
+  }
   if (kind === 'stop') return { title: 'Stop all agents?', effect: 'Every run halts and all tokens are revoked. Resume all restarts them later.' }
   if (kind === 'resumeAll') return {
     title: 'Resume all agents?',
@@ -63,7 +70,7 @@ export function ResumeButton({ run, variant = 'secondary' }: { run: Run; variant
   const ask = useAsk()
   const { data: runs = [] } = useRuns()
   const { data: incidents = [] } = useIncidents()
-  if (!canResume(run, runs)) return null
+  if (isDemo || !canResume(run, runs)) return null
   const blocked = resumeBlock(run, incidents)
   return <Button variant={variant} disabled={!!blocked} title={blocked ?? undefined}
     onClick={(e) => { e.stopPropagation(); ask('resume', run) }}>Resume</Button>
@@ -75,7 +82,7 @@ function ReasonDialog({ pending, onClose }: { pending: { kind: ActionKind; run?:
   const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
   const { title, effect } = copy(kind, pending?.run, runs)
   return <HumanReasonDialog key={pending ? `${kind}:${pending.run?.id}` : 'closed'} open={!!pending} title={title} effect={effect}
-    reasons={REASONS[kind]} verb={VERB[kind]} destructive={kind === 'kill' || kind === 'stop'} onClose={onClose}
+    reasons={REASONS[kind]} verb={isDemo && kind === 'stop' ? 'Pause recording' : isDemo && kind === 'resumeAll' ? 'Resume recording' : VERB[kind]} destructive={kind === 'kill' || kind === 'stop'} onClose={onClose}
     onSubmit={(reason) => {
       if (!pending) return
       act.mutate({ kind, run: pending.run, body: { actor: ACTOR, reason } })
@@ -177,8 +184,8 @@ export function useHumanAction() {
     onSuccess: (data, { kind, run }) => {
       const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
       const label = run ? runLabel(run, runs) : ''
-      if (kind === 'resumeAll') return toast(resumeAllToast(data as ResumeAll))
-      toast(kind === 'stop' ? 'All agents stopped.'
+      if (kind === 'resumeAll') return toast(isDemo ? 'Recording resumed from where it paused. Prior recorded run states restored.' : resumeAllToast(data as ResumeAll))
+      toast(kind === 'stop' ? isDemo ? 'Recording paused. Active recorded runs are halted.' : 'All agents stopped.'
         : kind === 'resume' ? `${label} is starting its task again.` : kind === 'kill' ? `${label} was killed.` : `${label} is working again.`)
     },
     onError: (err, _, ctx) => {

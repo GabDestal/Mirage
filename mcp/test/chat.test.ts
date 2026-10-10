@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { request } from "node:http";
 
 const cleanup: (() => Promise<void>)[] = [];
-afterEach(async () => { await Promise.all(cleanup.splice(0).map((fn) => fn())); vi.restoreAllMocks(); });
+afterEach(async () => { await Promise.all(cleanup.splice(0).map((fn) => fn())); vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 const plain = (text = "Mirage is ready"): ConverseStreamOutput[] => [
   { contentBlockDelta: { contentBlockIndex: 0, delta: { text: text.slice(0, 5) } } },
   { contentBlockDelta: { contentBlockIndex: 0, delta: { text: text.slice(5) } } },
@@ -183,6 +183,38 @@ test("all eight tools execute via MCP, retain progress/fences/audit labels and i
   expect(fix.result.structuredContent).toEqual({ handoff_url: expect.any(String), claude_code_url: "https://claude.ai/code" });
   const url = fix.result.structuredContent!.handoff_url as string;
   const download = await fetch(app.base + url);
+  expect(download.headers.get("content-disposition")).toContain("attachment");
+  expect(await download.text()).toBe("Full original prompt with capability synthetic-capability-001");
+});
+
+test("demo handoff keeps recorded wording through real MCP approval and isolates prompt/token/links", async () => {
+  vi.stubEnv("MIRAGE_UI_MODE", "demo");
+  const p = provider(calls(["send_fix", { incident_id: "inc_007" }]), plain("Recorded handoff ready"));
+  const app = await start(p.model);
+  const events = await collect(await app.post("/chat/turn", turn), async (e) => {
+    if (e.type !== "approval_required") return;
+    expect(e.message).toContain("recorded example handoff");
+    expect(e.message).toContain("No live executable snapshot or Mirage token is created");
+    expect(e.schema).toEqual({ type: "object", properties: {} });
+    expect((await app.post(`/chat/approvals/${e.approval_id}`, { action: "accept" })).status).toBe(200);
+  });
+  expect(app.posts).toEqual([{ path: "/incidents/inc_007/handoff", body: { actor: "liam via Mirage Chat (MCP)", reason: "Hand off to coding agent" } }]);
+  const fix = events.find((e) => e.type === "tool_result");
+  expect(fix?.type).toBe("tool_result");
+  if (fix?.type !== "tool_result") throw new Error("Missing handoff result");
+  expect(fix.result.isError).not.toBe(true);
+  expect(fix.result.content[0]).toMatchObject({ text: expect.stringContaining("Recorded example handoff ready, not sent yet") });
+  const continuation = JSON.stringify(p.requests[1].messages);
+  expect(continuation).toContain("no live executable snapshot or Mirage token");
+  expect(continuation).toContain("current coding repair or a fresh fix attempt");
+  expect(continuation).not.toContain("proves it with mirage detonate");
+  expect(continuation).not.toContain("handoff_url");
+  for (const secret of ["synthetic-capability-001", "Full original prompt", "evil.example"]) {
+    expect(continuation).not.toContain(secret);
+    expect(JSON.stringify(events)).not.toContain(secret);
+  }
+  expect(fix.result.structuredContent).toEqual({ handoff_url: expect.any(String), claude_code_url: "https://claude.ai/code" });
+  const download = await fetch(app.base + String(fix.result.structuredContent!.handoff_url));
   expect(download.headers.get("content-disposition")).toContain("attachment");
   expect(await download.text()).toBe("Full original prompt with capability synthetic-capability-001");
 });

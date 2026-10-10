@@ -4,6 +4,8 @@ import { useEventStream } from '@/api/stream'
 import { useAsk } from '@/components/actions'
 import { Sidebar } from '@/components/sidebar/sidebar'
 import { CommandMenu } from '@/components/command-menu'
+import { Tooltip } from '@/components/ui/tooltip'
+import { isDemo } from '@/lib/demo'
 import { cn } from '@/lib/utils'
 
 const typing = (e: KeyboardEvent) =>
@@ -41,6 +43,11 @@ export function Shell() {
     <div className={cn('flex h-dvh overflow-hidden bg-paper', title === 'Chat' && 'shell--chat')}>
       <Sidebar onSearch={() => setMenu(true)} />
       <div className="flex min-w-0 flex-1 flex-col">
+        {isDemo && <div className="border-b border-neutral-200 bg-neutral-50 px-4 py-2 text-xs text-neutral-600">
+          <Tooltip side="bottom" content={<span className="max-w-64 text-pretty">Agents and incident evidence are recorded or simulated. Miragio uses real Bedrock, MCP tools and human approvals.</span>}>
+            <span tabIndex={0} className="rounded-sm focus-visible:outline focus-visible:outline-brand-blue-500">Demo background · Live Miragio</span>
+          </Tooltip>
+        </div>}
         <main className="min-h-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>

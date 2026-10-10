@@ -9,6 +9,7 @@ import { ResumeButton, useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
 import { agentName, avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
+import { isDemo } from '@/lib/demo'
 import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, sandboxStatus } from './fleet-presentation'
 import './fleet.css'
 
@@ -94,7 +95,7 @@ export function Fleet() {
     try {
       await api('/demo/start', {})
       resetStream()
-      toast.success('Started 4-agent demo fleet')
+      toast.success(isDemo ? 'Restarted the recorded demo' : 'Started 4-agent demo fleet')
     } catch (e: any) {
       toast.error(e?.message || 'Could not start demo')
     } finally {
@@ -126,7 +127,7 @@ export function Fleet() {
         <div className="fleet-header">
           <div className="fleet-title-group">
             <h2>Agent Fleet</h2>
-            <p>Real-time protection and transparent observability for autonomous agents.</p>
+            <p>{isDemo ? 'Recorded agents and incident evidence. Miragio uses real Bedrock and tools.' : 'Real-time protection and transparent observability for autonomous agents.'}</p>
           </div>
           <div className="fleet-actions">
             <button
@@ -134,9 +135,10 @@ export function Fleet() {
               className="fleet-btn fleet-btn-secondary"
               onClick={handleStartDemo}
               disabled={startingDemo}
+              title={isDemo ? 'Restart the background recording; no real agents are launched.' : undefined}
             >
               <Play size={13} fill="currentColor" />
-              {startingDemo ? 'Starting…' : 'Run 4-agent demo'}
+              {startingDemo ? (isDemo ? 'Restarting…' : 'Starting…') : (isDemo ? 'Restart demo recording' : 'Run 4-agent demo')}
             </button>
             <Button asChild variant="primary">
               <Link to="/">Ask Miragio</Link>
