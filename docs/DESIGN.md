@@ -1,245 +1,246 @@
 # Mirage — Design system
 
-Status: draft, 2026-10-10. Owner: Liam. `docs/UX.md` says **what** each screen shows.
-This file says **how it looks, moves and feels**. If they disagree on look and feel, this file wins.
+Status: v2, 2026-10-10. Owner: Liam. `docs/UX.md` says **what** each screen shows (to be realigned
+after V1). This file says **how it looks, moves and feels**. On look and feel, this file wins.
+Builders: load the `impeccable` skill (mode: Operate) and `emil-design-eng`. This file is the
+committed world; impeccable's craft floor applies on top.
 
 ## 1. North star
 
-**Security that feels like Linear, not like a SOC.**
-Vercel made hosting feel calm. Linear made project tracking feel fast. Mirage does the same for
-agent security, for a 10-person company with no security team.
+**Security that feels like Linear and Vercel, not like a SOC.**
+Mirage is for a 10-person company with no security team. The owner opens it and knows in one second
+that their agents are fine. When one is not, the screen tells the story in plain words and offers
+one obvious next step.
 
-The person using Mirage should:
-- know in **one second** whether everything is fine;
-- understand an incident **without security vocabulary**;
-- take the right action in **one click**, and feel safe doing it.
-
-Simple is not plain. The screen is quiet, the details are precise: spacing, type, motion,
-and the small moments (a run freezing, a cause lighting up) are where the quality shows.
+Simple is not plain. The screen is quiet; the quality lives in the interactions: how a row responds
+under the cursor, how an agent freezes, how the Mirage path appears where production stopped.
 
 ## 2. Principles
 
-1. **Calm by default, loud only when it matters.** Healthy = grey and quiet. Color appears only for
-   a state that needs attention. If everything is colored, nothing is.
-2. **One thing per screen, one main button per screen.** The engine's `next_action` picks the button.
-3. **Show the flow, not the log.** What the agent did is a workflow you can see (n8n style),
-   not a wall of JSON. Raw data is one click away, never in the way.
-4. **Plain words.** "Frozen", "Would have sent 40 contacts", "Caused by: calendar invite".
-   Never "IOC", "TTP", "exfiltration vector". Framework IDs (OWASP ASI01, MITRE) are small grey tags.
-5. **Every action is reversible or confirmed.** Unfreeze, Kill, STOP ALL ask for a reason
-   (2–3 ready-made reasons + free text). The UI says what will happen before it happens.
-6. **Fast is a feature.** Optimistic UI on human actions, no spinners under 300 ms, keyboard first.
-7. **Friendly agents.** Each agent has a small, cute, custom icon. Agents are coworkers you
-   protect, not threats you hunt.
+1. **Quiet when healthy.** A healthy fleet is ink on paper. No color, no markers, no badges.
+2. **State is shown by the thing itself**, never by a decoration next to it. The agent's avatar
+   reacts, the sentence changes, the trace stops. No status dots, no status pills, no colored stripes.
+3. **One main action per screen.** The engine's `next_action` picks it.
+4. **Show the flow, not the log.** What the agent did is a workflow you can see (n8n style).
+   Raw data is one click away, never in the default view.
+5. **Plain words.** "Frozen", "Would have sent 40 contacts", "Caused by the calendar invite".
+   Never "IOC", "TTP", "exfiltration vector". Framework IDs (OWASP ASI01, MITRE) live in the detail sheet.
+6. **Safe to click.** Unfreeze, Kill, STOP ALL say what will happen and ask for a reason.
+7. **Fast.** Optimistic updates on human actions, skeletons instead of spinners, keyboard first.
 
-## 3. Layout
+## 3. Anti-AI-look rules (hard)
 
-```
-┌────────────┬──────────────────────────────────────────────────────┐
-│ ◐ Mirage   │  Fleet                      3 running · all healthy ●│
-│            │──────────────────────────────────────────────────────│
-│ ▸ Fleet    │                                                      │
-│   Incidents│   [agent rows / trace / incident story]              │
-│   Approvals│                                                      │
-│   Agents   │                                                      │
-│            │                                                      │
-│  AGENTS    │                                                      │
-│  🐙 assist │                                                      │
-│  🦉 support│                                                      │
-│  🐝 invoice│                                                      │
-│            │                                                      │
-│ ⌘K Search  │                                                      │
-│ ■ STOP ALL │                                                      │
-└────────────┴──────────────────────────────────────────────────────┘
-```
+From the `impeccable` craft floor plus our own list. A reviewer rejects a PR that does any of these.
 
-- **Sidebar, 240 px, always visible** (collapses to 56 px icons under 1100 px).
-  Top: logo. Then 4 nav items with 16 px icons. Then the list of agents with their avatars and
-  a 6 px status dot. Bottom: ⌘K search and **STOP ALL** (always reachable, red outline, never hidden).
-- Nav items show a count badge only when non-zero (`Incidents 1`, `Approvals 2`). Zero = no badge.
-- **Header, 48 px:** page title left, status sentence right. No other chrome.
-- **Content:** max width 1080 px for lists, 880 px for the incident story. Generous empty space.
-- **Side sheet** (right, 480 px) for details: a tool call, an input, the full log. Never a new page
-  for a detail. `Esc` closes.
-- Desktop first (1440×900, the projector). Must not break at 1280.
+- No status dots, no pill badges used as content, no count badges on nav items.
+- No colored `border-left` / stripe on rows or cards. No colored glow halos (zero-offset shadows).
+- No small uppercase label above a heading (eyebrow). No section numbers (01 / 02).
+- No grid of same-size icon + title + text cards. No nested cards. No hero-metric tiles.
+- No gradient text, no decorative glass or blur, no grid or noise backgrounds.
+- Monospace only for real code and data: tool names, arguments, IDs. Never as "technical" styling.
+- No emoji or unicode glyphs as icons. Icons are `lucide-react` or our own SVG.
+- No Magic UI eye candy: no Border Beam, Particles, Meteors, Shine Border, Sparkles, Aurora text.
+  Magic UI is allowed only where motion carries state (see §9).
+- No modal where a side sheet or inline step works. The reason dialog is the one exception.
+- No charts, gauges, threat meters or world maps on the main screens.
 
 ## 4. Color
 
-Monochrome base, one brand accent, semantic colors only for state. Dark theme first (projector,
-"console" feel); light theme from the same tokens.
+Paper, ink, and one brand color: **Mirage aqua**. A desert mirage shows water that is not there;
+our color is that water. It marks two things only: the brand, and anything that happened in the
+simulation (not in production). Red is the only alarm color.
 
-| Token | Dark | Light | Use |
+| Token | Light (default) | Dark | Use |
 |---|---|---|---|
-| `--bg` | `#0A0A0B` | `#FFFFFF` | Page |
-| `--bg-subtle` | `#111113` | `#F7F7F8` | Sidebar, cards |
-| `--bg-hover` | `#18181B` | `#F0F0F2` | Hover, selected row |
-| `--border` | `#232326` | `#E6E6E9` | 1 px borders, dividers |
-| `--text` | `#EDEDEF` | `#111113` | Primary text |
-| `--text-muted` | `#8A8A93` | `#6B6B74` | Secondary text, labels |
-| `--text-faint` | `#5A5A63` | `#9A9AA3` | Timestamps, IDs |
-| `--accent` | `#7C7CFF` | `#5E5CE6` | Focus ring, links, primary button (indigo, Linear-like) |
-| `--ok` | `#3DD68C` | `#18A058` | Healthy dot only (never a big surface) |
-| `--danger` | `#FF5C5C` | `#E5484D` | Frozen, blocked, STOP ALL |
-| `--warn` | `#F5A524` | `#D97706` | Waiting for a human |
-| `--mirage` | `#B07CFF` | `#8B5CF6` | Simulation: anything that happened in Mirage, not in production |
+| `--paper` | `#FCFCFA` | `#0C0D0D` | Page |
+| `--paper-2` | `#F4F4F1` | `#141515` | Sidebar, sheet, hover |
+| `--paper-3` | `#EAEAE6` | `#1D1E1E` | Selected, pressed |
+| `--line` | `#E3E3DE` | `#262828` | 1 px borders and dividers |
+| `--ink` | `#151716` | `#ECEDEA` | Text, primary button fill |
+| `--ink-2` | `#5C605E` | `#9DA19F` | Secondary text |
+| `--ink-3` | `#8C908E` | `#6E7270` | Timestamps, IDs, placeholders |
+| `--mirage` | `#0E8C86` | `#3CC7BE` | Brand, simulated path, Mirage text |
+| `--mirage-wash` | `#E3F4F2` | `#0F2826` | Background of simulated areas |
+| `--alarm` | `#D93A2B` | `#FF6A5C` | Frozen, blocked, STOP ALL |
+| `--alarm-wash` | `#FBE9E6` | `#2A1412` | Background of the blocked node only |
 
-Rules:
-- Semantic colors appear as **a dot, a 2 px left border, a pill, or text**. Never as a filled card.
-- Tints for pills: the color at 12 % opacity as background, full color as text.
-- `--mirage` always comes with the same treatment: dashed borders and a soft glow
-  (`box-shadow: 0 0 24px -8px var(--mirage)`). It means "this is a simulation, nothing real happened".
-- Text contrast ≥ 4.5:1 for body, ≥ 3:1 for large text and icons.
+- The primary button is **ink** (black on light, white on dark), Vercel style. Not aqua.
+- Waiting for a human has no color: the avatar and the sentence carry it.
+- Text contrast ≥ 4.5:1 body, ≥ 3:1 large text and icons. Theme the browser surfaces too:
+  `::selection` in `--mirage-wash`, focus ring 2 px `--ink` with 2 px offset, scrollbars in `--line`.
 
 ## 5. Type
 
-- **Inter** (variable) for UI, **JetBrains Mono** for tool names, IDs, arguments.
-  Turn on `font-feature-settings: "cv11", "ss01"` and tabular numbers (`tnum`) for counts and times.
-- Scale (px / line-height / weight):
+- **Geist Sans** for everything, **Geist Mono** for tool names, arguments, IDs (npm `geist`, self-hosted).
+- Tabular numbers (`font-variant-numeric: tabular-nums`) for counts, times, durations.
+- Fixed rem scale, ratio ~1.2:
 
-| Role | Size | Weight | Example |
-|---|---|---|---|
-| Incident headline | 24 / 32 | 600, tracking −0.02em | "Run 2 tried to send 40 contacts to attacker@…" |
-| Page title | 15 / 20 | 600 | "Fleet" |
-| Body | 14 / 20 | 400 | Row text, descriptions |
-| Label | 13 / 18 | 500 | Buttons, nav |
-| Meta | 12 / 16 | 400, muted | Timestamps, IDs, framework tags |
-| Mono | 12.5 / 18 | 400 | `send_email`, `run_002` |
+| Role | Size / line | Weight |
+|---|---|---|
+| Incident headline | 24 / 32 | 600, tracking −0.02em |
+| Page title | 16 / 24 | 600 |
+| Body | 14 / 20 | 400 |
+| Control label | 13 / 20 | 500 |
+| Meta | 12 / 16 | 400, `--ink-3` |
+| Mono | 12.5 / 18 | 400 |
 
-- Sentence case everywhere. No ALL CAPS except the tiny sidebar section label (`AGENTS`, 11 px, +0.04em).
+- Sentence case everywhere. No uppercase labels.
 
 ## 6. Space, shape, depth
 
-- 4 px grid. Common steps: 4, 8, 12, 16, 24, 32, 48.
-- Radius: 6 px (buttons, pills, inputs), 10 px (cards, nodes, sheets), full (dots, avatars).
-- Borders do the work, not shadows. 1 px `--border` everywhere.
-- Shadows only on floating layers (menus, ⌘K, sheet): `0 8px 32px rgb(0 0 0 / 0.4)` dark,
-  `0 8px 24px rgb(0 0 0 / 0.08)` light.
-- Rows: 48 px tall, 16 px horizontal padding, hover = `--bg-hover`, no border between rows
-  inside a card (Linear style), a divider only between groups.
+- 4 px grid. Steps: 4, 8, 12, 16, 24, 32, 48, 64. Tight inside a group, generous between groups.
+- Radius: 8 px controls, 12 px nodes / sheets / menus. Full radius only for avatars' container if round.
+- One elevation rule: flat things get a 1 px `--line` border; floating things (menu, ⌘K, sheet,
+  toast) get a soft offset shadow `0 12px 32px -8px rgb(21 23 22 / 0.18)` and **no** border.
+- Rows: 52 px, full-bleed hover in `--paper-2`, no dividers inside a group.
 
-## 7. Icons and agent avatars
-
-- **UI icons:** `lucide-react`, 16 px, stroke 1.5, `currentColor`. One icon per meaning, used
-  the same way everywhere (Snowflake = frozen, Shield = gate, FlaskConical = Mirage, GitPullRequest = fix).
-- **Agent avatars:** custom inline SVGs in `web/src/agents/avatars.tsx`, one per demo agent.
-  - 20 px in lists, 32 px in headers, 48 px on the agent page.
-  - Style: rounded square (radius 6) with a soft pastel fill, a simple friendly creature or object
-    in 1.5 px stroke on top. Two colors max. Cute, not childish.
-  - Proposed set: assistant = owl, support = octopus (many arms, many tickets), invoicing = bee,
-    outreach = paper plane, PR reviewer = fox.
-  - State shows **on** the avatar: a 6 px dot bottom right (grey idle, green running, red frozen,
-    amber waiting). Frozen: the avatar gets a 1 px `--danger` ring and a tiny snowflake.
-  - Unknown agents fall back to a generated geometric avatar from the agent name (deterministic hash
-    → color + shape), so every new agent still looks intentional.
-
-## 8. The trace: a workflow, not a log
-
-The core visual of Mirage. Every run is drawn as a left-to-right flow, like an n8n workflow.
+## 7. Layout
 
 ```
- [📅 Calendar invite] ──▶ [🦉 assistant] ──▶ [crm_export] ──▶ [send_email → attacker@…] ✕
-      input (red)            model             tool ok          BLOCKED by gate
+┌──────────────┬───────────────────────────────────────────────────────┐
+│ Mirage       │ Fleet                    All 3 agents are working.    │
+│              │───────────────────────────────────────────────────────│
+│ Fleet        │ (owl) Meeting assistant   read_calendar → crm_query → │
+│ Incidents    │ (bee) Invoicing           …                           │
+│              │ (fox) PR reviewer         …                           │
+│ Agents       │                                                       │
+│ (owl) Meeting│                                                       │
+│ (bee) Invoic.│                                                       │
+│ (fox) PR rev.│                                                       │
+│              │                                                       │
+│ Search    ⌘K │                                                       │
+│ Stop all     │                                                       │
+└──────────────┴───────────────────────────────────────────────────────┘
 ```
 
-- **Nodes:** 10 px radius cards, 200 × 56 px. Icon + name (mono) + one line of meta
-  ("40 rows", "0.3 s"). Kinds: input (calendar, email, CRM record, attachment), model step, tool call.
-- **Edges:** 1.5 px, `--border`. The active edge shows a small dot travelling along it while the
-  run is live (CSS `offset-path`, linear, 1.2 s loop). Stops when the run stops.
-- **States:** done = neutral; running = subtle pulse on the border; blocked = `--danger` border +
-  ✕ badge + the rule that fired as a pill under the node; malicious input = `--danger` left border.
-- **Mirage overlay:** the detonation draws the path that *would have happened* after the blocked
-  node, in `--mirage`, dashed, with the glow. Production stops at the red ✕; Mirage continues past it.
-  This one image is the pitch: "here is what we stopped".
-- **Bisection:** input nodes get a small result chip: "removed → clean" (grey) or
-  "removed → still compromised". The cause input lights up (one-time 400 ms glow) and keeps a label
-  "Cause".
-- Click a node → side sheet with arguments, result, timing, policy hits. Raw JSON is a collapsed
-  section at the bottom of the sheet.
-- **Where it appears:** a compact version (nodes as 8 px dots + label, no pan/zoom) in each Fleet row;
-  the full version on the run and incident pages.
-- **Library:** `@xyflow/react` (React Flow) for the full view: pan, zoom, minimap off, read-only,
-  nodes are our own React components. Layout is computed by us (a run is mostly a line:
-  `x = index * 240`), no layout engine. The compact Fleet version is plain flexbox, no React Flow.
+- **Sidebar, 232 px, always visible**, `--paper-2`. Logo, Fleet, Incidents, then the agents with
+  their avatars (the avatar shows state, so the sidebar is a live view of the fleet), then Search ⌘K
+  and **Stop all** at the bottom (text button in `--alarm`, always reachable, never hidden).
+- **Header, 52 px:** page title left, the status sentence right ("All 3 agents are working." /
+  "Meeting assistant is frozen. 2 others keep working."). The sentence is the status. Nothing else.
+- **Content:** max 1080 px for lists, 880 px for the incident story.
+- **Side sheet** (right, 480 px) for any detail: tool call, input, full log. `Esc` closes.
+- Desktop first: 1440×900 projector, must hold at 1280. Under 1100 px the sidebar collapses to avatars.
+
+## 8. Agent avatars (the status system)
+
+Custom SVG characters in `web/src/agents/avatars.tsx`. Crisp geometry, not illustration: built from
+circles, rounded rects and a few strokes, two flat colors each, drawn on a 24-unit grid.
+Sizes: 20 px (sidebar, rows), 32 px (headers), 64 px (incident headline, empty states).
+
+| Agent | Character | Body color |
+|---|---|---|
+| Meeting assistant | owl | soft clay |
+| Support | octopus | soft rose |
+| Invoicing | bee | soft butter |
+| Outreach | paper plane | soft sky |
+| PR reviewer | fox | soft apricot |
+| Unknown agent | geometric blob, color + shape hashed from the name | — |
+
+Each avatar has **states**, drawn by changing the face and adding one element. The avatar plus one
+plain word in the row text is the whole status system.
+
+| State | Avatar | Row text |
+|---|---|---|
+| Working | eyes open, a slow blink every ~6 s | "Working · read_calendar" |
+| Idle / done | eyes half closed, still | "Done 2 min ago" |
+| Waiting for you | eyes look up at the viewer, small raised hand | "Waiting for your approval" |
+| Frozen | encased in a translucent ice block (`--alarm` outline), eyes closed | "Frozen 0.8 s after reading an invite" |
+| Killed | desaturated to `--ink-3`, eyes are two short lines | "Stopped by Liam" |
+| In Mirage | the character drawn in `--mirage` with the heat-shimmer (§9) | "Replaying in Mirage · 2 of 3" |
+
+Rules: the state change animates (§9), the blink is the only idle motion and stops under reduced motion.
 
 ## 9. Motion
 
-Crisp and fast, like Linear. Motion explains state changes; it never decorates repeated actions.
+Crisp, like Linear. Motion explains a state change; it never decorates a repeated action.
 
-Tokens:
 ```css
---ease-out: cubic-bezier(0.23, 1, 0.32, 1);     /* enter, most UI */
+--ease-out: cubic-bezier(0.23, 1, 0.32, 1);     /* enters, most UI */
 --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* things moving on screen */
 --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);  /* side sheet */
---dur-press: 120ms;  --dur-fast: 160ms;  --dur-base: 220ms;  --dur-sheet: 320ms;
+--dur-press: 120ms; --dur-fast: 160ms; --dur-base: 220ms; --dur-sheet: 320ms;
 ```
+
+**The one authored moment: the heat shimmer.** Anything simulated in Mirage (the Mirage path in the
+trace, the avatar in Mirage, the replay counter) is drawn in `--mirage` with a slow horizontal
+shimmer: an animated `mask-image` linear gradient (lighter band, 2.4 s, linear, infinite) like heat
+over a road. Under reduced motion it is static. Nothing else in the product shimmers.
 
 | Moment | Animation |
 |---|---|
-| Button press | `scale(0.97)` on `:active`, 120 ms |
-| Hover (rows, nav) | background color only, 120 ms `ease`; gated by `@media (hover: hover)` |
-| Menu / popover / tooltip | opacity + `scale(0.96 → 1)` from the trigger, 160 ms ease-out |
+| Press (any control) | `scale(0.97)`, 120 ms |
+| Hover | background only, 120 ms `ease`, behind `@media (hover: hover)` |
+| Menu, popover, tooltip | opacity + `scale(0.96 → 1)` from the trigger, 160 ms ease-out; adjacent tooltips instant |
 | Side sheet | `translateX(100%) → 0`, 320 ms ease-drawer; exit 200 ms |
-| New tool call in a trace | node fades in + `translateX(-8px → 0)`, 220 ms; edge draws in |
-| **Freeze (hero moment)** | the blocked node shakes once (2 × 4 px, 240 ms), its border turns red, the row's left border grows 0 → 2 px, the avatar gets its snowflake, the status sentence counts to "1 frozen". Other rows keep moving. |
-| Mirage replays | three ghost runs stack in with 60 ms stagger, purple glow fades in |
-| Verdict lands | the number ("40 records") counts up in 600 ms, once |
-| Cause found | 400 ms glow on the cause node, then steady |
+| New step in a trace | node fades + `translateX(-8px → 0)`, 220 ms; its edge draws in (`stroke-dashoffset`) |
+| **Freeze** | ice block grows over the avatar (`scale(0.9 → 1)` + opacity, 240 ms), the blocked node turns `--alarm-wash` with a 1 px `--alarm` border, the header sentence crossfades with a 2 px blur bridge. Other rows keep moving. |
+| Mirage path appears | edges draw past the blocked node one by one (stagger 80 ms), then the shimmer starts |
+| Verdict number | counts up once in 600 ms (Magic UI `NumberTicker`) |
+| Cause found | the cause input's border goes `--ink` → `--alarm` and its label appears, 220 ms |
 
-Never animate: ⌘K open/close, keyboard navigation, page switches from the sidebar, list sorting.
-Only `transform` and `opacity` (plus color). Exits faster than enters.
-`prefers-reduced-motion`: keep fades and color, drop all movement, shake and travelling dots.
-Use CSS transitions for UI state; Motion (`motion/react`) only for the trace enter/stagger and the count-up.
+Never animate: ⌘K open/close, keyboard navigation, sidebar page switches, list re-sorts.
+Animate `transform`, `opacity`, `mask`, `filter`, colors. Exits faster than enters.
+Magic UI allowed: `NumberTicker`, `AnimatedBeam` (only for a live edge, if it beats our own), `BlurFade`
+(only for the trace node enter). Nothing else from Magic UI without a reason in the PR.
 
-## 10. Components (shadcn/ui, restyled with the tokens)
+## 10. The trace (n8n style)
 
-- **Button:** primary (accent fill, 1 per screen), secondary (border), ghost (text), danger (red
-  outline; fills only on hover). Height 32 px, label 13/500. Shortcut hint on hover tooltip.
-- **Status pill:** dot + word ("Running", "Frozen 0.8 s", "Waiting"). Tinted background.
-- **Agent row:** avatar · name + task (muted) · compact trace · pill · time. Frozen = 2 px red left border + "Open incident" ghost button.
-- **Reason dialog:** title says the effect ("Unfreeze run_003? It will resume sending emails."),
-  2–3 reason chips, free-text field, confirm button with the action verb. Enter confirms.
-- **Toast** (Sonner via shadcn): bottom right, one line, an Undo when possible.
-- **⌘K command menu** (`cmdk` via shadcn): jump to agent/run/incident, run actions
-  (Unfreeze, Kill, Detonate, STOP ALL). Every action in the UI is also in ⌘K.
-- **Empty states:** one line + one action. "No incidents. Your agents are behaving." with the
-  agents' avatars in a row.
-- **Mirage badge:** `FlaskConical` icon + "Mirage", purple, dashed border, glow. Only on simulated data.
+Every run is a left-to-right flow.
 
-## 11. Voice
+```
+ [Calendar invite] → [Meeting assistant] → [crm_export] → [send_email to attacker@…]  ✕ Blocked
+                                                                └ ─ ─ Mirage: [send_email] → 40 contacts left
+```
 
-- Talk like a calm colleague. Short sentences, active voice, numbers instead of adjectives.
-- Headline formula: **who** + **what they tried** + **outcome**.
-  "assistant tried to email 40 contacts to attacker@evil-corp.com. Blocked."
-- Explain each security idea once, inline, in a tooltip: "Mirage = a copy of production where
-  nothing real happens. We let the agent continue there to see what it would have done."
-- Times relative ("12 s ago"), exact on hover.
+- **Nodes:** 12 px radius, 208 × 60, `--paper` with 1 px `--line`. Icon (lucide, 16 px) + name
+  (mono for tools, sans for inputs and the agent) + one meta line ("40 rows · 0.3 s").
+- **Edges:** 1.5 px `--line`. While live, the newest edge carries a short `--ink-3` dash moving along it.
+- **Blocked node:** `--alarm-wash` fill, 1 px `--alarm` border, a lucide `ShieldX` icon and
+  "Blocked: destination not allowed" as the meta line. No badge.
+- **Malicious input:** same treatment once the cause is known.
+- **Mirage path:** after a detonation, the path the agent *would have* taken continues past the
+  blocked node, dashed, in `--mirage` on a `--mirage-wash` band, with the heat shimmer.
+  Production stops; Mirage continues. This image is the pitch.
+- **Bisection:** each input node gets a meta line: "Removed → clean" or "Removed → still compromised".
+- Click a node → side sheet: arguments, result, timing, rule hit, policies (OWASP / MITRE IDs here).
+  Raw JSON in a collapsed section at the bottom.
+- **Compact trace** in Fleet rows: tool names in mono separated by `→`, newest last, older ones fade to
+  `--ink-3`, the blocked one in `--alarm`. Plain text and flexbox, no React Flow.
+- **Full trace** on run and incident pages: `@xyflow/react`, read-only, our own node components,
+  layout computed by us (`x = index * 248`), pan on, zoom limited, minimap and controls off.
 
-## 12. Keyboard
+## 11. Components
 
-`⌘K` command menu · `G F` Fleet · `G I` Incidents · `J/K` move in lists · `Enter` open ·
-`Esc` close sheet · `U` unfreeze · `⇧⌘.` STOP ALL (still asks for a reason).
+shadcn/ui primitives restyled with these tokens.
 
-## 13. Don't
+- **Button:** primary (ink fill, one per screen), secondary (1 px `--line`), ghost (text),
+  destructive (text in `--alarm`, wash on hover). 32 px tall, 13/500. Shortcut shown in its tooltip.
+- **Agent row:** avatar · name + one-line state sentence · compact trace · relative time.
+  Frozen row: the sentence turns `--alarm` and an "Open incident" secondary button appears. Nothing else changes.
+- **Reason dialog:** the title states the effect ("Unfreeze Meeting assistant? It will send the
+  email it was holding."), 2–3 reason choices as a radio list, free text, confirm button named by the verb.
+- **Toast** (Sonner): bottom right, one line, Undo when possible.
+- **⌘K** (`cmdk`): jump to any agent, run, incident; run any action. Every action exists here.
+- **Empty state:** the avatars in a row, one sentence, one action. "Nothing to look at. Your agents are behaving."
+- **Mirage mark:** the word "Mirage" in `--mirage` with the shimmer, used as the label of simulated content.
 
-- No charts on the main screens, no gauges, no "threat level" meters, no world maps.
-- No red or green big surfaces. No gradients except the Mirage glow.
-- No more than one primary button per screen.
-- No raw JSON in the default view.
-- No modal for something a side sheet can show.
-- No spinner when a skeleton or optimistic update works.
+## 12. Voice
+
+- A calm colleague. Short sentences, active voice, numbers over adjectives.
+- Incident headline: **who** + **what they tried** + **outcome**.
+  "Meeting assistant tried to email 40 contacts to attacker@evil-corp.com. Blocked."
+- Explain each security idea once, in a tooltip: "Mirage is a copy of production where nothing real
+  happens. We let the agent continue there to see what it would have done."
+- Relative times ("12 s ago"), exact time on hover.
+
+## 13. Keyboard
+
+`⌘K` command menu · `G F` Fleet · `G I` Incidents · `J/K` move · `Enter` open · `Esc` close ·
+`U` unfreeze (selected run) · `⇧⌘.` Stop all (still asks for a reason).
 
 ## 14. References
 
-- Linear (sidebar, density, ⌘K, motion), Vercel dashboard (calm status, deployment timeline,
-  monochrome), n8n (workflow trace), Raycast (instant keyboard actions), Sonner (toasts).
-- Motion rules from the `emil-design-eng` skill (Emil Kowalski). Audit with `web-design-guidelines`
-  and `review-animations` before the demo.
-
-## 15. Open questions
-
-1. Dark first (projector, console feel) or light first (friendlier for small companies, Linear and
-   Vercel both default to the OS)? Proposal: dark for the demo, light works from the same tokens.
-2. Agent avatars: the animal set above, or simple objects (calendar, ticket, invoice…)?
-3. React Flow (`@xyflow/react`) for the full trace: OK as a new dependency?
-4. `docs/UX.md` says "no sidebar with many items". This file adds a sidebar with 4 items + the agent list.
-   OK to update UX.md to match?
+Linear (sidebar, density, ⌘K, motion), Vercel (calm status, ink buttons, deployment flow),
+n8n (workflow trace), Raycast (instant keyboard actions), Sonner (toasts).
+Skills: `impeccable` (craft floor, anti-patterns, detector hook), `emil-design-eng` (motion).
