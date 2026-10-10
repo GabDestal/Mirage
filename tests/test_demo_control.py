@@ -64,3 +64,9 @@ def test_reset_stops_the_agents_and_lifts_stop(api):
 def test_only_the_calendar_scenario_is_built(api):
     assert api.post("/demo/start", json={"scenario": "false_positive"}).status_code == 501
     assert FakeProcess.launched == []
+
+
+def test_engine_shutdown_stops_the_demo_fleet(api):
+    with TestClient(server.app) as client:  # `with` runs the app's startup and shutdown
+        client.post("/demo/start")
+    assert FakeProcess.launched[-1].stopped

@@ -77,6 +77,7 @@ async def lifespan(app):
     if not REPLAY:
         restore()
     yield
+    _stop_demo_agents()  # a normal shutdown (Ctrl+C) does not leave the demo fleet running
 
 
 app = FastAPI(title="Mirage engine", version="0.1.0", lifespan=lifespan)
