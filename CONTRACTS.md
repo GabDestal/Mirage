@@ -379,6 +379,49 @@ mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json
 - `/runs` and `/incidents` are folded from the events played so far, including `next_action`.
 - Data plane routes (§11) answer `409` in replay mode.
 
+### Managed recorded demo (opt-in)
+
+`MIRAGE_MODE=replay MIRAGE_REPLAY_MANAGED=1` enables the managed calendar story, defaulting to
+`contracts/fixtures/fleet_demo_4agents.jsonl` (override with `MIRAGE_FIXTURE`). `MIRAGE_REPLAY_SPEED` controls
+timing (`inf` shows each unlocked stage immediately). Legacy replay without the managed flag
+keeps the operator-driven behavior above. Launcher state paths (`MIRAGE_DB`, `MIRAGE_SNAPSHOTS`,
+`MIRAGE_TOKENS`) are isolated absolute paths; managed replay never reads or writes their stores.
+
+- Recorded production activity, freeze, baseline three-run detonation and verdict play automatically.
+  Healthy outreach, support and PR-review runs remain running when the meeting assistant freezes;
+  their final tools, results and completions continue during baseline detonation, before its verdict.
+  Fixture timestamps and sequence order form one contiguous stream across these parallel runs.
+  No production agent, job, model, provider tool or sandbox subprocess is started. Real Miragio and
+  MCP handlers may call this real HTTP API; their model execution belongs to the caller.
+- `/bisect`, `/handoff`, `/verify`, then `/pr` unlock only the matching next stage for the matching
+  incident, after the previous stage finishes playing. Unknown targets return `404`; wrong actions,
+  premature or repeated actions return `409` without advancing. Requested run counts must match
+  the recorded evidence (baseline/verification three, bisection two). Reads never unlock stages.
+- Bisection returns `{incident_id, status: "bisecting"}` and verification returns
+  `{incident_id, status: "verifying"}`. Completion events remain visible through `/events` and
+  `/stream`, so MCP `wait:false` callers can follow their cursor. Handoff returns the existing prompt
+  and coding-agent URL fields immediately. Accepted bisection, handoff and verification record the
+  actual actor, reason and decision timestamp in `human.action` (missing bodies are `unknown`).
+- Handoff explicitly describes recorded evidence, with no usable live snapshot, token or capability.
+  It writes no fix. Verification shows recorded example evidence, not a test of current code. PR
+  evidence uses `https://example.invalid/recorded-demo/pr/42`, never a real repository PR; `/pr` only
+  acknowledges the fixture's exact placeholder URL after verification, and creates no GitHub PR.
+  Legacy replay `/pr` returns `409` rather than writing the live store.
+- `/stop` pauses the recording clock and blocks incident-stage actions; `/stop/lift` and `/resume-all`
+  resume the clock from that position, without unlocking an incident stage. These actions log actual
+  actor/reason in the replay event stream (`global_stop` / `lift_stop`). `/resume-all` returns the existing
+  `ResumeAll` shape with `resumed: []` and `skipped: []`: no runs or models are launched or restarted. Either
+  resume route returns `409` without changing evidence when the recording is not paused. While paused,
+  active recorded runs are returned as `halted`; resume restores their prior recorded states, including
+  the compromised production run remaining `frozen`. This is a synthetic pause, not live token
+  revocation or a clean agent restart. Historical evidence stays
+  intact. Per-run controls and approval decisions explicitly return `409`; confirmed
+  harmful runs specifically reject unfreeze. `/policies` supplies recorded registrations (derived
+  from fixture activity if registration events are absent), without live entrypoints.
+- `/demo/start` (calendar only) and `/demo/reset` restore the original recording, clear replay-only
+  decisions and lift its pause. They do not launch agents or touch ordinary SQLite/snapshot/token data.
+  Fixture event timestamps retain recorded timing; `human.action.payload.ts` is the real decision time.
+
 ## 8. Repo layout
 
 Rule: `web/`, `mcp/` and `agents/` talk to the engine **only over HTTP** (agents through the SDK).
