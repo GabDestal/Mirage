@@ -84,6 +84,7 @@
 .chat-prose :not(pre) > code { padding: 2px 4px; background: var(--chat-wash); border-radius: 4px; }
 .chat-prose pre, .chat-tool-evidence pre { max-width: 100%; max-height: 320px; overflow: auto; padding: 12px; margin-block: 12px; border-radius: 8px; background: var(--chat-wash); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; scrollbar-width: thin; }
 .chat-approval { margin-block: 16px; }
+.mirage-tool-card { margin-bottom: 12px; }
 .chat-tool-evidence h4 { margin-top: 14px; font-size: 12px; font-weight: 500; color: var(--chat-muted); }
 .chat-copy { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 6px; margin-left: -6px; border-radius: 6px; color: var(--chat-muted); font-size: 12px; cursor: pointer; }
 .chat-copy:hover:enabled { color: #334155; background: #f1f5f9; }
@@ -106,3 +107,7 @@
 @media (prefers-reduced-motion: reduce) {
   .chat-page *, .chat-page *::before, .chat-page *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+.chat-table-wrapper { max-width: 100%; overflow-x: auto; margin-block: 14px; border: 1px solid var(--chat-line); border-radius: 8px; scrollbar-width: thin; scrollbar-color: var(--chat-line) transparent; }
+.chat-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.5; overflow-wrap: normal; }
+.chat-table th { padding: 8px 12px; background: var(--chat-wash); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.chat-table td { padding: 8px 12px; border-top: 1px solid var(--chat-line); vertical-align: top; }

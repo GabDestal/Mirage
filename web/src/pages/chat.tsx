@@ -241,7 +241,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   }}>{state === 'copied' ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}<span role="status">{state === 'copied' ? 'Copied' : state === 'error' ? 'Copy failed. Try again.' : label}</span></button>
 }
 
-// shortcut: safe paragraphs, lists and fenced code; use a Markdown library if richer formatting becomes a requirement.
+// shortcut: safe paragraphs, lists, tables and fenced code; use a Markdown library if richer formatting becomes a requirement.
 function FormattedText({ text }: { text: string }) {
   const reduce = useReducedMotion()
   const blocks: ReactNode[] = []
@@ -258,6 +258,19 @@ function FormattedText({ text }: { text: string }) {
       blocks.push(<pre key={start}><code>{code.join('\n')}</code></pre>)
       continue
     }
+    if (isTableStart(lines, index)) {
+      const start = index
+      const head = cells(lines[index])
+      const align = cells(lines[index + 1]).map((cell): 'left' | 'center' | 'right' => cell.endsWith(':') ? (cell.startsWith(':') ? 'center' : 'right') : 'left')
+      index += 2
+      const rows: string[][] = []
+      while (index < lines.length && lines[index].trim().startsWith('|')) rows.push(cells(lines[index++]))
+      blocks.push(<div key={start} className="chat-table-wrapper"><table className="chat-table">
+        <thead><tr>{head.map((cell, col) => <th key={col} scope="col" style={{ textAlign: align[col] }}>{inline(cell)}</th>)}</tr></thead>
+        <tbody>{rows.map((row, r) => <tr key={r}>{head.map((_, col) => <td key={col} style={{ textAlign: align[col] }}>{inline(row[col] ?? '')}</td>)}</tr>)}</tbody>
+      </table></div>)
+      continue
+    }
     const list = /^(?:[-*]|\d+\.)\s+/.exec(line)
     if (list) {
       const start = index
@@ -271,10 +284,17 @@ function FormattedText({ text }: { text: string }) {
     }
     const start = index++
     const paragraph = [line.replace(/^#{1,6}\s+/, '')]
-    while (index < lines.length && lines[index].trim() && !/^(?:```|[-*]\s|\d+\.\s|#{1,6}\s)/.test(lines[index])) paragraph.push(lines[index++])
+    while (index < lines.length && lines[index].trim() && !/^(?:```|[-*]\s|\d+\.\s|#{1,6}\s)/.test(lines[index]) && !isTableStart(lines, index)) paragraph.push(lines[index++])
     blocks.push(<p key={start}>{inline(paragraph.join('\n'))}</p>)
   }
   return <motion.div className="chat-prose" initial={reduce ? false : { opacity: 0.7, filter: 'blur(1px)' }} animate={{ opacity: 1, filter: 'blur(0px)' }} transition={{ duration: reduce ? 0 : 0.18, ease }}>{blocks}</motion.div>
+}
+function isTableStart(lines: string[], index: number) {
+  return lines[index].trim().startsWith('|') && /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(lines[index + 1] ?? '')
+}
+// shortcut: escaped pipes (\|) split cells; handle them if the engine ever emits them.
+function cells(line: string) {
+  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim())
 }
 function inline(text: string) {
   return text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).map((chunk, index) => chunk.startsWith('`') ? <code key={index}>{chunk.slice(1, -1)}</code> : chunk.startsWith('**') ? <strong key={index}>{chunk.slice(2, -2)}</strong> : <Fragment key={index}>{chunk}</Fragment>)
