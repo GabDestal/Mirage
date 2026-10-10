@@ -1,5 +1,5 @@
 // Plain-words status for runs (DESIGN.md §2, §8): the avatar state, the row sentence, the header sentence.
-import type { GateDecision, MirageEvent, Run } from '@/api/client'
+import type { GateDecision, Incident, MirageEvent, Run } from '@/api/client'
 import type { AvatarState } from '@/components/avatar'
 
 export function agentName(agent: string) {
@@ -120,3 +120,23 @@ export function fleetSentence(runs: Run[]) {
   if (others) return `${others} ${others === 1 ? 'agent is' : 'agents are'} working. The rest are done.`
   return 'All runs are done.'
 }
+
+/** Stop all is on until a later `global.stop_lifted` (/demo/reset clears the log). */
+export const stopOn = (events: MirageEvent[]) =>
+  events.findLast((e) => ['global.stop', 'global.stop_lifted'].includes(e.type))?.type === 'global.stop'
+
+// Detonation proved the run compromised: unfreeze and resume are refused from here on.
+const CONFIRMED = ['confirmed', 'bisecting', 'root_caused', 'fix_pending', 'fix_verified', 'pr_open', 'merged']
+
+/** A halted run that was not restarted yet can be resumed. Returns why the Resume button is disabled, or null. */
+export function resumeBlock(run: Run, incidents: Incident[], stopped: boolean) {
+  const incident = incidents.find((i) => i.id === run.incident_id)
+  if (incident && (CONFIRMED.includes(incident.status) || incident.verdict?.confirmed))
+    return 'Detonation confirmed this run is compromised. Fix it, then approve a clean restart.'
+  if (stopped) return 'Lift Stop all first, then resume agents one at a time.'
+  return null
+}
+
+/** Resume shows only on a halted run that has no restart yet. */
+export const canResume = (run: Run, runs: Run[]) =>
+  run.status === 'halted' && !runs.some((r) => r.restarted_from === run.id)

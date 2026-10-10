@@ -1,17 +1,20 @@
 // ⌘K: jump anywhere, run any action (DESIGN.md §11). Never animated (§9).
 import { Command } from 'cmdk'
-import { ArrowRight, OctagonAlert, Search, ShieldOff, Snowflake } from 'lucide-react'
+import { ArrowRight, OctagonAlert, Play, Search, ShieldOff, Snowflake } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router'
-import { useRuns } from '@/api/client'
+import { useEvents, useIncidents, useRuns } from '@/api/client'
 import { useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
-import { avatarState, runLabel } from '@/lib/runs'
+import { avatarState, canResume, resumeBlock, runLabel, stopOn } from '@/lib/runs'
 
 export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const navigate = useNavigate()
   const ask = useAsk()
   const { data: runs = [] } = useRuns()
+  const { data: incidents = [] } = useIncidents()
+  const { data: events = [] } = useEvents()
+  const stopped = stopOn(events)
   const run = (fn: () => void) => () => {
     onOpenChange(false)
     fn()
@@ -43,9 +46,18 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
               Kill {runLabel(r, runs)}
             </Item>
           ))}
-          <Item icon={<OctagonAlert />} onSelect={run(() => ask('stop'))} hint="⇧⌘.">
-            <span className="text-alarm">Stop all agents</span>
-          </Item>
+          {runs.filter((r) => canResume(r, runs) && !resumeBlock(r, incidents, stopped)).map((r) => (
+            <Item key={`r${r.id}`} icon={<Play />} onSelect={run(() => ask('resume', r))}>
+              Resume {runLabel(r, runs)}
+            </Item>
+          ))}
+          {stopped ? (
+            <Item icon={<Play />} onSelect={run(() => ask('lift'))}>Lift Stop all</Item>
+          ) : (
+            <Item icon={<OctagonAlert />} onSelect={run(() => ask('stop'))} hint="⇧⌘.">
+              <span className="text-alarm">Stop all agents</span>
+            </Item>
+          )}
         </Command.Group>
 
         <Command.Group heading="Go to">

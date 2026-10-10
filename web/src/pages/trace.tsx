@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { ArrowLeft, ArrowUpRight, Calendar, Check, ChevronRight, Circle, Clock, Mail, Pause, Search, ShieldAlert, Wrench } from 'lucide-react'
 import { useEvents, useRuns, type Run } from '@/api/client'
 import { useNow } from '@/api/stream'
+import { ResumeButton } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
 import { avatarState, relTime, runLabel } from '@/lib/runs'
@@ -77,6 +78,7 @@ function RunWorkflow({ id }: { id: string | undefined }) {
         {run.incident_id ? <Button asChild variant={run.status === 'frozen' ? 'primary' : 'secondary'}>
           <Link to={`/incidents/${run.incident_id}`}>Review incident <ArrowUpRight /></Link>
         </Button> : null}
+        <ResumeButton run={run} variant="primary" />
         <span><Clock size={13} aria-hidden="true" /> Updated {relTime(lastEvent?.ts ?? run.ended_at ?? run.started_at, now)}</span>
       </div>
     </header>

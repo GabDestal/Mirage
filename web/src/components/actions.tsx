@@ -1,31 +1,34 @@
-// Human actions (Unfreeze, Kill, Stop all): a reason dialog, then the control-plane POST with
+// Human actions (Unfreeze, Kill, Resume, Stop all, Lift stop): a reason dialog, then the control-plane POST with
 // HumanRequest {actor, reason}, an optimistic update and a toast (DESIGN.md §2.6, §11).
 import { useMutation } from '@tanstack/react-query'
 import { Dialog, RadioGroup } from 'radix-ui'
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { api, queryClient, type HumanRequest, type MirageEvent, type Run } from '@/api/client'
+import { api, queryClient, useEvents, useIncidents, useRuns, type HumanRequest, type MirageEvent, type Run } from '@/api/client'
 import { Button } from '@/components/ui/button'
-import { blockedCall, runLabel } from '@/lib/runs'
+import { blockedCall, canResume, resumeBlock, runLabel, stopOn } from '@/lib/runs'
 
 // shortcut: one operator for the demo, upgrade to a sign-in when Mirage has users.
 export const ACTOR = 'liam'
 
-export type ActionKind = 'unfreeze' | 'kill' | 'stop'
+export type ActionKind = 'unfreeze' | 'kill' | 'resume' | 'stop' | 'lift'
 type Ask = (kind: ActionKind, run?: Run) => void
 
 const REASONS: Record<ActionKind, string[]> = {
   unfreeze: ['False positive: the destination is expected.', 'The customer asked for this in the ticket.', 'Mirage showed no harm.'],
   kill: ['Confirmed compromise.', 'The run is stuck or looping.', 'The task is no longer needed.'],
+  resume: ['The investigation is over.', 'This agent was not involved.', 'Demo or test reset.'],
   stop: ['Suspected compromise across agents.', 'Stopping everything while we investigate.', 'Demo or test reset.'],
+  lift: ['The investigation is over.', 'Stop all was a precaution.', 'Demo or test reset.'],
 }
 
-const NEXT_STATUS = { unfreeze: 'running', kill: 'killed', stop: 'halted' } as const
-const VERB = { unfreeze: 'Unfreeze', kill: 'Kill', stop: 'Stop all' }
+const VERB = { unfreeze: 'Unfreeze', kill: 'Kill', resume: 'Resume', stop: 'Stop all', lift: 'Lift stop' }
 
 function copy(kind: ActionKind, run: Run | undefined, runs: Run[]) {
   if (kind === 'stop') return { title: 'Stop all agents?', effect: 'Every run halts and all tokens are revoked. You can restart runs one by one later.' }
+  if (kind === 'lift') return { title: 'Lift Stop all?', effect: 'Nothing restarts on its own. You then resume halted agents one at a time.' }
   const label = run ? runLabel(run, runs) : 'this run'
+  if (kind === 'resume') return { title: `Resume ${label}?`, effect: 'It starts its task again from the beginning. Every action goes through the gate.' }
   if (kind === 'kill') return { title: `Kill ${label}?`, effect: 'The call it was holding never runs, and the run ends for good.' }
   const events = queryClient.getQueryData<MirageEvent[]>(['events']) ?? []
   const held = run && blockedCall(events, run.id)?.decision
@@ -52,13 +55,25 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/** Resume on a halted run that has no restart yet; disabled with the reason while it cannot run. */
+export function ResumeButton({ run, variant = 'secondary' }: { run: Run; variant?: 'primary' | 'secondary' }) {
+  const ask = useAsk()
+  const { data: runs = [] } = useRuns()
+  const { data: incidents = [] } = useIncidents()
+  const { data: events = [] } = useEvents()
+  if (!canResume(run, runs)) return null
+  const blocked = resumeBlock(run, incidents, stopOn(events))
+  return <Button variant={variant} disabled={!!blocked} title={blocked ?? undefined}
+    onClick={(e) => { e.stopPropagation(); ask('resume', run) }}>Resume</Button>
+}
+
 function ReasonDialog({ pending, onClose }: { pending: { kind: ActionKind; run?: Run } | null; onClose: () => void }) {
   const act = useHumanAction()
   const kind = pending?.kind ?? 'unfreeze'
   const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
   const { title, effect } = copy(kind, pending?.run, runs)
   return <HumanReasonDialog key={pending ? `${kind}:${pending.run?.id}` : 'closed'} open={!!pending} title={title} effect={effect}
-    reasons={REASONS[kind]} verb={VERB[kind]} destructive={kind !== 'unfreeze'} onClose={onClose}
+    reasons={REASONS[kind]} verb={VERB[kind]} destructive={kind === 'kill' || kind === 'stop'} onClose={onClose}
     onSubmit={(reason) => {
       if (!pending) return
       act.mutate({ kind, run: pending.run, body: { actor: ACTOR, reason } })
@@ -139,7 +154,7 @@ type Vars = { kind: ActionKind; run?: Run; body: HumanRequest }
 export function useHumanAction() {
   return useMutation({
     mutationFn: ({ kind, run, body }: Vars) =>
-      api(kind === 'stop' ? '/stop' : `/runs/${run!.id}/${kind}`, body),
+      api(kind === 'stop' ? '/stop' : kind === 'lift' ? '/stop/lift' : `/runs/${run!.id}/${kind}`, body),
     onMutate: async ({ kind, run }: Vars) => {
       await queryClient.cancelQueries({ queryKey: ['runs'] })
       const before = queryClient.getQueryData<Run[]>(['runs'])
@@ -147,7 +162,7 @@ export function useHumanAction() {
         old.map((r) =>
           kind === 'stop'
             ? ['running', 'frozen', 'queued'].includes(r.status) ? { ...r, status: 'halted' } : r
-            : r.id === run?.id ? { ...r, status: NEXT_STATUS[kind] } : r,
+            : r.id === run?.id && (kind === 'unfreeze' || kind === 'kill') ? { ...r, status: kind === 'kill' ? 'killed' : 'running' } : r,
         ),
       )
       return { before }
@@ -155,7 +170,8 @@ export function useHumanAction() {
     onSuccess: (_, { kind, run }) => {
       const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
       const label = run ? runLabel(run, runs) : ''
-      toast(kind === 'stop' ? 'All agents stopped.' : kind === 'kill' ? `${label} was killed.` : `${label} is working again.`)
+      toast(kind === 'stop' ? 'All agents stopped.' : kind === 'lift' ? 'Stop all lifted. Resume agents one at a time.'
+        : kind === 'resume' ? `${label} is starting its task again.` : kind === 'kill' ? `${label} was killed.` : `${label} is working again.`)
     },
     onError: (err, _, ctx) => {
       queryClient.setQueryData(['runs'], ctx?.before)
