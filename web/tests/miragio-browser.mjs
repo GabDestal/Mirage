@@ -6,37 +6,108 @@ const base = process.env.MIRAGE_UI_URL || 'http://127.0.0.1:5186'
 const out = process.env.MIRAGE_QA_DIR || '../docs/miragio-qa'
 await mkdir(out, { recursive: true })
 const browser = await chromium.launch({ headless: true, executablePath: process.env.MIRAGE_CHROMIUM_EXECUTABLE })
+function instrument({ random, hidden = false }) {
+  const timers = new Set()
+  const pointers = new Set()
+  const listeners = new Set()
+  window.miragioSchedule = []
+  const rng = Math.random.bind(Math)
+  Math.random = () => new Error().stack.includes('/src/components/miragio.tsx') ? random : rng()
+  const set = window.setTimeout.bind(window)
+  const clear = window.clearTimeout.bind(window)
+  const add = window.addEventListener.bind(window)
+  const remove = window.removeEventListener.bind(window)
+  window.setTimeout = (callback, delay, ...args) => {
+    const owned = new Error().stack.includes('/src/components/miragio.tsx')
+    const timer = set(() => { timers.delete(timer); callback(...args) }, delay)
+    if (owned) { timers.add(timer); window.miragioSchedule.push({ delay, at: performance.now() }) }
+    return timer
+  }
+  window.clearTimeout = (timer) => { timers.delete(timer); clear(timer) }
+  window.addEventListener = (name, handler, options) => { if (name === 'pointermove' && new Error().stack.includes('/src/components/miragio.tsx')) pointers.add(handler); add(name, handler, options) }
+  window.removeEventListener = (name, handler, options) => { if (name === 'pointermove') pointers.delete(handler); remove(name, handler, options) }
+  const eventAdd = EventTarget.prototype.addEventListener
+  const eventRemove = EventTarget.prototype.removeEventListener
+  EventTarget.prototype.addEventListener = function (name, handler, options) {
+    if (new Error().stack.includes('/src/components/miragio.tsx')) listeners.add(handler)
+    return eventAdd.call(this, name, handler, options)
+  }
+  EventTarget.prototype.removeEventListener = function (name, handler, options) {
+    listeners.delete(handler)
+    return eventRemove.call(this, name, handler, options)
+  }
+  window.miragioResources = () => ({ timers: timers.size, pointers: pointers.size })
+  window.miragioListeners = () => listeners.size
+  if (hidden) Object.defineProperty(document, 'hidden', { configurable: true, value: true })
+}
+function watchBlinks(svg) {
+  window.miragioClosed = []
+  window.miragioEntryAtBlink = []
+  window.miragioWatchStarted = performance.now()
+  let closed = false
+  window.miragioBlinkObserver = new MutationObserver(() => {
+    const scale = /scaleY\(([^)]+)\)/.exec(svg.querySelector('[data-miragio="blink"]').style.transform)
+    const next = scale && Number(scale[1]) < 0.7
+    if (next && !closed) {
+      window.miragioClosed.push(performance.now())
+      window.miragioEntryAtBlink.push(svg.querySelector('[data-miragio="entry"]').style.transform)
+    }
+    closed = next
+  })
+  window.miragioBlinkObserver.observe(svg.querySelector('[data-miragio="blink"]'), { attributes: true })
+}
+async function setHidden(page, hidden) {
+  await page.evaluate((value) => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value })
+    document.dispatchEvent(new Event('visibilitychange'))
+  }, hidden)
+}
+async function assertStill(page, welcome) {
+  await page.waitForTimeout(100)
+  assert.deepEqual(await page.evaluate(() => window.miragioResources()), { timers: 0, pointers: 0 })
+  assert.equal(await welcome.locator('[data-miragio="entry"]').evaluate((el) => el.style.transform), 'none')
+  assert.equal(await welcome.locator('[data-miragio="blink"]').evaluate((el) => el.style.transform), 'none')
+  const still = await welcome.screenshot()
+  await page.waitForTimeout(400)
+  assert.ok(still.equals(await welcome.screenshot()), 'Interrupted portrait stays visibly static')
+}
 const results = []
 try {
   for (const [device, viewport] of [['desktop', { width: 1440, height: 1000 }], ['phone', { width: 390, height: 844 }]]) {
     for (const theme of ['light', 'dark']) {
       const context = await browser.newContext({ viewport, colorScheme: theme,
-        ...(device === 'desktop' && theme === 'light' ? { recordVideo: { dir: out, size: { width: 720, height: 500 } } } : {}) })
+        ...(theme === 'light' ? { recordVideo: { dir: out, size: viewport } } : {}) })
       const page = await context.newPage()
       const errors = []
       page.on('pageerror', (error) => errors.push(error.message))
-      await page.addInitScript(() => {
-        const timers = new Set()
-        const pointers = new Set()
-        const set = window.setTimeout.bind(window)
-        const clear = window.clearTimeout.bind(window)
-        const add = window.addEventListener.bind(window)
-        const remove = window.removeEventListener.bind(window)
-        window.setTimeout = (callback, delay, ...args) => {
-          const owned = new Error().stack.includes('/src/components/miragio.tsx')
-          const timer = set(() => { timers.delete(timer); callback(...args) }, delay)
-          if (owned) timers.add(timer)
-          return timer
-        }
-        window.clearTimeout = (timer) => { timers.delete(timer); clear(timer) }
-        window.addEventListener = (name, handler, options) => { if (name === 'pointermove' && new Error().stack.includes('/src/components/miragio.tsx')) pointers.add(handler); add(name, handler, options) }
-        window.removeEventListener = (name, handler, options) => { if (name === 'pointermove') pointers.delete(handler); remove(name, handler, options) }
-        window.miragioResources = () => ({ timers: timers.size, pointers: pointers.size })
-      })
+      await page.addInitScript(instrument, { random: device === 'phone' ? 0.1 : 0.5 })
       await page.goto(base)
       await page.getByRole('button', { name: 'Sign in', exact: true }).click()
       const welcome = page.locator('.chat-miragio')
       await welcome.waitFor()
+      const entry = welcome.locator('[data-miragio="entry"]')
+      assert.match(await entry.getAttribute('style'), /translateX\(-100px\).*translateY\(270px\).*rotate\(-10deg\)/)
+      await welcome.evaluate(watchBlinks)
+      await page.screenshot({ path: `${out}/${device}-${theme}-entry.png` })
+      await page.waitForFunction(() => window.miragioClosed.length >= 1)
+      await page.waitForTimeout(450)
+      assert.equal(await page.evaluate(() => window.miragioClosed.length), device === 'phone' ? 2 : 1, 'Deterministic single/double blink after entry')
+      assert.equal(await entry.evaluate((el) => el.style.transform), 'none', 'Entry settles at rest')
+      assert.ok(await page.evaluate(() => window.miragioSchedule.some(({ delay }) => delay === 3250 || delay === 2250)), 'Recurring gap is 2–4.5 seconds')
+      await page.waitForFunction((count) => window.miragioClosed.length > count, device === 'phone' ? 2 : 1)
+      await page.waitForTimeout(450)
+      assert.equal(await page.evaluate(() => window.miragioClosed.length), device === 'phone' ? 4 : 2)
+      const timing = await page.evaluate(() => ({
+        blinkClosesMs: window.miragioClosed.map((time) => Math.round(time - window.miragioWatchStarted)),
+        entryAtBlink: window.miragioEntryAtBlink,
+        ownedDelaysMs: window.miragioSchedule.map(({ delay }) => delay),
+      }))
+      assert.ok(timing.entryAtBlink.every((transform) => transform === 'none'), 'Blink starts only after entrance completes')
+      if (device === 'phone') {
+        const doubleGap = timing.blinkClosesMs[1] - timing.blinkClosesMs[0]
+        assert.ok(doubleGap >= 140 && doubleGap <= 260, 'Double blink follows sequential 180ms close/open')
+      }
+      await page.evaluate(() => window.miragioBlinkObserver.disconnect())
       await page.evaluate(() => document.fonts.ready)
       const input = page.getByRole('textbox', { name: 'Message Miragio', exact: true })
       await input.blur()
@@ -51,21 +122,12 @@ try {
       const beforeReading = await welcome.locator('[data-miragio="gaze"]').getAttribute('style')
       await input.fill('Which agents need my attention?')
       await page.waitForTimeout(600)
+      assert.equal(await entry.evaluate((el) => el.style.transform), 'none', 'Typing does not replay entry')
       assert.notEqual(await welcome.locator('[data-miragio="gaze"]').getAttribute('style'), beforeReading)
       await input.fill('')
       await input.blur()
       await page.screenshot({ path: `${out}/${device}-${theme}.png` })
       if (device === 'desktop' && theme === 'light') {
-        await welcome.evaluate((svg) => {
-          window.miragioBlinks = 0
-          window.miragioBlinkObserver = new MutationObserver(() => {
-            const scale = /scaleY\(([^)]+)\)/.exec(svg.querySelector('[data-miragio="blink"]').style.transform)
-            if (scale && Number(scale[1]) < 0.7) window.miragioBlinks++
-          })
-          window.miragioBlinkObserver.observe(svg.querySelector('[data-miragio="blink"]'), { attributes: true })
-        })
-        await page.waitForFunction(() => window.miragioBlinks > 0, { timeout: 7500 })
-        await page.evaluate(() => window.miragioBlinkObserver.disconnect())
         const ripple = await welcome.locator('[data-miragio="ribbon"]').first().getAttribute('style')
         await page.waitForTimeout(400)
         assert.notEqual(await welcome.locator('[data-miragio="ribbon"]').first().getAttribute('style'), ripple)
@@ -81,6 +143,7 @@ try {
         await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); document.dispatchEvent(new Event('visibilitychange')) })
         await page.waitForTimeout(100)
         assert.deepEqual(await page.evaluate(() => window.miragioResources()), { timers: 2, pointers: 1 })
+        assert.equal(await entry.evaluate((el) => el.style.transform), 'none', 'Visibility resume does not replay entry')
       }
       await page.emulateMedia({ reducedMotion: 'reduce' })
       await page.waitForTimeout(100)
@@ -127,6 +190,7 @@ try {
       await input.press('Enter')
       await page.getByRole('button', { name: 'Copy response', exact: true }).waitFor()
       assert.equal(await welcome.count(), 0)
+      assert.equal(await page.evaluate(() => window.miragioListeners()), 0)
       assert.deepEqual(await page.evaluate(() => window.miragioResources()), { timers: 0, pointers: 0 })
       await input.fill('harness stream followup')
       await input.press('Enter')
@@ -139,11 +203,51 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
       assert.deepEqual(errors, [])
       await page.screenshot({ path: `${out}/${device}-${theme}-replies.png` })
-      results.push({ device, theme, passed: true, checks: ['dimensions', 'gaze', 'reading', 'reduced pixel equality', 'static/unmount resources', 'unique ids', 'read-only synthetic SSE followup', 'overflow', 'runtime errors'] })
+      results.push({ device, theme, passed: true, timing, checks: ['one-time entry', 'single/double blink', '2–4.5s gap', 'dimensions', 'gaze', 'reading', 'reduced pixel equality', 'static/unmount resources', 'unique ids', 'read-only synthetic SSE followup', 'overflow', 'runtime errors'] })
       const video = page.video()
       await context.close()
-      if (video) await rename(await video.path(), `${out}/animation.webm`)
+      if (video) await rename(await video.path(), `${out}/${device}-animation.webm`)
     }
+  }
+  for (const scenario of ['initial-reduced', 'initial-hidden', 'entry-reduced', 'entry-hidden', 'first-blink-reduced', 'second-blink-hidden']) {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: scenario === 'initial-reduced' ? 'reduce' : 'no-preference' })
+    const page = await context.newPage()
+    const errors = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    await page.addInitScript(instrument, { random: 0.1, hidden: scenario === 'initial-hidden' })
+    await page.goto(base)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    const welcome = page.locator('.chat-miragio')
+    await welcome.waitFor()
+    await welcome.evaluate(watchBlinks)
+    if (scenario.startsWith('entry-')) {
+      await page.waitForTimeout(350)
+      assert.notEqual(await welcome.locator('[data-miragio="entry"]').evaluate((el) => el.style.transform), 'none')
+    } else if (scenario.includes('blink')) {
+      await page.waitForFunction((count) => window.miragioClosed.length === count, scenario.startsWith('first') ? 1 : 2, { polling: 'raf' })
+    }
+    if (scenario.endsWith('reduced')) await page.emulateMedia({ reducedMotion: 'reduce' })
+    else await setHidden(page, true)
+    await assertStill(page, welcome)
+    const count = await page.evaluate(() => window.miragioClosed.length)
+    assert.equal(count, scenario.startsWith('first') ? 1 : scenario.startsWith('second') ? 2 : 0, 'No late blink after cancellation')
+    await page.screenshot({ path: `${out}/${scenario}.png` })
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    await setHidden(page, false)
+    await page.waitForTimeout(600)
+    assert.equal(await welcome.locator('[data-miragio="entry"]').evaluate((el) => el.style.transform), 'none', 'Resume never re-enters')
+    assert.equal(await page.evaluate(() => window.miragioClosed.length), count, 'Resume waits for the recurring gap')
+    assert.deepEqual(await page.evaluate(() => window.miragioResources()), { timers: 2, pointers: 1 })
+    await page.evaluate(() => window.miragioBlinkObserver.disconnect())
+    const input = page.getByRole('textbox', { name: 'Message Miragio', exact: true })
+    await input.fill('harness stream')
+    await input.press('Enter')
+    await page.getByRole('button', { name: 'Copy response', exact: true }).waitFor()
+    assert.deepEqual(await page.evaluate(() => window.miragioResources()), { timers: 0, pointers: 0 })
+    assert.equal(await page.evaluate(() => window.miragioListeners()), 0)
+    assert.deepEqual(errors, [])
+    results.push({ scenario, passed: true, checks: ['immediate static resolution', 'no late second blink/timer', 'resume without entry', 'initial preference', 'listener/timer cleanup'] })
+    await context.close()
   }
 } finally {
   await browser.close()
