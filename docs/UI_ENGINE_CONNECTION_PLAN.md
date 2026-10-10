@@ -1,6 +1,20 @@
 # Mirage UI and engine connection plan
 
-Status: planning only, 2026-10-10. Source audit: `84d1c0969ed04927ebad5bd32d8b5c09a08205d8`. No implementation, configuration, tests, services or credentials changed by this document.
+Status: original source audit/planning, 2026-10-10, plus M1 startup implementation in section 0. Source audit: `84d1c0969ed04927ebad5bd32d8b5c09a08205d8`. Historical links and runtime observations remain pinned; future proposals are not acceptance claims.
+
+## 0. Milestone 1 startup implementation and scope
+
+**M1 is recorded background plus fully real Miragio.** Production agents and engine detection, containment, detonation, proof and fix/PR lifecycle are recorded/simulated. Miragio uses real Bedrock, existing MCP handlers and human approvals against the recorded engine. **M2 later means actual agents, live gate/containment, snapshot sandbox execution and fresh deterministic proof.** M1 chat is already real. Offline providers, runtime metadata and controller migration remain outside M1.
+
+Approved reuse option A is implemented by the Node standard-library `web/scripts/dev.mjs`, reusing Python Replay, installed Vite and built real chat. From `web/`, use `npm run dev -- --mode demo` or `npm run dev:demo`. `MIRAGE_UI_MODE=demo npm run dev` is equivalent; CLI mode wins. Plain `npm run dev` still starts only Vite and attaches to existing engine/chat ports 8000/8001. No newly implemented live engine profile exists.
+
+Managed demo owns loopback web5174/engine8010/chat8011, a fresh absolute disposable state directory, absolute `fleet_demo_4agents.jsonl`, and non-instant 2× replay speed (configurable finite >0 through 10). Engine gets `MIRAGE_MODE=replay`, `MIRAGE_REPLAY_MANAGED=1` and isolated `MIRAGE_DB`/`MIRAGE_SNAPSHOTS`/`MIRAGE_TOKENS`. Chat and Vite share `MIRAGE_API`; Vite's `MIRAGE_CHAT_API` targets owned real chat. Actual localhost/127.0.0.1 web origins enter chat's allowlist. Children get `MIRAGE_UI_MODE=demo`; Vite exposes the nonsecret `import.meta.env.VITE_MIRAGE_UI_MODE='demo'` flag without query-string or localStorage selection.
+
+Only chat receives credentials, through root `.env` or absolute `MIRAGE_CHAT_ENV_FILE`. Engine Replay and Vite do not inherit provider credentials. Launcher never reads/logs credential values, copies `.env`, starts a victim fleet, sends startup control POSTs, or starts engine provider/job work. Building real chat is a prerequisite (`cd mcp && npm run build`); no new dependencies or fake provider are introduced. Missing credentials fail startup; invalid credentials remain real provider errors. GET readiness proves availability, not Bedrock access.
+
+Demo overrides `--port`, `--engine-port`, `--chat-port` beat `MIRAGE_DEMO_*_PORT` defaults, require distinct non-attach ports and always fail if occupied. Conflicting proxy/mode/fixture/origin/state settings fail rather than attach or kill another session. Startup failure/Ctrl+C terminates only owned child process groups and deletes only its temporary state. Full prerequisites/options are in [START.md](../START.md).
+
+`npm run demo:selfcheck` uses stub children/temporary paths to check flag/environment precedence, strict ports, routing/origins/isolation, read-only readiness, failure/timeout and owned shutdown; existing web typecheck/build also apply. Managed lifecycle, evidence reset and chat/UI presentation are companion worker changes requiring composed acceptance. Recorded handoff is not a live snapshot capability; fixture fix/PR evidence cannot establish coding-agent verification, a real fix PR or human merge. Launcher selfchecks claim no provider-live or real-service acceptance.
 
 ## 1. Outcome and boundaries
 
@@ -143,6 +157,8 @@ Current UI already renders deterministic verdict, blast radius, input bisection,
 
 ## 5. Startup mode taxonomy (proposal)
 
+This retains the broader original proposal for future work. Section 0 and [START.md](../START.md) are the implemented M1 guidance: recorded demo and existing attach only. Offline and newly managed live profiles remain deferred.
+
 Use one **UI startup profile**, separate from engine lane and model provider:
 
 | Proposed profile | Engine / agents | Chat | Truthful label | Default behavior |
@@ -151,22 +167,21 @@ Use one **UI startup profile**, separate from engine lane and model provider:
 | `demo` | Own engine Replay on 8010 and web on 5174; recorded fleet, no agent/model detonation work | Own live chat on 8011, existing MCP client pointed to 8010 | “Recorded engine demo · live chat” | Recommended repeatable UI demo matching current conversational experience; credentials still required for chat |
 | `offline` | Own Replay on 8010 and web on 5174; no model calls | Explicit scripted local provider on 8011 | “Offline demo · scripted chat” | Optional fallback; no Bedrock credentials/client, no hidden fallback from failed live chat |
 
-“Demo” does not mean fully offline. “Live engine” does not mean real service integration. Runtime metadata must describe the actual connection rather than trusting a browser build label. Profiles are proposals: current `MIRAGE_MODE` is engine `live|replay`, read once on server import, with default `live`; current Vite's `--mode demo` only selects Vite mode and does not change engine or chat behavior ([engine configuration][engine-boot], [Vite configuration][vite], [official Vite modes][vite-modes]). Invalid engine modes currently fall into the non-replay path; eventual engine validation should fail startup for unknown values.
+“Demo” does not mean fully offline. “Live engine” does not mean real service integration. Runtime metadata must describe the actual connection rather than trusting a browser build label. Profiles are proposals: current `MIRAGE_MODE` is engine `live|replay`, read once on server import, with default `live`; audited direct Vite invocation with `--mode demo` only selected Vite mode and did not change engine or chat behavior ([engine configuration][engine-boot], [Vite configuration][vite], [official Vite modes][vite-modes]). Invalid engine modes currently fall into the non-replay path; eventual engine validation should fail startup for unknown values.
 
 ### 5.1 Proposed launch and precedence
 
-Desired equivalent developer commands, from `web/` after a future launcher PR:
+Current M1 developer commands, from `web/` (the broader offline/live proposal remains deferred):
 
 ```bash
 npm run dev -- --mode demo
 MIRAGE_UI_MODE=demo npm run dev
-npm run dev -- --mode offline
 npm run dev                          # attach existing live engine/chat
 ```
 
-**None of these new profile semantics exist yet.** Implement a small Node stdlib dev launcher owned by Person B; reuse installed Vite, Node `child_process`, and the existing Python Replay server. The launcher resolves the profile, starts only owned children if required, waits on read-only readiness, and starts Vite with the resolved proxy targets. Person A owns any new engine flags. No process manager dependency, new mock API, Docker or browser-generated fake fleet state.
+**M1 launcher semantics now exist as described in section 0.** The agreed implementation is a small Node stdlib dev launcher owned by Person B; reuse installed Vite, Node `child_process`, and the existing Python Replay server. The launcher resolves the profile, starts only owned children if required, waits on read-only readiness, and starts Vite with the resolved proxy targets. Person A owns any new engine flags. No process manager dependency, new mock API, Docker or browser-generated fake fleet state.
 
-Proposal: CLI `--mode live|demo|offline` overrides `MIRAGE_UI_MODE`, which overrides default `live`. Leave `NODE_ENV` independent. Parse only launcher profile flags; forward remaining Vite flags. Reject unsupported profile values. Explicit `MIRAGE_API` / `MIRAGE_CHAT_API` override defaults in live attach mode. For managed demo/offline, choose 8010/8011 (or explicit dedicated port options) and fail on occupied ports; do not silently attach to a service found there or reuse an override pointing at live 8000/8001. Reject conflicting inherited `MIRAGE_MODE=live` in managed demo rather than secretly starting real agents.
+Implemented M1 precedence: CLI `--mode live|demo` overrides `MIRAGE_UI_MODE`, which overrides default `live` (attach only). Offline remains a deferred proposal. Leave `NODE_ENV` independent. Parse launcher profile flags; attach forwards remaining Vite flags, while managed demo permits only its documented port options and `--open`. Reject unsupported profile values. Explicit `MIRAGE_API` / `MIRAGE_CHAT_API` override defaults in live attach mode. For managed demo/offline, choose 8010/8011 (or explicit dedicated port options) and fail on occupied ports; do not silently attach to a service found there or reuse an override pointing at live 8000/8001. Reject conflicting inherited `MIRAGE_MODE=live` in managed demo rather than secretly starting real agents.
 
 The launcher sets child `MIRAGE_MODE=replay`, absolute `MIRAGE_FIXTURE`, replay speed, isolated `MIRAGE_DB`, `MIRAGE_SNAPSHOTS` and `MIRAGE_TOKENS`, opt-in automatic baseline playback, and chat's `MIRAGE_API` to the **same replay engine URL** used by Vite. Existing path variables are supported ([event DB][event-store], [snapshots][snapshot-path], [tokens][token-path]); do not assume port isolation also isolates files. Browser chat proxy target uses `MIRAGE_CHAT_API`; chat's own engine target uses `MIRAGE_API` ([MCP defaults][mcp-client]). Set `MIRAGE_CHAT_ORIGINS` for the actual selected loopback web origin (default 5174) and chat origin (8011), including localhost/127.0.0.1 variants used. Default origins only cover 5173/8001 ([chat contract][chat-contract]). Use strict Vite port binding: explicit `--port` may override 5174 but must not silently fall back or reuse 5173. Resolve config before module imports; SDK `MIRAGE_URL` is distinct ([SDK config][sdk-core]).
 
@@ -379,7 +394,7 @@ Suggested focused backend command once implementing: `uv run pytest tests/test_a
 
 Review anchors: [runtime attribution](#21-coordinator-runtime-observation), [endpoint matrix](#3-current-endpoint-and-consumer-matrix), [visibility causes](#4-why-detonation-can-be-invisible), [proposed startup semantics](#51-proposed-launch-and-precedence), [contract proposal](#7-additive-contract-proposal), [reset handling](#8-reconnect-reset-and-stale-state-handling-proposal), [human lifecycle](#9-demo-lifecycle-parity-and-human-decisions), [PR slices](#11-rollout-one-feature-one-orca-worktree-one-pr), [acceptance](#12-acceptance-and-validation-plan).
 
-Validation scope is documentation only: pinned source paths/line bounds, reference definitions, review anchors and focused diff. Runtime counts/process times/UI inspection/config reproduction/test results are attributed coordinator observations; no fresh live rehearsal is claimed. This task launched no agents, sent no control POSTs, reset no services, called no Bedrock and read no secret files. Proposed commands, contracts, fixture parity, launcher and offline provider remain unimplemented; real service integrations and live fix completion remain separate acceptance gates.
+Validation scope is documentation only: pinned source paths/line bounds, reference definitions, review anchors and focused diff. Runtime counts/process times/UI inspection/config reproduction/test results are attributed coordinator observations; no fresh live rehearsal is claimed. This task launched no agents, sent no control POSTs, reset no services, called no Bedrock and read no secret files. That original audit did not implement proposed contracts, fixture parity or providers; section 0 records the subsequent launcher implementation and companion dependencies; real service integrations and live fix completion remain separate acceptance gates.
 
 ## Source index
 
