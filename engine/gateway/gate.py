@@ -83,7 +83,13 @@ def policy_for(agent):
         return POLICY
     return {"canary": POLICY["canary"], "agents": {agent: {"tools": spec.allow.tools}},
             "destinations": {"email_domains": spec.allow.email_to,
-                             "url_domains": spec.allow.url_hosts}}
+                             "url_domains": spec.allow.url_hosts},
+            "known_tools": spec.tools}  # every tool the agent has, allowed or not
+
+
+def is_known(policy, tool):
+    """False only when the agent declared its tools and this is not one of them."""
+    return "known_tools" not in policy or tool in policy["known_tools"]
 
 
 def set_status(run, to, actor, reason):
@@ -138,6 +144,11 @@ def check(run, tool, args) -> GateDecision:
         decision, rule = "block", ("RUN_REVOKED", f"Run is {run.status}; access is revoked.")
     elif run.status == "frozen":
         decision, rule = "freeze", ("RUN_FROZEN", "Run is frozen; waiting for a human.")
+    elif not is_known(policy_for(run.agent), tool):
+        # a model typo (gpt-oss: "search_contactschannelcommentary"): no such tool exists, so
+        # nothing can run; the framework rejects it and the model retries. Not an attack.
+        decision, rule = "allow", ("UNKNOWN_TOOL",
+                                   f"{tool} is not one of the agent's tools; nothing can run.")
     elif hit := hard_rule(run.agent, tool, args, policy_for(run.agent)):
         decision, rule = "freeze", hit
     else:
