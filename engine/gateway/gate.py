@@ -134,6 +134,18 @@ def unfreeze(run_id, actor, reason):
     set_status(runs[run_id], "running", actor, reason)
 
 
+def approve(run_id, actor, reason):
+    """Approval queue: the held call runs (like unfreeze), logged as an approval."""
+    _human(actor, "approve", run_id, reason)
+    set_status(runs[run_id], "running", actor, reason)
+
+
+def reject(run_id, actor, reason):
+    """Approval queue: the held call never runs and the run ends (like kill)."""
+    _human(actor, "reject", run_id, reason)
+    set_status(runs[run_id], "killed", actor, reason)
+
+
 def kill(run_id, actor, reason):
     _human(actor, "kill", run_id, reason)
     set_status(runs[run_id], "killed", actor, reason)
@@ -177,8 +189,9 @@ def _check(run, tool, args) -> GateDecision:
     judged = None  # layer 2: only outbound calls the hard rules allowed
     if evaluate and not hit:
         judged = decision_model.judge(run.agent, run.task, tool, args)
-        if judged and "policy_id" in judged:
+        if judged and "policy_id" in judged and not judged["review"]:
             hit = (None, judged["explanation"])
+    review = judged if judged and judged.get("review") else None  # medium risk: ask a human
     with jobs.lock:
         if STOP.is_set() or run.status in ("killed", "halted", "completed"):
             hit = None
@@ -196,11 +209,16 @@ def _check(run, tool, args) -> GateDecision:
             decision, rule = "freeze", ("RUN_FROZEN", "Run was frozen; waiting for a human.")
         elif hit:
             decision, rule = "freeze", hit
+        elif review:  # held like a freeze (the SDK waits), but no incident: a human decides
+            decision, rule = "freeze", ("NEEDS_APPROVAL", (f"Waiting for a human to approve "
+                                        f"({review['policy_id']}, p={review['p']}): "
+                                        f"{review['explanation']}"))
         else:
             decision, rule = "allow", (None, "No rule matched." + (
                 f" Layer 2 unavailable: {judged['unavailable']}" if judged else ""))
 
-        by_model = bool(hit and judged and "policy_id" in judged)
+        held = decision == "freeze" and rule[0] == "NEEDS_APPROVAL"
+        by_model = bool((hit or held) and judged and "policy_id" in judged)
         gate = GateDecision(call_id=call_id, tool=tool, args=args, decision=decision,
                             layer="decision_model" if by_model else "hard_rule",
                             rule_id=rule[0], explanation=rule[1],
@@ -214,6 +232,8 @@ def _check(run, tool, args) -> GateDecision:
             return gate
         emit("gate.decision", gate.model_dump(mode="json"), run_id=run.id,
              incident_id=run.incident_id if hit else None)
+        if held:
+            set_status(run, "frozen", "gate", rule[1])
         if hit:
             spec = agents.get(run.agent)
             snap = snapshot.save(run, run.incident_id, policy,

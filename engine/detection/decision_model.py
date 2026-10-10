@@ -2,7 +2,7 @@
 
 gpt-oss-safeguard-20b reads the policy pack (P1-P6), the user's task and the call, and answers
 {violates, policy_id, p, reason}. The gate freezes when violates and p >= MIRAGE_GATE_THRESHOLD
-(default 0.7). It only decides freezes: the detonation verdict stays code (AGENTS.md).
+(default 0.7), and holds the call for a human (approval queue) when MIRAGE_GATE_REVIEW (0.4) <= p. It only decides freezes: the detonation verdict stays code (AGENTS.md).
 Only outbound calls are judged (a destination argument, or a send/export/share... tool), so reads
 stay instant. The call's arguments may hold attacker text: they are fenced as data.
 If the model is unavailable the call is allowed (the hard rules still applied) and the gate's
@@ -86,7 +86,9 @@ def judge(agent, task, tool, args):
         return {"unavailable": f"{type(e).__name__}: {str(e)[:120]}"}
     p = float(verdict.get("p") or 0)
     threshold = float(os.getenv("MIRAGE_GATE_THRESHOLD", "0.7"))
-    if verdict.get("violates") and p >= threshold:
+    review = float(os.getenv("MIRAGE_GATE_REVIEW", "0.4"))
+    if verdict.get("violates") and p >= review:  # >= threshold: freeze; in between: ask a human
         return {"policy_id": verdict.get("policy_id") or "P6", "p": round(min(p, 1.0), 2),
-                "explanation": str(verdict.get("reason") or "The decision model flagged this call.")}
+                "explanation": str(verdict.get("reason") or "The decision model flagged this call."),
+                "review": p < threshold}
     return None

@@ -59,7 +59,7 @@ def test_the_model_freezes_what_the_rules_allow(api, monkeypatch):
 
 
 def test_below_threshold_reads_and_outages_are_allowed(api, monkeypatch):
-    calls = fake_model(monkeypatch, {"violates": True, "policy_id": "P5", "p": 0.4, "reason": "unsure"})
+    calls = fake_model(monkeypatch, {"violates": True, "policy_id": "P5", "p": 0.3, "reason": "unsure"})
     run_id, auth = start(api)
     assert check(api, run_id, auth, "send_email", to="ben@contoso-demo.com", subject="Hi",
                  body="Thanks for the call.").json()["decision"] == "allow"
@@ -77,3 +77,27 @@ def test_a_bulk_export_effect_is_a_p4_violation_in_the_verdict():
             "destinations": {"email_domains": ["*@contoso-demo.com"], "url_domains": []}}}
     effect = {"tool": "send_email", "args": {"to": "partners@contoso-demo.com", "body": CONTACTS}}
     assert sandbox.violations(snap, effect, [snap["policy"]]) == ["P4"]
+
+
+def test_medium_risk_waits_for_a_human_then_approve_or_reject(api, monkeypatch):
+    from engine.store import events
+    fake_model(monkeypatch, {"violates": True, "policy_id": "P5", "p": 0.55,
+                             "reason": "A recipient the user did not name."})
+    run_id, auth = start(api)
+    d = check(api, run_id, auth, "send_email", to="ben@contoso-demo.com", subject="Hi", body="x").json()
+    assert (d["decision"], d["rule_id"], d["layer"], d["p"]) == ("freeze", "NEEDS_APPROVAL", "decision_model", 0.55)
+    assert api.get(f"/runs/{run_id}").json()["status"] == "frozen"
+    assert api.get("/incidents").json() == []  # medium risk: a human decides, nothing to detonate
+    (held,) = api.get("/approvals").json()
+    assert (held["call_id"], held["run_id"], held["policy_id"]) == (d["call_id"], run_id, "P5")
+
+    assert api.post(f"/approvals/{d['call_id']}/approve",
+                    json={"actor": "gabi", "reason": "Ben is the customer"}).json()["status"] == "running"
+    assert api.get("/approvals").json() == []
+    assert api.post(f"/approvals/{d['call_id']}/approve", json={"actor": "a", "reason": "b"}).status_code == 404
+
+    d2 = check(api, run_id, auth, "send_email", to="new@contoso-demo.com", subject="Hi", body="x").json()
+    assert api.post(f"/approvals/{d2['call_id']}/reject",
+                    json={"actor": "gabi", "reason": "unknown recipient"}).json()["status"] == "killed"
+    actions = [e.payload["action"] for e in events.read() if e.type == "human.action"]
+    assert actions == ["approve", "reject"]

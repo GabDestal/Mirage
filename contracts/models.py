@@ -167,6 +167,21 @@ class DemoStart(Model):
     scenario: Literal["calendar", "support", "false_positive"] = "calendar"
 
 
+class Approval(Model):
+    """GET /approvals: a call layer 2 held for a human (medium risk). Approve: it runs.
+    Reject: it never runs and the run ends."""
+
+    call_id: str
+    run_id: str
+    agent: str
+    tool: str
+    args: dict[str, Any]
+    policy_id: str | None = None
+    p: float | None = None
+    explanation: str
+    ts: datetime
+
+
 class ServiceItem(Model):
     id: str
     title: str

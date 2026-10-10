@@ -20,6 +20,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from contracts.models import (
     AgentSpec,
+    Approval,
     DemoStart,
     Event,
     GateDecision,
@@ -227,6 +228,51 @@ def service_view(service: Literal["outbox", "calendar", "crm"],
                  env: Literal["prod", "mirage"] = "prod") -> ServiceView:
     """The outbox / calendar / CRM panels, prod or Mirage, folded from the event log."""
     return services.view(list_events(), service, env)
+
+
+def _pending_approvals():
+    runs = _state()[0]
+    pending = {}
+    for e in list_events():
+        p = e.payload
+        if e.type == "gate.decision" and p.get("rule_id") == "NEEDS_APPROVAL":
+            pending[e.run_id] = Approval(call_id=p["call_id"], run_id=e.run_id,
+                                         agent=runs[e.run_id].agent if e.run_id in runs else "",
+                                         tool=p["tool"], args=p["args"], policy_id=p.get("policy_id"),
+                                         p=p.get("p"), explanation=p["explanation"], ts=e.ts)
+    return [a for r, a in pending.items()  # still held: frozen, and not an incident
+            if r in runs and runs[r].status == "frozen" and not runs[r].incident_id]
+
+
+@app.get("/approvals")
+def approvals() -> list[Approval]:
+    """Calls layer 2 held for a human (medium risk). Oldest first."""
+    return sorted(_pending_approvals(), key=lambda a: a.ts)
+
+
+def _decide(call_id, body, action):
+    held = next((a for a in _pending_approvals() if a.call_id == call_id), None)
+    if not held:
+        raise HTTPException(404, f"No call {call_id} is waiting for approval")
+    if REPLAY:
+        REPLAY.advance()
+        return get_run(held.run_id)
+    if held.run_id not in gate.runs:
+        raise HTTPException(409, f"Run {held.run_id} is owned by another process (no live control)")
+    getattr(gate, action)(held.run_id, body.actor, body.reason)
+    return gate.runs[held.run_id].model()
+
+
+@app.post("/approvals/{call_id}/approve")
+def approve(call_id: str, body: HumanRequest) -> Run:
+    """The held call runs."""
+    return _decide(call_id, body, "approve")
+
+
+@app.post("/approvals/{call_id}/reject")
+def reject(call_id: str, body: HumanRequest) -> Run:
+    """The held call never runs and the run ends; a human can approve a clean restart."""
+    return _decide(call_id, body, "reject")
 
 
 @app.get("/policies")
