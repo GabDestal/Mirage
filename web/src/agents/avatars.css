@@ -1,0 +1,146 @@
+/* Agent avatars: DESIGN.md §8 (states) and §9 (motion). Token fallbacks are the light theme. */
+
+.mav {
+  --av-b: var(--av-body);
+  --av-a: var(--av-accent);
+  --av-e: #151716; /* eyes stay dark: they sit on the pastel body in both themes */
+  --av-ease: var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  display: inline-block;
+  flex: none;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.mav svg {
+  display: block;
+  overflow: visible;
+}
+
+.mav-b,
+.mav-a,
+.mav-wing,
+.mav-eye-fill {
+  transition: fill 220ms ease, stroke 220ms ease;
+}
+.mav-b { fill: var(--av-b); }
+.mav-a { fill: var(--av-a); }
+.mav-eye-fill { fill: var(--av-e); }
+
+.mav-stroke,
+.mav-eye-line {
+  fill: none;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mav-stroke { stroke: var(--av-a); }
+.mav-eye-line { stroke: var(--av-e); stroke-width: 1.5; }
+
+.mav-wing {
+  fill: var(--paper, #FCFCFA);
+  stroke: var(--av-a);
+  stroke-width: 1;
+}
+
+.mav[data-size='20'] .mav-detail { display: none; }
+
+/* Working: the only idle motion, a slow blink every ~6 s. */
+.mav-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.mav[data-state='working'] .mav-eyes {
+  animation: mav-blink 6s infinite;
+  animation-delay: var(--av-blink-delay, 0s);
+}
+@keyframes mav-blink {
+  0%, 95%, 100% { transform: scaleY(1); }
+  97% { transform: scaleY(0.1); }
+}
+
+/* Waiting: eyes look up at the viewer, a small hand goes up. */
+.mav-pupil {
+  transition: transform 220ms var(--av-ease);
+}
+.mav[data-state='waiting'] .mav-pupil { transform: translateY(-0.9px); }
+
+.mav-hand {
+  fill: var(--av-a);
+  stroke: var(--paper, #FCFCFA); /* gap ring so the hand reads apart from the head */
+  stroke-width: 1.4;
+  paint-order: stroke;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 160ms var(--av-ease), transform 160ms var(--av-ease);
+}
+.mav[data-state='waiting'] .mav-hand {
+  opacity: 1;
+  transform: none;
+  transition-duration: 220ms;
+}
+
+/* Frozen: a translucent ice block grows over the avatar. Exit is faster than enter. */
+.mav-ice {
+  opacity: 0;
+  transform: scale(0.9);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity 160ms var(--av-ease), transform 160ms var(--av-ease);
+}
+.mav-ice rect {
+  fill: color-mix(in srgb, var(--paper, #FCFCFA) 50%, transparent);
+  stroke: var(--alarm, #D93A2B);
+  stroke-width: 1.25px;
+  vector-effect: non-scaling-stroke;
+}
+.mav-ice path {
+  fill: none;
+  stroke: var(--paper, #FCFCFA);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+.mav[data-size='20'] .mav-ice path { display: none; }
+.mav[data-state='frozen'] .mav-ice {
+  opacity: 1;
+  transform: none;
+  transition-duration: 240ms;
+}
+
+/* Killed: desaturated, line eyes. */
+.mav[data-state='killed'] {
+  --av-b: color-mix(in srgb, var(--ink-3, #8C908E) 35%, var(--paper, #FCFCFA));
+  --av-a: var(--ink-3, #8C908E);
+  --av-e: var(--ink-3, #8C908E);
+}
+
+/* Mirage: drawn in --mirage with the heat shimmer (§9), the one authored moment. */
+.mav[data-state='mirage'] {
+  --av-b: color-mix(in srgb, var(--mirage, #0E8C86) 28%, var(--paper, #FCFCFA));
+  --av-a: var(--mirage, #0E8C86);
+  --av-e: var(--mirage, #0E8C86);
+}
+.mav[data-state='mirage'] svg {
+  -webkit-mask-image: linear-gradient(100deg, #000 40%, rgb(0 0 0 / 0.35) 50%, #000 60%);
+  mask-image: linear-gradient(100deg, #000 40%, rgb(0 0 0 / 0.35) 50%, #000 60%);
+  -webkit-mask-size: 300% 100%;
+  mask-size: 300% 100%;
+  animation: mav-shimmer 2.4s linear infinite;
+}
+@keyframes mav-shimmer {
+  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+  to { -webkit-mask-position: 0 0; mask-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mav[data-state] .mav-eyes,
+  .mav[data-state] svg {
+    animation: none;
+  }
+  .mav-pupil,
+  .mav-hand,
+  .mav-ice {
+    transform: none !important;
+    transition-duration: 100ms !important;
+  }
+}
