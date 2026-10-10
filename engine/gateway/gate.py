@@ -6,7 +6,8 @@ check, wait while frozen, then run the tool.
 
 Order: global STOP, run status, layer 1 hard rules. A rule hit freezes only that run. A human
 unfreezes it (the blocked call then runs) or kills it. The agent never holds credentials.
-shortcut: runs, agents and incidents live in memory; the event log is the durable record.
+Incidents live only in the event log (engine/api/state.py folds them). Live runs and agents
+are in memory: a run's thread and its freeze lock belong to the process that runs it.
 """
 
 import itertools
@@ -16,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from contracts.models import AgentSpec, GateDecision, HumanAction, Incident, Run
+from contracts.models import AgentSpec, GateDecision, HumanAction, Run
 from engine.detection.rules import POLICY, hard_rule
 from engine.detonation import snapshot
 from engine.dev import tools  # shortcut: in-process tool dispatch, dev harness only
@@ -26,7 +27,6 @@ STOP = threading.Event()  # global STOP: halts every run
 SDK_RUNNER = "mirage_sdk.sandbox:run"  # sandbox runner for agents registered through the SDK
 agents: dict[str, AgentSpec] = {}
 runs: dict[str, "LiveRun"] = {}
-incidents: dict[str, Incident] = {}
 
 PREFIX = {"run": "run", "call": "call", "incident": "inc"}
 _ids = {k: itertools.count(1) for k in PREFIX}
@@ -73,7 +73,6 @@ def reset():
     STOP.clear()
     agents.clear()
     runs.clear()
-    incidents.clear()
     _ids.update({k: itertools.count(1) for k in PREFIX})
 
 
@@ -155,9 +154,6 @@ def check(run, tool, args) -> GateDecision:
         snap = snapshot.save(run, run.incident_id, policy_for(run.agent),  # freeze = snapshot
                              entrypoint=spec.entrypoint if spec else "",
                              runner=SDK_RUNNER if spec else None)
-        incidents[run.incident_id] = Incident(
-            id=run.incident_id, run_id=run.id, status="open", opened_at=datetime.now(UTC),
-            trigger=gate, snapshot_id=snap["id"], inputs=snapshot.inputs(snap))
         emit("incident.opened", {"incident_id": run.incident_id, "trigger_call_id": call_id,
                                  "inputs": [i.model_dump() for i in snapshot.inputs(snap)]},
              run_id=run.id, incident_id=run.incident_id)

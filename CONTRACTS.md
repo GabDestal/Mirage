@@ -109,6 +109,7 @@ Event types and their `payload`:
 | `detonation.started` | `{incident_id, detonation_id, n_runs}` |
 | `detonation.effect` | `Effect` (below) |
 | `detonation.completed` | `Detonation` (below) |
+| `detonation.failed` | `{incident_id, detonation_id, error}` (the incident goes back to `open`) |
 | `verdict.ready` | `Verdict` (below) |
 | `bisection.step` | `BisectionRow` (below) |
 | `bisection.completed` | `{incident_id, cause_input_id}` |
