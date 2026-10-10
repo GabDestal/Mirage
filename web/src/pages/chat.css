@@ -19,8 +19,8 @@
 }
 .chat-column { width: 100%; max-width: 672px; margin-inline: auto; }
 .chat-welcome { margin-bottom: 20px; }
-.chat-mark { display: block; width: 96px; height: 58px; object-fit: contain; }
-.chat-answer-mark { width: 36px; height: 24px; object-fit: contain; }
+.chat-miragio { display: block; width: 80px; height: 80px; }
+.chat-answer-miragio { display: block; width: 32px; height: 32px; }
 .chat-welcome h2 { margin-top: 20px; font-size: 20px; line-height: 28px; font-weight: 500; letter-spacing: -0.02em; }
 .chat-composer-group { border-radius: 16px; }
 .chat-composer-group--context { padding: 4px; background: var(--chat-wash); }
@@ -52,7 +52,7 @@
 .chat-page--conversation .chat-scope { margin-top: 8px; text-align: center; }
 @media (max-width: 600px) {
   .chat-page { padding: 32px 20px 48px; }
-  .chat-mark { width: 80px; height: 48px; }
+  .chat-miragio { width: 64px; height: 64px; }
   .chat-welcome h2 { max-width: 260px; }
   .chat-page--conversation { padding-block: 0 16px; }
   .chat-context { align-items: flex-start; }
@@ -97,8 +97,8 @@
 .chat-suggestions button, .chat-copy, .chat-thread-toolbar button { transition: color 140ms ease-out, background-color 140ms ease-out; }
 @media (max-width: 600px) {
   .chat-page--conversation { padding-inline: 16px; }
-  .chat-answer { gap: 8px; grid-template-columns: 20px minmax(0, 1fr); }
-  .chat-answer > img { width: 20px; height: 20px; }
+  .chat-answer { gap: 8px; grid-template-columns: 28px minmax(0, 1fr); }
+  .chat-answer-miragio { width: 28px; height: 28px; }
   .chat-thread-toolbar button, .chat-thread-toolbar a, .chat-copy, .chat-suggestions button { min-height: 44px; }
   .chat-question { max-width: 94%; }
   .chat-scope { font-size: 11px; }

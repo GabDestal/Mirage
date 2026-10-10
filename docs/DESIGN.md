@@ -179,7 +179,7 @@ The recovery control displays the demo credentials. Real authentication is separ
 supplied Opereit dashboard screenshot and `agent-home.tsx` composition: a centred, left-aligned
 column (672 px maximum, 24 px horizontal clearance) on a white workspace.
 
-1. A 96 × 58 px horizon mark (80 × 48 px on phones) above “What needs your attention today?” (20 / 28 px, medium).
+1. The approved 80 × 80 px Miragio portrait (64 × 64 px on phones) above “What needs your attention today?” (20 / 28 px, medium). The separate horizon mark stays on login, sidebar and browser chrome. [Brand usage](BRAND.md) specifies the mascot artwork and motion.
 2. A white multiline composer with a 12 px radius, subtle outline and small bottom shadow.
 3. A neutral context strip with current fleet state, frozen-run count and a relevant text action.
 4. Three plain suggestion rows with small icons, 32 px below the composer group. Clicking a
@@ -199,6 +199,8 @@ effects. Investigation and human actions remain in the existing incident and con
 The conversation keeps a stable reading column, quiet user messages and a composer at the bottom.
 New answers scroll into view only when the reader is already near the bottom; reading earlier
 answers preserves scroll position. New chat clears the displayed conversation.
+
+Assistant replies use the same Miragio portrait, static at 32px (28px on phones). Only the welcome animates: small head/gaze motion, an occasional 180ms blink, and slow sideways reflection movement. Focus/typing gives it a reading pose without delaying chat. Reduced motion is fully still; hidden documents stop motion and timers, and unmount releases listeners. This follows Opereit's layered SVG approach using Mirage's installed Motion dependency. [Review captures](miragio-qa/README.md) cover the shipped sizes and source fidelity.
 
 ## 9. Fleet and incident presentation
 
