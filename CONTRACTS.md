@@ -46,6 +46,9 @@ queued → running → completed
 
 `status`: `queued | running | frozen | completed | killed | halted`
 
+Unfreeze is allowed only when the run has no incident or its incident is `open` or
+`false_positive`. While `detonating`, or once confirmed (any later status), the engine answers 409.
+
 ### Incident
 
 ```
@@ -282,7 +285,7 @@ All POST bodies with a human action carry `{actor, reason}`.
 |---|---|---|
 | POST | `/stop` | Global STOP. All runs halted, all tokens revoked. |
 | POST | `/runs/{id}/freeze` | Freeze one run. |
-| POST | `/runs/{id}/unfreeze` | Resume a frozen run. |
+| POST | `/runs/{id}/unfreeze` | Resume a frozen run. 409 if its incident is `detonating` or confirmed (only `open` / `false_positive` allowed). |
 | POST | `/runs/{id}/kill` | End a frozen run. |
 | POST | `/runs/{id}/restart` | Approve a clean restart. Returns the new `Run`. |
 | POST | `/incidents/{id}/detonate` | Start detonation. Returns `{detonation_id}`. Results come as events. |

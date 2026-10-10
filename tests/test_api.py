@@ -138,3 +138,30 @@ def test_detonate_route_runs_the_sandbox(api):
         time.sleep(0.1)
     assert incident["status"] == "confirmed" and incident["next_action"] == "find_cause"
     assert incident["verdict"]["compromised_runs"] == "1/1"
+
+
+def _verdict(incident_id, confirmed):
+    return {"incident_id": incident_id, "confirmed": confirmed, "compromised_runs": "3/3",
+            "policies_violated": [], "blast_radius": {"records": 0, "recipients": [],
+                                                      "secrets": [], "summary": ""}}
+
+
+@pytest.mark.parametrize("step, code", [
+    (None, 200),                                    # open
+    ("detonating", 409),
+    ("false_positive", 200),
+    ("confirmed", 409),
+])
+def test_unfreeze_follows_the_incident(api, step, code):
+    run_id, auth = start(api)
+    check(api, run_id, auth, "send_email", to=ATTACKER, subject="x", body="y")
+    inc_id = gate.runs[run_id].incident_id
+    if step == "detonating":
+        events.emit("detonation.started", {}, run_id=run_id, incident_id=inc_id, env="mirage")
+    elif step:
+        events.emit("verdict.ready", _verdict(inc_id, step == "confirmed"),
+                    run_id=run_id, incident_id=inc_id, env="mirage")
+    r = api.post(f"/runs/{run_id}/unfreeze", json=HUMAN)
+    assert r.status_code == code
+    if step == "confirmed":
+        assert "Kill it and approve a clean restart" in r.json()["detail"]
