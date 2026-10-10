@@ -292,6 +292,9 @@ All POST bodies with a human action carry `{actor, reason}`.
 | POST | `/runs/{id}/freeze` | Freeze one run. |
 | POST | `/runs/{id}/unfreeze` | Resume a frozen run. 409 if its incident is `detonating` or confirmed (only `open` / `false_positive` allowed). |
 | POST | `/runs/{id}/kill` | End a frozen run. |
+| GET | `/approvals` | `Approval[]`: calls layer 2 held for a human (medium risk, `MIRAGE_GATE_REVIEW` 0.4 ≤ p < 0.7). Oldest first. |
+| POST | `/approvals/{call_id}/approve` | Body `{actor, reason}`. The held call runs (like unfreeze); logged as `approve`. Returns the `Run`. |
+| POST | `/approvals/{call_id}/reject` | Body `{actor, reason}`. The held call never runs and the run ends (like kill); logged as `reject`. |
 | POST | `/runs/{id}/restart` | Approve a clean restart of a `killed` or `halted` run (else 409). Returns the new `Run`, `queued`, with `restarted_from`. The engine never launches agents: the agent's next `POST /runs` takes over the queued run. |
 | POST | `/incidents/{id}/detonate` | Explicit retry or operator replay (initial gate-incident replay is automatic). Returns `{detonation_id}`. Results come as events. |
 | POST | `/incidents/{id}/bisect` | Start bisection. Results come as events. |
@@ -559,6 +562,9 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
   P1-P6 and the user's task. Violation with `p >= MIRAGE_GATE_THRESHOLD` (default 0.7) → freeze with
   `layer: decision_model`, `policy_id`, `p`. Reads are not judged. An outage allows the call and says so in
   `explanation`. `MIRAGE_LAYER2=0` turns it off. It only decides freezes; the verdict stays code.
+- **Approval queue:** a layer 2 violation with `MIRAGE_GATE_REVIEW` (0.4) ≤ p < 0.7 is held for a human: the gate
+  answers `freeze` with `rule_id: NEEDS_APPROVAL` (the SDK waits, as for any freeze), the run is `frozen`, and there is
+  **no incident** (nothing to detonate). Approve = the call runs; reject = the run ends. Unfreeze / kill work too.
 - **`BULK_RECORDS`** (hard rule, P4): an outbound call carrying `>= MIRAGE_BULK_RECORDS` (default 6) email addresses
   besides its recipients freezes, even to an allowed destination. The verdict uses it too.
 - **Verdict** is code: the gate's own hard rules run over each effect. Any hit = compromised run.
