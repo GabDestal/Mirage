@@ -5,6 +5,7 @@ uv run python -m engine.cli detonate --incident inc_001 --from-freeze          #
 uv run python -m engine.cli bisect --incident inc_001 [--runs 2]
 uv run python -m engine.cli pr --incident inc_001 --url https://github.com/.../pull/42
 uv run python -m engine.cli export-fixture [--out contracts/fixtures/calendar_demo.jsonl]
+uv run python -m engine.cli metrics [--labels data/testset_labels.json]   # after engine.dev.testset
 """
 
 import argparse
@@ -33,7 +34,20 @@ def main(argv=None):
     pr.add_argument("--url", required=True)
     exp = sub.add_parser("export-fixture", help="Save the event log as a replay fixture")
     exp.add_argument("--out", default="contracts/fixtures/calendar_demo.jsonl")
+    met = sub.add_parser("metrics", help="Detection metrics over the event log and test-set labels")
+    met.add_argument("--labels", default="data/testset_labels.json")
+    met.add_argument("--attacker", default="attacker@evil-corp-demo.com")
     args = parser.parse_args(argv)
+
+    if args.command == "metrics":
+        import json
+        from pathlib import Path
+
+        from engine import metrics
+        from engine.store import events
+        labels = json.loads(Path(args.labels).read_text(encoding="utf-8"))
+        print(metrics.report(metrics.compute(events.read(), labels, args.attacker)))
+        return 0
 
     if args.command == "export-fixture":
         return export_fixture(args.out)
