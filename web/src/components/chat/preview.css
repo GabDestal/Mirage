@@ -1,0 +1,9 @@
+body { margin: 0; background: #fff; }
+.mirage-preview { width: min(672px, calc(100% - 40px)); margin: 48px auto; color: #262626; font: 14px/20px 'Mirage Login Inter', Inter, system-ui, sans-serif; }
+.mirage-preview h1 { margin: 20px 0; font-size: 20px; line-height: 28px; font-weight: 500; letter-spacing: -0.02em; }
+.preview-note { margin: 0 0 28px; color: #666; font-size: 12px; }
+.preview-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 24px; color: #666; font-size: 12px; }
+.preview-controls button { padding: 8px 10px; background: #fafafa; border: 1px solid #e5e5e5; border-radius: 6px; color: #525252; cursor: pointer; }
+.mirage-preview .mirage-tool-card { margin-bottom: 24px; }
+.preview-decision { display: block; overflow-wrap: anywhere; font-size: 12px; color: #525252; }
+@media (max-width: 600px) { .mirage-preview { margin-block: 24px; } }

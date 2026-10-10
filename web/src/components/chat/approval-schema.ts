@@ -52,7 +52,7 @@ export function readApprovalSchema(schema: Record<string, unknown>): { fields: A
 
 export function validateApproval(fields: ApprovalField[], values: Record<string, ApprovalScalar>): string | undefined {
   for (const field of fields) {
-    const value = values[field.name]
+    const value = Object.hasOwn(values, field.name) ? values[field.name] : undefined
     const empty = value === undefined || (typeof value === 'string' && !value.trim())
     if (empty) { if (field.required) return `Enter ${field.title}.`; continue }
     if (field.phrase !== undefined && value !== field.phrase) return `Type "${field.phrase}" exactly to confirm.`

@@ -123,7 +123,7 @@ function ApprovalForm({ message, schema, pending = false, onRespond }: ChatAppro
     if (!animate) { entrance.stop(); entrance.set(settled); return }
     if (!revealed.current) { revealed.current = true; entrance.set(reveal); void entrance.start(settled, panel) }
   }, [animate, entrance])
-  const update = (name: string, value: ApprovalScalar | undefined) => { setError(undefined); setValues(previous => { const next = { ...previous }; if (value === undefined) delete next[name]; else next[name] = value; return next }) }
+  const update = (name: string, value: ApprovalScalar | undefined) => { setError(undefined); setValues(previous => { const next = { ...previous }; if (value === undefined) delete next[name]; else return { ...next, [name]: value }; return next }) }
   return <div ref={visibilityRef} className="mirage-approval-card">
     <motion.form initial={false} animate={entrance} transition={animate ? panel : { duration: 0 }} aria-label="Mirage approval" aria-busy={pending} onSubmit={event => {
       event.preventDefault()
