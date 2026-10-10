@@ -1,6 +1,6 @@
 // Adapted from Opereit dashboard sidebar at 0a7a79fcab2c3d4c08156e81040302ffcdc473ce.
 import { Collapsible } from '@base-ui/react/collapsible'
-import { AlertTriangle, Octagon } from 'lucide-react'
+import { LayoutList, Octagon } from 'lucide-react'
 import { NavLink, useLocation, useMatches } from 'react-router'
 import { useRuns } from '@/api/client'
 import { useAsk } from '@/components/actions'
@@ -35,7 +35,7 @@ export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
         </nav>
         <nav aria-label="Navigation" className="pb-5">
           <NavItemList items={[
-            { icon: AlertTriangle, labelKey: 'Fleet', to: '/fleet', children: [] },
+            { icon: LayoutList, labelKey: 'Fleet', to: '/fleet', children: [] },
             ...NAV_ITEMS,
           ]} />
         </nav>
