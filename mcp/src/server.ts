@@ -95,10 +95,10 @@ export function createServer(opts: Options = {}) {
     "Declined, cancelled, wrong phrase, or no form support: nothing was sent to Mirage.";
 
   /** POST a long action, then follow /events until one of `until` arrives for this incident. */
-  async function follow(incidentId: string, path: string, until: string[], extra: any) {
+  async function follow(incidentId: string, path: string, until: string[], extra: any, body?: unknown) {
     const events = await call<Event[]>("GET", "/events");
     let after = events.at(-1)?.seq ?? 0;
-    const started = await call<Record<string, unknown>>("POST", path);
+    const started = await call<Record<string, unknown>>("POST", path, body);
     const seen: Event[] = [];
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
@@ -224,7 +224,8 @@ export function createServer(opts: Options = {}) {
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   }, safe(async ({ incident_id, runs }, extra) => {
     const r = await follow(incident_id, `/incidents/${incident_id}/detonate?runs=${runs}`,
-      ["verdict.ready", "detonation.failed"], extra);
+      ["verdict.ready", "detonation.failed"], extra,
+      { actor: actor(), reason: "Detonation requested via MCP" });  // logged in the audit trail
     if (r.done?.type === "detonation.failed") return refuse(`detonation failed: ${r.done.payload.error}`);
     if (!r.done) return refuse(`no verdict after ${timeoutMs / 1000} s (started ${JSON.stringify(r.started)}). Check get_incident later.`);
     const effects = r.seen.filter((e) => e.type === "detonation.effect").map((e) => e.payload);
@@ -244,7 +245,8 @@ export function createServer(opts: Options = {}) {
     inputSchema: { incident_id: z.string() },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   }, safe(async ({ incident_id }, extra) => {
-    const r = await follow(incident_id, `/incidents/${incident_id}/bisect`, ["bisection.completed", "detonation.failed"], extra);
+    const r = await follow(incident_id, `/incidents/${incident_id}/bisect`, ["bisection.completed", "detonation.failed"], extra,
+      { actor: actor(), reason: "Bisection requested via MCP" });
     if (r.done?.type === "detonation.failed") return refuse(`bisection failed: ${r.done.payload.error}`);
     if (!r.done) return refuse(`no result after ${timeoutMs / 1000} s. Check get_incident later.`);
     return proofFor(incident_id);
