@@ -141,7 +141,7 @@ export function Chat() {
 // Users see what Miragio is doing, never the raw MCP tool name.
 const toolLabels: Record<string, string> = {
   list_runs: 'Checking your agents', get_incident: 'Reading the incident', get_audit: 'Reading the audit log', detonate: 'Detonating in Mirage',
-  find_cause: 'Finding the cause', unfreeze: 'Unfreezing the agent', kill: 'Stopping the agent', resume: 'Resuming the agent', send_fix: 'Handing off to your coding agent',
+  find_cause: 'Finding the cause', unfreeze: 'Unfreezing the agent', kill: 'Stopping the agent', resume: 'Resuming the agent', resume_all: 'Resuming all agents', send_fix: 'Handing off to your coding agent',
 }
 const toolLabel = (tool: string) => toolLabels[tool] ?? tool.replaceAll('_', ' ').replace(/^./, (first) => first.toUpperCase())
 

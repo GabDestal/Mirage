@@ -334,7 +334,7 @@ export interface paths {
         put?: never;
         /**
          * Lift Stop
-         * @description Lift Stop all. Halted runs stay halted until a human resumes each one.
+         * @description Lift Stop all. Halted runs stay halted (the dashboard uses /resume-all instead).
          */
         post: operations["lift_stop_stop_lift_post"];
         delete?: never;
@@ -414,6 +414,27 @@ export interface paths {
          *     restarts its task from the beginning; the old run stays halted and every call is gated.
          */
         post: operations["resume_runs__run_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/resume-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume All
+         * @description Lift Stop all (if on) and resume every halted run that has no restart yet. Compromised
+         *     runs stay halted and come back in `skipped`.
+         */
+        post: operations["resume_all_resume_all_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -837,6 +858,23 @@ export interface components {
         PullRequest: {
             /** Url */
             url: string;
+        };
+        /**
+         * ResumeAll
+         * @description POST /resume-all. `resumed`: the new queued runs. `skipped`: halted runs that cannot resume.
+         */
+        ResumeAll: {
+            /** Resumed */
+            resumed: components["schemas"]["Run"][];
+            /** Skipped */
+            skipped: components["schemas"]["ResumeSkip"][];
+        };
+        /** ResumeSkip */
+        ResumeSkip: {
+            /** Run Id */
+            run_id: string;
+            /** Reason */
+            reason: string;
         };
         /** Run */
         Run: {
@@ -1745,6 +1783,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Run"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_all_resume_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HumanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResumeAll"];
                 };
             };
             /** @description Validation Error */

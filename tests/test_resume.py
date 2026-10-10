@@ -1,4 +1,4 @@
-"""After Stop all: a human lifts the stop, then resumes each halted run (the engine relaunches it)."""
+"""After Stop all: a human resumes halted runs (the engine lifts the stop and relaunches them)."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,15 +40,13 @@ def test_lift_is_logged_and_survives_an_engine_restart(api):
     assert gate.STOP.is_set()
 
 
-def test_resume_relaunches_a_halted_run_after_the_lift(api):
+def test_resume_lifts_the_stop_and_relaunches_a_halted_run(api):
     run_id, _ = start(api)
     assert api.post(f"/runs/{run_id}/resume", json=HUMAN).status_code == 409  # running
     api.post("/stop", json=HUMAN)
-    r = api.post(f"/runs/{run_id}/resume", json=HUMAN)
-    assert r.status_code == 409 and r.json()["detail"] == "Lift Stop all first"
-
-    api.post("/stop/lift", json=HUMAN)
     new = api.post(f"/runs/{run_id}/resume", json=HUMAN).json()
+    assert not gate.STOP.is_set()
+    assert [e.type for e in events.read()].count("global.stop_lifted") == 1
     assert new["status"] == "queued" and new["restarted_from"] == run_id
     assert api.get(f"/runs/{run_id}").json()["status"] == "halted"
     assert any(e.type == "human.action" and e.payload["action"] == "resume"
@@ -68,16 +66,38 @@ def test_resume_refuses_a_confirmed_compromised_run(api):
     events.emit("verdict.ready", _verdict(inc_id, True), run_id=run_id, incident_id=inc_id,
                 env="mirage")
     api.post("/stop", json=HUMAN)
-    api.post("/stop/lift", json=HUMAN)
     r = api.post(f"/runs/{run_id}/resume", json=HUMAN)
     assert r.status_code == 409 and "confirmed this run is compromised" in r.json()["detail"]
     assert FakeProcess.launched == []
+    assert gate.STOP.is_set()  # a refused resume leaves Stop all on
 
 
 def test_reset_ends_relaunched_agents(api):
     run_id, _ = start(api)
     api.post("/stop", json=HUMAN)
-    api.post("/stop/lift", json=HUMAN)
     api.post(f"/runs/{run_id}/resume", json=HUMAN)
     api.post("/demo/reset")
     assert FakeProcess.launched[0].stopped
+
+
+def test_resume_all_lifts_the_stop_and_resumes_every_clean_halted_run(api):
+    bad, auth = start(api)
+    check(api, bad, auth, "send_email", to=ATTACKER, subject="x", body="y")  # frozen
+    inc_id = gate.runs[bad].incident_id
+    events.emit("verdict.ready", _verdict(inc_id, True), run_id=bad, incident_id=inc_id, env="mirage")
+    clean, _ = start(api)
+    api.post("/stop", json=HUMAN)
+
+    r = api.post("/resume-all", json=HUMAN).json()
+    assert not gate.STOP.is_set()
+    assert [n["restarted_from"] for n in r["resumed"]] == [clean]
+    assert [s["run_id"] for s in r["skipped"]] == [bad]
+    assert "compromised" in r["skipped"][0]["reason"]
+    assert len(FakeProcess.launched) == 1
+    actions = [e.payload["action"] for e in events.read() if e.type == "human.action"]
+    assert actions.count("lift_stop") == 1 and actions.count("resume") == 1
+
+    again = api.post("/resume-all", json=HUMAN).json()  # idempotent: the clean run was restarted
+    assert again["resumed"] == [] and [s["run_id"] for s in again["skipped"]] == [bad]
+    assert len(FakeProcess.launched) == 1
+    assert [e.payload["action"] for e in events.read() if e.type == "human.action"].count("lift_stop") == 1

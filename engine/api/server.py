@@ -28,6 +28,8 @@ from contracts.models import (
     Incident,
     ModelCall,
     PullRequest,
+    ResumeAll,
+    ResumeSkip,
     Run,
     RunStart,
     RunStarted,
@@ -295,7 +297,7 @@ def stop(body: HumanRequest) -> list[Run]:
 
 @app.post("/stop/lift", status_code=204)
 def lift_stop(body: HumanRequest):
-    """Lift Stop all. Halted runs stay halted until a human resumes each one."""
+    """Lift Stop all. Halted runs stay halted (the dashboard uses /resume-all instead)."""
     if REPLAY:
         REPLAY.advance()
     else:
@@ -385,21 +387,54 @@ def resume(run_id: str, body: HumanRequest, request: Request) -> Run:
         old = get_run(run_id)
         if old.status != "halted":
             raise HTTPException(409, f"Cannot resume a run that is {old.status}: only halted runs resume")
+        _resume_block(old)
         if gate.STOP.is_set():
-            raise HTTPException(409, "Lift Stop all first")
-        if _compromised(_state()[1].get(old.incident_id)):
-            raise HTTPException(409, "Detonation confirmed this run is compromised. "
-                                     "Fix it, then approve a clean restart.")
-        spec = gate.agents.get(old.agent)
-        if not (spec and spec.entrypoint):
-            note = "No entrypoint recorded: the agent's owner must start it; it takes over this run."
-            return get_run(_queue_restart(old, body, "resume", note).id)
-        run = _queue_restart(old, body, "resume")
-        env = {**os.environ, "MIRAGE_URL": str(request.base_url).rstrip("/")}
-        _demo["resumed"].append(subprocess.Popen(
-            [sys.executable, "-c", RESUME_RUNNER, spec.entrypoint, old.task],
-            cwd=FIXTURES.parents[1], env=env))
-        return get_run(run.id)
+            gate.lift_stop(body.actor, body.reason)
+        return _resume(old, body, request)
+
+
+def _resume_block(old):
+    if _compromised(_state()[1].get(old.incident_id)):
+        raise HTTPException(409, "Detonation confirmed this run is compromised. "
+                                 "Fix it, then approve a clean restart.")
+
+
+def _resume(old, body, request):
+    spec = gate.agents.get(old.agent)
+    if not (spec and spec.entrypoint):
+        note = "No entrypoint recorded: the agent's owner must start it; it takes over this run."
+        return get_run(_queue_restart(old, body, "resume", note).id)
+    run = _queue_restart(old, body, "resume")
+    env = {**os.environ, "MIRAGE_URL": str(request.base_url).rstrip("/")}
+    _demo["resumed"].append(subprocess.Popen(
+        [sys.executable, "-c", RESUME_RUNNER, spec.entrypoint, old.task],
+        cwd=FIXTURES.parents[1], env=env))
+    return get_run(run.id)
+
+
+@app.post("/resume-all")
+def resume_all(body: HumanRequest, request: Request) -> ResumeAll:
+    """Lift Stop all (if on) and resume every halted run that has no restart yet. Compromised
+    runs stay halted and come back in `skipped`."""
+    if REPLAY:
+        REPLAY.advance()
+        return ResumeAll(resumed=[], skipped=[])
+    with jobs.lock:
+        if gate.STOP.is_set():
+            gate.lift_stop(body.actor, body.reason)
+        runs = list_runs()
+        restarted = {r.restarted_from for r in runs}
+        resumed, skipped = [], []
+        for old in runs:
+            if old.status != "halted" or old.id in restarted:
+                continue
+            try:
+                _resume_block(old)
+            except HTTPException as e:
+                skipped.append(ResumeSkip(run_id=old.id, reason=e.detail))
+                continue
+            resumed.append(_resume(old, body, request))
+        return ResumeAll(resumed=resumed, skipped=skipped)
 
 
 @app.post("/runs/{run_id}/kill")

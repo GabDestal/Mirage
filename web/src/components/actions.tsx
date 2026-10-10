@@ -1,17 +1,17 @@
-// Human actions (Unfreeze, Kill, Resume, Stop all, Lift stop): a reason dialog, then the control-plane POST with
+// Human actions (Unfreeze, Kill, Resume, Stop all, Resume all): a reason dialog, then the control-plane POST with
 // HumanRequest {actor, reason}, an optimistic update and a toast (DESIGN.md §2.6, §11).
 import { useMutation } from '@tanstack/react-query'
 import { Dialog, RadioGroup } from 'radix-ui'
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { api, queryClient, useEvents, useIncidents, useRuns, type HumanRequest, type MirageEvent, type Run } from '@/api/client'
+import { api, queryClient, useIncidents, useRuns, type HumanRequest, type MirageEvent, type ResumeAll, type Run } from '@/api/client'
 import { Button } from '@/components/ui/button'
-import { blockedCall, canResume, resumeBlock, runLabel, stopOn } from '@/lib/runs'
+import { blockedCall, canResume, resumeBlock, runLabel } from '@/lib/runs'
 
 // shortcut: one operator for the demo, upgrade to a sign-in when Mirage has users.
 export const ACTOR = 'liam'
 
-export type ActionKind = 'unfreeze' | 'kill' | 'resume' | 'stop' | 'lift'
+export type ActionKind = 'unfreeze' | 'kill' | 'resume' | 'stop' | 'resumeAll'
 type Ask = (kind: ActionKind, run?: Run) => void
 
 const REASONS: Record<ActionKind, string[]> = {
@@ -19,14 +19,17 @@ const REASONS: Record<ActionKind, string[]> = {
   kill: ['Confirmed compromise.', 'The run is stuck or looping.', 'The task is no longer needed.'],
   resume: ['The investigation is over.', 'This agent was not involved.', 'Demo or test reset.'],
   stop: ['Suspected compromise across agents.', 'Stopping everything while we investigate.', 'Demo or test reset.'],
-  lift: ['The investigation is over.', 'Stop all was a precaution.', 'Demo or test reset.'],
+  resumeAll: ['The investigation is over.', 'Stop all was a precaution.', 'Demo or test reset.'],
 }
 
-const VERB = { unfreeze: 'Unfreeze', kill: 'Kill', resume: 'Resume', stop: 'Stop all', lift: 'Lift stop' }
+const VERB = { unfreeze: 'Unfreeze', kill: 'Kill', resume: 'Resume', stop: 'Stop all', resumeAll: 'Resume all' }
 
 function copy(kind: ActionKind, run: Run | undefined, runs: Run[]) {
-  if (kind === 'stop') return { title: 'Stop all agents?', effect: 'Every run halts and all tokens are revoked. You can restart runs one by one later.' }
-  if (kind === 'lift') return { title: 'Lift Stop all?', effect: 'Nothing restarts on its own. You then resume halted agents one at a time.' }
+  if (kind === 'stop') return { title: 'Stop all agents?', effect: 'Every run halts and all tokens are revoked. Resume all restarts them later.' }
+  if (kind === 'resumeAll') return {
+    title: 'Resume all agents?',
+    effect: 'Stop all is lifted and every halted agent starts its task again from the beginning. Every action goes through the gate. Compromised runs stay stopped.',
+  }
   const label = run ? runLabel(run, runs) : 'this run'
   if (kind === 'resume') return { title: `Resume ${label}?`, effect: 'It starts its task again from the beginning. Every action goes through the gate.' }
   if (kind === 'kill') return { title: `Kill ${label}?`, effect: 'The call it was holding never runs, and the run ends for good.' }
@@ -60,9 +63,8 @@ export function ResumeButton({ run, variant = 'secondary' }: { run: Run; variant
   const ask = useAsk()
   const { data: runs = [] } = useRuns()
   const { data: incidents = [] } = useIncidents()
-  const { data: events = [] } = useEvents()
   if (!canResume(run, runs)) return null
-  const blocked = resumeBlock(run, incidents, stopOn(events))
+  const blocked = resumeBlock(run, incidents)
   return <Button variant={variant} disabled={!!blocked} title={blocked ?? undefined}
     onClick={(e) => { e.stopPropagation(); ask('resume', run) }}>Resume</Button>
 }
@@ -149,12 +151,17 @@ export function HumanReasonDialog({ open, title, effect, reasons, verb, destruct
   )
 }
 
+const agents = (n: number) => `${n} ${n === 1 ? 'agent' : 'agents'}`
+const resumeAllToast = ({ resumed, skipped }: ResumeAll) =>
+  `${resumed.length ? `${agents(resumed.length)} starting again.` : 'No agent to resume.'}` +
+  (skipped.length ? ` ${agents(skipped.length)} skipped: compromised or detonating.` : '')
+
 type Vars = { kind: ActionKind; run?: Run; body: HumanRequest }
 
 export function useHumanAction() {
   return useMutation({
     mutationFn: ({ kind, run, body }: Vars) =>
-      api(kind === 'stop' ? '/stop' : kind === 'lift' ? '/stop/lift' : `/runs/${run!.id}/${kind}`, body),
+      api(kind === 'stop' ? '/stop' : kind === 'resumeAll' ? '/resume-all' : `/runs/${run!.id}/${kind}`, body),
     onMutate: async ({ kind, run }: Vars) => {
       await queryClient.cancelQueries({ queryKey: ['runs'] })
       const before = queryClient.getQueryData<Run[]>(['runs'])
@@ -167,10 +174,11 @@ export function useHumanAction() {
       )
       return { before }
     },
-    onSuccess: (_, { kind, run }) => {
+    onSuccess: (data, { kind, run }) => {
       const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
       const label = run ? runLabel(run, runs) : ''
-      toast(kind === 'stop' ? 'All agents stopped.' : kind === 'lift' ? 'Stop all lifted. Resume agents one at a time.'
+      if (kind === 'resumeAll') return toast(resumeAllToast(data as ResumeAll))
+      toast(kind === 'stop' ? 'All agents stopped.'
         : kind === 'resume' ? `${label} is starting its task again.` : kind === 'kill' ? `${label} was killed.` : `${label} is working again.`)
     },
     onError: (err, _, ctx) => {
