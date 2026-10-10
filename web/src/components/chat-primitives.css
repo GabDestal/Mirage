@@ -14,7 +14,7 @@
 .mirage-composer textarea:focus-visible { outline: none; }
 .mirage-composer textarea::placeholder { color: var(--mirage-chat-muted); opacity: 1; }
 .mirage-composer textarea:disabled { cursor: default; }
-.mirage-beam { position: absolute; inset: -1px; pointer-events: none; }
+.mirage-beam { position: absolute; inset: -1px; pointer-events: none; isolation: isolate; }
 .mirage-beam > div, .mirage-beam-surface { width: 100%; height: 100%; border-radius: 12px; }
 .mirage-composer-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
 .mirage-send-slot { position: relative; width: 44px; height: 44px; display: grid; place-items: center; }
@@ -22,8 +22,6 @@
 .mirage-send::after { content: ''; position: absolute; inset: -5px; }
 .mirage-send:hover:enabled { background: #e9edf2; }
 .mirage-send:disabled { background: #fafafa; border-color: #e5e5e5; color: #737373; cursor: default; }
-.mirage-send-metal { position: absolute; inset: 4px; pointer-events: none; z-index: 1; }
-.mirage-metal-surface { width: 36px; height: 36px; border-radius: 9999px; }
 .mirage-icon-slot, .mirage-tool-icon { display: grid; place-items: center; width: 20px; height: 20px; flex-shrink: 0; }
 .mirage-icon-slot > span, .mirage-tool-icon > span { grid-area: 1/1; display: grid; place-items: center; }
 .mirage-chat-error { margin: 10px 0 0; font-size: 13px; color: #b91c1c; }
