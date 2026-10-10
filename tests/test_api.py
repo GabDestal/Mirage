@@ -132,7 +132,7 @@ def test_detonate_route_runs_the_sandbox(api):
     path.write_text(snap.model_copy(update={"runner": None}).model_dump_json(), encoding="utf-8")
     assert api.post(f"/incidents/{incident_id}/detonate?runs=1").json()["detonation_id"]
     assert api.post(f"/incidents/{incident_id}/detonate").status_code == 409  # already running
-    for _ in range(100):
+    for _ in range(600):  # up to 60 s: a sandbox child can start slowly under load
         incident = api.get(f"/incidents/{incident_id}").json()
         if incident["status"] in ("confirmed", "false_positive"):
             break

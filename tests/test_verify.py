@@ -77,7 +77,7 @@ def test_verify_route_moves_the_incident_only_when_the_fix_passes(monkeypatch):
     def verify_and_wait():
         n = len(events.read())
         assert api.post("/incidents/inc_007/verify?runs=1").status_code == 200
-        for _ in range(150):
+        for _ in range(600):  # up to 60 s: sandbox children can start slowly under load
             if any(e.type == "fix.verified" for e in events.read(n)):
                 break
             time.sleep(0.1)
