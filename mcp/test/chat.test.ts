@@ -162,7 +162,8 @@ test("all eight tools execute via MCP, retain progress/fences/audit labels and i
   const results = events.filter((e) => e.type === "tool_result");
   expect(results).toHaveLength(8);
   expect(results.every((e) => !e.result.isError)).toBe(true);
-  expect(events.filter((e) => e.type === "tool_progress")).toHaveLength(2);
+  // detonate/find_cause return at start in chat (wait=false), so no progress events.
+  expect(events.filter((e) => e.type === "tool_progress")).toHaveLength(0);
   expect(app.posts.map((r) => r.path)).toEqual(["/incidents/inc_007/detonate", "/incidents/inc_007/bisect", "/runs/run_002/unfreeze", "/runs/run_002/kill", "/incidents/inc_007/handoff"]);
   expect(app.posts[2].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Human reason" });
   const continuation = JSON.stringify(p.requests[1].messages);
@@ -231,8 +232,10 @@ test("disconnect after sandbox POST stops model continuation without undoing its
   const p = provider(calls(["detonate", { incident_id: "inc_007", runs: 3 }]), plain("must not run"));
   const backend = engine(); const original = backend.fetch;
   backend.fetch = (async (url: any, init: RequestInit) => {
-    if (new URL(String(url)).pathname === "/events") return Response.json([]);
-    return original(url, init);
+    const response = await original(url, init);
+    // The engine accepts the POST but its reply never arrives before the disconnect.
+    if (init.method === "POST") await new Promise((_r, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason)));
+    return response;
   }) as typeof globalThis.fetch;
   const app = await start(p.model, backend); const controller = new AbortController();
   const response = await app.post("/chat/turn", turn, { signal: controller.signal });
@@ -372,5 +375,82 @@ test("response size and active/session limits stop growth without dispatching ne
 
 test("wire fixture covers every shared event shape", () => {
   const fixture = readFileSync(new URL("../../contracts/fixtures/chat_demo.jsonl", import.meta.url), "utf8").trim().split("\n").map((l) => JSON.parse(l));
-  expect(new Set(fixture.map((e) => e.type)).size).toBe(8);
+  expect(new Set(fixture.map((e) => e.type)).size).toBe(9);
+});
+
+async function followUp(base: string, sessionId: string) {
+  const response = await fetch(`${base}/chat/sessions/${sessionId}/events`);
+  expect(response.headers.get("content-type")).toContain("text/event-stream");
+  return async () => {
+    const events: ChatEvent[] = [];
+    let pending = "";
+    const decoder = new TextDecoder();
+    for await (const chunk of response.body!) {
+      pending += decoder.decode(chunk, { stream: true });
+      let end: number;
+      while ((end = pending.indexOf("\n\n")) >= 0) {
+        const part = pending.slice(0, end); pending = pending.slice(end + 2);
+        if (!part.startsWith("data: ")) continue;
+        events.push(JSON.parse(part.slice(6)));
+        if (["done", "error"].includes(events.at(-1)!.type)) return events;
+      }
+    }
+    return events;
+  };
+}
+
+test("chat detonate returns at start, then posts an unprompted follow-up with the result to the session", async () => {
+  const p = provider(calls(["detonate", { incident_id: "inc_007", runs: 3 }]), plain("Detonation started. I am monitoring it."),
+    plain("Compromised: 3/3 replays."));
+  const backend = engine("confirmed"); const original = backend.fetch; let release = false;
+  backend.fetch = (async (url: any, init: RequestInit) => {
+    if (new URL(String(url)).pathname === "/events" && !release) return Response.json([]);
+    return original(url, init);
+  }) as typeof globalThis.fetch;
+  const app = await start(p.model, backend); let read!: () => Promise<ChatEvent[]>;
+  const events = await collect(await app.post("/chat/turn", turn), async (e) => { if (e.type === "session") read = await followUp(app.base, e.session_id); });
+  expect(events.find((e) => e.type === "tool_start")).toMatchObject({ tool: "detonate", args: { incident_id: "inc_007", runs: 3, wait: false } });
+  expect(events.find((e) => e.type === "tool_result")).toMatchObject({ result: { structuredContent: { status: "started", incident_id: "inc_007" } } });
+  expect(events.at(-1)).toEqual({ type: "done" });
+  expect(p.requests).toHaveLength(2);
+  release = true;
+  const later = await read();
+  expect(later.map((e) => e.type)).toEqual(["follow_up", "tool_start", "tool_result", "text_delta", "text_delta", "done"]);
+  expect(later[0]).toEqual({ type: "follow_up", title: "Detonation update for inc_007" });
+  expect(later[1]).toMatchObject({ tool: "get_incident", args: { incident_id: "inc_007" } });
+  const prompt = JSON.stringify(p.requests[2].messages);
+  expect(prompt).toContain("Automatic Mirage update");
+  expect(prompt).toContain("3/3");
+  expect(prompt).toContain("Synthetic proof");
+  expect(app.posts.map((r) => r.path)).toEqual(["/incidents/inc_007/detonate"]);
+});
+
+test("a result that arrives mid-turn is queued until the turn ends", async () => {
+  let resultSeen!: () => void; const seen = new Promise<void>((r) => { resultSeen = r; });
+  const backend = engine(); const original = backend.fetch;
+  backend.fetch = (async (url: any, init: RequestInit) => {
+    const response = await original(url, init);
+    if (new URL(String(url)).search === "?after=0") resultSeen();
+    return response;
+  }) as typeof globalThis.fetch;
+  const requests: Message[][] = [];
+  const replies = [calls(["find_cause", { incident_id: "inc_007" }]), plain("Bisection started."), plain("Cause found.")];
+  const model: ModelProvider = { async stream(messages, _tools, signal) {
+    requests.push(structuredClone(messages));
+    if (requests.length === 2) { await seen; await new Promise((r) => setTimeout(r, 20)); }  // the watcher finishes during this turn
+    const reply = replies.shift()!;
+    return { $metadata: {}, stream: (async function* () { for (const event of reply) { signal.throwIfAborted(); yield event; } })() };
+  } };
+  const app = await start(model, backend); let read!: () => Promise<ChatEvent[]>;
+  await collect(await app.post("/chat/turn", turn), async (e) => { if (e.type === "session") read = await followUp(app.base, e.session_id); });
+  const later = await read();
+  expect(later[0]).toEqual({ type: "follow_up", title: "Bisection update for inc_007" });
+  expect(later.at(-1)).toEqual({ type: "done" });
+  // The follow-up ran after the user turn was complete: its context includes the turn's final reply.
+  expect(JSON.stringify(requests[2])).toContain("Bisection started.");
+});
+
+test("session event stream requires a live session", async () => {
+  const app = await start(provider().model);
+  expect((await fetch(`${app.base}/chat/sessions/${crypto.randomUUID()}/events`)).status).toBe(404);
 });

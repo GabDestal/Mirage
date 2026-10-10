@@ -62,6 +62,14 @@ download URL are kept out of model continuation; prompt/token are absent from to
 A safe plain Codex URL may be shown to the user. Human merge and clean restart remain
 outside the tool catalogue.
 
+Detonation and bisection never hold the chat: the service forces `wait: false` on
+`detonate` / `find_cause` (the MCP default stays blocking for coding agents), so the tool
+card completes at once and Miragio says it is monitoring. The service then follows engine
+`/events` for that incident and, on the terminal event, runs one automatic read-only turn
+(`follow_up`, scripted `get_incident`, model summary) on `GET /chat/sessions/:id/events`.
+It waits for any live turn to end first. Miragio describes actions in plain language and
+never writes tool names.
+
 Stopping generation cancels the model, declines pending approvals and stops continuation.
 It does **not** undo already-started engine actions. Read current status before another
 action. The service never automatically retries Bedrock or effect calls, and blocks

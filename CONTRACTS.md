@@ -591,6 +591,7 @@ fences remain authoritative. No merge/restart tools are added.
 | POST | `/chat/turn` | `ChatTurn` `{session_id?: string, message: string, actor: string}` → SSE |
 | POST | `/chat/approvals/{approval_id}` | `ChatApproval` `{action: "accept" \| "decline", content?: object}` → `{accepted: true}` |
 | GET | `/chat/handoffs/{handoff_id}` | Human-click prompt download, `text/plain` attachment; unavailable/expired → 404 |
+| GET | `/chat/sessions/{session_id}/events` | SSE of automatic follow-up turns for that session; unknown/expired → 404 |
 
 SSE uses unnamed events: `data: <JSON>\n\n`. Each JSON is `ChatEvent` from
 `contracts/models.py`, discriminated by `type`:
@@ -603,6 +604,7 @@ SSE uses unnamed events: `data: <JSON>\n\n`. Each JSON is `ChatEvent` from
 | `tool_progress` | `call_id`, `message` |
 | `tool_result` | `call_id`, `tool`, `result` (sanitized MCP CallToolResult: `content`, optional `structuredContent` / `isError`) |
 | `approval_required` | `approval_id`, `call_id`, `message`, `schema` (MCP requestedSchema) |
+| `follow_up` | `title` (session stream only: opens an automatic turn, followed by its usual events and `done`/`error`) |
 | `done` | no additional fields |
 | `error` | `code`, `message` (sanitized; also used for pre-stream HTTP errors) |
 
@@ -611,6 +613,17 @@ or action calls. SSE comments are keepalives. The original stream stays open dur
 approval. `{accepted: true}` means the form submission was received, not that the engine
 action succeeded; its `tool_result` is authoritative. Wrong phrases/declines fail closed.
 Stale, repeated or disconnected approval IDs return 409. Approval expires after 120s.
+
+Detonation and bisection do not block the chat. The service calls `detonate` / `find_cause`
+with `wait: false` (MCP default stays `wait: true` for coding agents): the tool returns at
+once with `structuredContent` `{status: "started", incident_id, after}` and the model says
+it is monitoring. The service follows engine `/events` after that cursor (15 min max) for
+`verdict.ready` / `bisection.completed` / `detonation.failed`, then runs one automatic turn:
+`follow_up`, a scripted read-only `get_incident` tool card, the model's summary, `done`.
+Automatic turns cannot start effects, run one at a time, and wait while the session has a
+live turn (`POST /chat/turn` meanwhile → 409 `SESSION_BUSY`). The web keeps the session
+stream open (one listener per session; a new one replaces the old). A follow-up with no
+open stream still lands in history but is not replayed.
 
 Session IDs, approval IDs and handoff IDs are unpredictable server-generated UUIDs.
 History is server-owned; requests containing client tool results/history are rejected.

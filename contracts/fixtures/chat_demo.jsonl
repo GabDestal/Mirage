@@ -6,4 +6,5 @@
 {"type":"tool_result","call_id":"b5a454f7-2601-4c71-a3fb-a6d0ddb4d8b6","tool":"kill","result":{"content":[{"type":"text","text":"Done: run_002 is now killed."}],"structuredContent":{"run":{"id":"run_002","status":"killed"}}}}
 {"type":"tool_result","call_id":"ccaf29c0-af9f-42df-8356-16bc6ee6a015","tool":"send_fix","result":{"content":[{"type":"text","text":"Handoff created. The UI offers the full prompt to the human."}],"structuredContent":{"handoff_url":"/chat/handoffs/c5fb644c-7347-418c-b3ae-dcfc781d2de0","codex_url":"https://chatgpt.com/codex"}}}
 {"type":"done"}
+{"type":"follow_up","title":"Detonation update for inc_001"}
 {"type":"error","code":"BEDROCK_ACCESS_DENIED","message":"Bedrock denied access to the configured chat model in us-east-1."}

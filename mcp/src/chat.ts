@@ -7,7 +7,7 @@ import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { CallToolResult, ElicitResult, Tool as McpTool } from "@modelcontextprotocol/sdk/types.js";
 import type { ContentBlock, Message, Tool } from "@aws-sdk/client-bedrock-runtime";
 import { z } from "zod";
-import { createServer, untrusted } from "./server.js";
+import { createServer, effectTools, engineClient, untrusted } from "./server.js";
 import type { Options as McpOptions } from "./server.js";
 import { ChatError, publicError } from "./bedrock.js";
 import type { ModelProvider } from "./bedrock.js";
@@ -16,7 +16,7 @@ export const LIMITS = {
   bodyBytes: 16_384, inputChars: 8_000, sessions: 32, activeTurns: 4,
   historyBytes: 65_536, historyMessages: 40, sessionMs: 30 * 60_000,
   rounds: 6, toolCalls: 12, toolMs: 185_000, modelMs: 60_000,
-  approvalMs: 120_000, turnMs: 10 * 60_000, resultBytes: 65_536, outputBytes: 32_768,
+  approvalMs: 120_000, turnMs: 10 * 60_000, watchMs: 15 * 60_000, resultBytes: 65_536, outputBytes: 32_768,
 };
 const id = z.string().uuid();
 const turnInput = z.object({ session_id: id.optional(), message: z.string().trim().min(1).max(LIMITS.inputChars),
@@ -30,15 +30,23 @@ export type ChatEvent =
   | { type: "tool_progress"; call_id: string; message: string }
   | { type: "tool_result"; call_id: string; tool: string; result: CallToolResult }
   | { type: "approval_required"; approval_id: string; call_id: string; message: string; schema: Record<string, unknown> }
+  | { type: "follow_up"; title: string }
   | { type: "done" }
   | { type: "error"; code: string; message: string };
 
-type Session = { actor: string; turns: Message[][]; touched: number; busy: boolean; secrets: Set<string> };
+type FollowUp = { title: string; message: string; incidentId: string };
+type Session = { actor: string; turns: Message[][]; touched: number; busy: boolean; secrets: Set<string>;
+  queue: FollowUp[]; listener?: ServerResponse };
 type Approval = { session: Session; signal: AbortSignal; settle: (answer: ElicitResult) => void };
 type Handoff = { session: Session; prompt: string };
 type Emit = (event: ChatEvent) => void;
 type ChatOptions = { provider: ModelProvider; mcp?: McpOptions; origins?: string[] };
 const errorResult = (message: string): CallToolResult => ({ content: [{ type: "text", text: message }], isError: true });
+// The chat never blocks on these: it starts them with wait=false and reports the result in a follow-up turn.
+const LONG: Record<string, [string, string[], string]> = {
+  detonate: ["Detonation", ["verdict.ready", "detonation.failed"], "the verdict, compromised replays, effects and the next step"],
+  find_cause: ["Bisection", ["bisection.completed", "detonation.failed"], "the input that caused it and the next step"],
+};
 const tokenKey = /^(?:.*_token|token|authorization|api_key|password)$/i;
 
 function collectTokens(value: unknown, secrets: Set<string>) {
@@ -92,6 +100,7 @@ export function createChatService(opts: ChatOptions) {
   const approvals = new Map<string, Approval>();
   const handoffs = new Map<string, Handoff>();
   const controllers = new Set<AbortController>();
+  const shutdown = new AbortController();
   const origins = new Set(opts.origins ?? ["http://localhost:5173", "http://127.0.0.1:5173",
     "http://localhost:8001", "http://127.0.0.1:8001"]);
 
@@ -121,7 +130,8 @@ export function createChatService(opts: ChatOptions) {
     });
   }
 
-  async function runTurn(session: Session, message: string, signal: AbortSignal, emit: Emit) {
+  /** `auto` (an incident ID) makes this an automatic follow-up: it opens with get_incident and cannot start effects. */
+  async function runTurn(session: Session, message: string, signal: AbortSignal, emit: Emit, auto?: string) {
     let callId = "";
     let callSignal = signal;
     const boundedFetch: typeof fetch = (url, init) => {
@@ -154,8 +164,11 @@ export function createChatService(opts: ChatOptions) {
         const messages = [...history.flat(), ...turn];
         if (Buffer.byteLength(JSON.stringify(messages)) > LIMITS.historyBytes || messages.length > LIMITS.historyMessages)
           throw new ChatError("CONTEXT_LIMIT", "This turn reached the chat context limit. Inspect the incident dashboard for full details.");
-        const reply = await modelReply(opts.provider, messages, tools, modelSignal,
-          (text) => emit({ type: "text_delta", text: sanitize(text, session.secrets) }));
+        const proofCall: ModelCall = { id: randomUUID(), name: "get_incident", input: { incident_id: auto }, malformed: false };
+        const reply = round === 0 && auto
+          ? { message: { role: "assistant", content: [{ toolUse: { toolUseId: proofCall.id, name: proofCall.name, input: proofCall.input } }] } as Message, calls: [proofCall] }
+          : await modelReply(opts.provider, messages, tools, modelSignal,
+            (text) => emit({ type: "text_delta", text: sanitize(text, session.secrets) }));
         turn.push(sanitize(reply.message, session.secrets));
         const calls = reply.calls;
         if (!calls.length) { remember(session, turn); emit({ type: "done" }); return; }
@@ -165,19 +178,21 @@ export function createChatService(opts: ChatOptions) {
           signal.throwIfAborted();
           if (++toolCalls > LIMITS.toolCalls) throw new ChatError("TOOL_LIMIT", "This turn reached the tool-call limit. Check current status before continuing.");
           callId = randomUUID();
-          emit({ type: "tool_start", call_id: callId, tool: call.name, args: sanitize(call.input, session.secrets) });
+          const args = LONG[call.name] ? { ...call.input, wait: false } : call.input;
+          emit({ type: "tool_start", call_id: callId, tool: call.name, args: sanitize(args, session.secrets) });
           const spec = catalogue.find((t) => t.name === call.name);
           const key = `${call.name}:${String(call.input.run_id ?? call.input.incident_id ?? "")}`;
           const effect = !["list_runs", "get_incident", "get_audit"].includes(call.name);
           let result: CallToolResult;
           if (call.malformed || !validArgs(call.input, spec)) result = errorResult("Tool arguments were rejected. No action was started.");
+          else if (effect && auto) result = errorResult("Automatic updates cannot start actions. Ask the human.");
           else if (effect && attempted.has(key)) result = errorResult("This action was already attempted in this turn. It was not retried; check status.");
           else {
             if (effect) attempted.add(key);
             const toolSignal = AbortSignal.any([signal, AbortSignal.timeout(LIMITS.toolMs)]);
             callSignal = toolSignal;
             try {
-              result = await client.callTool({ name: call.name, arguments: call.input }, undefined, {
+              result = await client.callTool({ name: call.name, arguments: args }, undefined, {
                 signal: toolSignal, timeout: LIMITS.toolMs, maxTotalTimeout: LIMITS.toolMs,
                 onprogress: (p) => emit({ type: "tool_progress", call_id: callId, message: sanitize(p.message ?? "Working in Mirage", session.secrets) }),
               }) as CallToolResult;
@@ -187,6 +202,8 @@ export function createChatService(opts: ChatOptions) {
               result = errorResult("The tool call failed or timed out. Already-started actions may continue. Check status; no automatic retry was made.");
             }
           }
+          const after = result.structuredContent?.after;
+          if (LONG[call.name] && !result.isError && typeof after === "number") watchResult(session, call.name, String(call.input.incident_id), after);
           collectTokens(result, session.secrets);
           const modelResult = sanitize(result, session.secrets);
           let uiResult = modelResult;
@@ -232,6 +249,48 @@ export function createChatService(opts: ChatOptions) {
     }
   }
 
+  /** Follow the engine for a started detonation/bisection, then queue its automatic follow-up turn. */
+  function watchResult(session: Session, tool: string, incidentId: string, after: number) {
+    const [what, until, report] = LONG[tool];
+    const engine = engineClient({ ...opts.mcp, timeoutMs: LIMITS.watchMs, fetch: (url, init) =>
+      (opts.mcp?.fetch ?? fetch)(url, { ...init, signal: AbortSignal.any([shutdown.signal, AbortSignal.timeout(15_000)]) }) });
+    void engine.watch(incidentId, after, until).catch(() => ({ seen: [], done: null })).then(({ seen, done }) => {
+      if (shutdown.signal.aborted) return;
+      const outcome = !done ? "could not be followed to a result; it may still be running"
+        : done.type === "detonation.failed" ? `failed: ${untrusted("engine_event", done.payload?.error ?? "unknown error")}`
+        : done.type === "verdict.ready" ? `finished: ${untrusted("engine_event", done.payload?.compromised_runs ?? "?")} replays compromised. ` +
+          `Effects in Mirage: ${untrusted("effects_ledger", effectTools(seen) || "none")}`
+        : "finished";
+      session.queue.push({ incidentId, title: `${what} update for ${incidentId}`, message: `Automatic Mirage update, not typed by the human: ` +
+        `the ${what.toLowerCase()} started for ${incidentId} ${outcome}. The current proof follows. Tell the human the result briefly: ` +
+        `${report}. Do not start new actions.` });
+      void drain(session);
+    });
+  }
+
+  /** Run queued follow-ups one at a time, only while the session has no live turn. */
+  async function drain(session: Session) {
+    if (session.busy || shutdown.signal.aborted) return;
+    const next = session.queue.shift();
+    if (!next) return;
+    session.busy = true;
+    const controller = new AbortController();
+    controllers.add(controller);
+    const timeout = setTimeout(() => controller.abort(new DOMException("Turn timed out", "TimeoutError")), LIMITS.turnMs);
+    // shortcut: with no open session stream the follow-up still lands in history but is not shown; replay it if reloads matter.
+    const emit: Emit = (event) => { const res = session.listener; if (res && !res.destroyed) res.write(`data: ${JSON.stringify(event)}\n\n`); };
+    emit({ type: "follow_up", title: next.title });
+    try { await runTurn(session, next.message, controller.signal, emit, next.incidentId); }
+    catch (error) {
+      const safe = publicError(controller.signal.aborted ? controller.signal.reason : error);
+      emit({ type: "error", code: safe.code, message: safe.message });
+    } finally {
+      clearTimeout(timeout); controller.abort(); controllers.delete(controller);
+      session.busy = false; session.touched = Date.now();
+      void drain(session);
+    }
+  }
+
   const http = createHttpServer(async (req, res) => {
     try {
       const host = new URL(`http://${req.headers.host ?? ""}`).hostname;
@@ -246,6 +305,19 @@ export function createChatService(opts: ChatOptions) {
         res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "content-disposition": 'attachment; filename="mirage-handoff.txt"',
           "cache-control": "no-store", "x-content-type-options": "nosniff" });
         res.end(handoff.prompt); return;
+      }
+      const stream = /^\/chat\/sessions\/([^/]+)\/events$/.exec(path);
+      if (req.method === "GET" && stream) {
+        const session = sessions.get(stream[1]);
+        if (!session) throw new ChatError("SESSION_EXPIRED", "This session is unavailable or expired. Start a new conversation.", 404);
+        session.listener?.end();
+        session.listener = res;
+        res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache, no-transform",
+          connection: "keep-alive", "x-accel-buffering": "no", "x-content-type-options": "nosniff" });
+        res.flushHeaders();
+        const keepalive = setInterval(() => { if (!res.destroyed) res.write(": keepalive\n\n"); }, 15_000);
+        res.on("close", () => { clearInterval(keepalive); if (session.listener === res) session.listener = undefined; });
+        return;
       }
       if (req.method !== "POST") throw new ChatError("NOT_FOUND", "Chat endpoint not found.", 404);
       const body = await readJson(req);
@@ -269,7 +341,7 @@ export function createChatService(opts: ChatOptions) {
       if (!session && sessions.size >= LIMITS.sessions) throw new ChatError("SESSION_LIMIT", "The chat session limit was reached. Expired sessions are cleared after 30 minutes.", 429);
       const sessionId = session_id ?? randomUUID();
       if (!session) {
-        session = { actor, turns: [], touched: Date.now(), busy: false, secrets: new Set([process.env.AWS_BEARER_TOKEN_BEDROCK ?? ""].filter(Boolean)) };
+        session = { actor, turns: [], touched: Date.now(), busy: false, secrets: new Set([process.env.AWS_BEARER_TOKEN_BEDROCK ?? ""].filter(Boolean)), queue: [] };
         sessions.set(sessionId, session);
       }
       session.busy = true;
@@ -298,6 +370,7 @@ export function createChatService(opts: ChatOptions) {
         controller.abort(); controllers.delete(controller);
         res.removeListener("close", disconnect);
         session.busy = false; session.touched = Date.now(); res.end();
+        void drain(session);
       }
     } catch (error) {
       const safe = publicError(error);
@@ -307,8 +380,9 @@ export function createChatService(opts: ChatOptions) {
   });
   http.requestTimeout = 10_000;
   http.headersTimeout = 10_000;
-  http.on("close", () => { for (const controller of controllers) controller.abort(); });
+  http.on("close", () => { shutdown.abort(); for (const controller of controllers) controller.abort(); });
   return { http, close: async () => {
+    shutdown.abort();
     for (const controller of controllers) controller.abort();
     http.closeAllConnections();
     await new Promise<void>((resolve) => http.close(() => resolve()));
