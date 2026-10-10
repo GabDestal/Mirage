@@ -10,6 +10,7 @@ Incidents live only in the event log (engine/api/state.py folds them). Live runs
 are in memory: a run's thread and its freeze lock belong to the process that runs it.
 """
 
+import os
 import secrets
 import threading
 from dataclasses import dataclass, field
@@ -18,7 +19,7 @@ from typing import Any
 
 from contracts.models import AgentSpec, GateDecision, HumanAction, Run
 from engine.detection.rules import POLICY, hard_rule
-from engine.detonation import snapshot
+from engine.detonation import jobs, snapshot
 from engine.dev import tools  # shortcut: in-process tool dispatch, dev harness only
 from engine.store import events
 from engine.store.events import emit
@@ -54,6 +55,8 @@ class LiveRun:
     model_calls: list = field(default_factory=list)  # snapshot material
     tool_results: list = field(default_factory=list)  # snapshot material
     calls: dict = field(default_factory=dict)  # call_id -> {tool, args}, to pair results
+    revoked_by_reset: bool = False  # fences pending checks after incident ids are reused
+    check_lock: Any = field(default_factory=threading.Lock)  # serialize this run only
     resume: threading.Event = field(default_factory=threading.Event)  # set = not frozen
     # how to rebuild the agent in a detonation (set by the agent at start)
     entrypoint: str = ""
@@ -76,10 +79,15 @@ class LiveRun:
 
 
 def reset():
-    STOP.clear()
-    agents.clear()
-    runs.clear()
-    _last.update(dict.fromkeys(PREFIX, 0))
+    with jobs.lock:
+        for run in runs.values():
+            run.revoked_by_reset = True
+            run.status = "halted"
+            run.resume.set()
+        STOP.clear()
+        agents.clear()
+        runs.clear()
+        _last.update(dict.fromkeys(PREFIX, 0))
 
 
 def policy_for(agent):
@@ -131,6 +139,11 @@ def kill(run_id, actor, reason):
 
 
 def global_stop(actor, reason):
+    with jobs.lock:
+        _global_stop(actor, reason)
+
+
+def _global_stop(actor, reason):
     STOP.set()
     _human(actor, "global_stop", "all", reason)
     emit("global.stop", {"actor": actor, "reason": reason})
@@ -140,42 +153,68 @@ def global_stop(actor, reason):
 
 
 def check(run, tool, args) -> GateDecision:
-    call_id = next_id("call")
-    run.tool_calls += 1
-    run.calls[call_id] = {"tool": tool, "args": args}
-    emit("tool.requested", {"call_id": call_id, "tool": tool, "args": args}, run_id=run.id)
+    with run.check_lock:
+        return _check(run, tool, args)
 
-    hit = None
-    if STOP.is_set() or run.status in ("killed", "halted", "completed"):
-        decision, rule = "block", ("RUN_REVOKED", f"Run is {run.status}; access is revoked.")
-    elif run.status == "frozen":
-        decision, rule = "freeze", ("RUN_FROZEN", "Run is frozen; waiting for a human.")
-    elif not is_known(policy_for(run.agent), tool):
-        # a model typo (gpt-oss: "search_contactschannelcommentary"): no such tool exists, so
-        # nothing can run; the framework rejects it and the model retries. Not an attack.
-        decision, rule = "allow", ("UNKNOWN_TOOL",
-                                   f"{tool} is not one of the agent's tools; nothing can run.")
-    elif hit := hard_rule(run.agent, tool, args, policy_for(run.agent)):
-        decision, rule = "freeze", hit
-    else:
-        decision, rule = "allow", (None, "No rule matched.")
 
-    gate = GateDecision(call_id=call_id, tool=tool, args=args, decision=decision,
-                        layer="hard_rule", rule_id=rule[0], explanation=rule[1])
-    if hit:
-        run.incident_id = next_id("incident")
-    emit("gate.decision", gate.model_dump(mode="json"), run_id=run.id,
-         incident_id=run.incident_id if hit else None)
-    if hit:
-        spec = agents.get(run.agent)
-        snap = snapshot.save(run, run.incident_id, policy_for(run.agent),  # freeze = snapshot
-                             entrypoint=spec.entrypoint if spec else "",
-                             runner=SDK_RUNNER if spec else None)
-        emit("incident.opened", {"incident_id": run.incident_id, "trigger_call_id": call_id,
-                                 "inputs": [i.model_dump() for i in snapshot.inputs(snap)]},
-             run_id=run.id, incident_id=run.incident_id)
-        set_status(run, "frozen", "gate", rule[1])
-    return gate
+def _check(run, tool, args) -> GateDecision:
+    with jobs.lock:
+        if run.revoked_by_reset:
+            return GateDecision(call_id=next_id("call"), tool=tool, args=args, decision="block",
+                                layer="hard_rule", rule_id="RUN_REVOKED",
+                                explanation="Run was revoked by demo reset.")
+        call_id = next_id("call")
+        run.tool_calls += 1
+        run.calls[call_id] = {"tool": tool, "args": args}
+        emit("tool.requested", {"call_id": call_id, "tool": tool, "args": args}, run_id=run.id)
+        policy = policy_for(run.agent)
+        evaluate = not STOP.is_set() and run.status not in (
+            "frozen", "killed", "halted", "completed") and is_known(policy, tool)
+
+    # A slow decision must not hold up healthy runs, STOP, or reset. Recheck authority below.
+    hit = hard_rule(run.agent, tool, args, policy) if evaluate else None
+    with jobs.lock:
+        if STOP.is_set() or run.status in ("killed", "halted", "completed"):
+            hit = None
+            decision, rule = "block", ("RUN_REVOKED", f"Run is {run.status}; access is revoked.")
+        elif run.status == "frozen":
+            hit = None
+            decision, rule = "freeze", ("RUN_FROZEN", "Run is frozen; waiting for a human.")
+        elif not is_known(policy, tool):
+            hit = None
+            decision, rule = "allow", ("UNKNOWN_TOOL",
+                                       f"{tool} is not one of the agent's tools; nothing can run.")
+        elif not evaluate:
+            # A human may have released a freeze while this check was in flight. Keep this
+            # call held; the SDK's wait observes the release without bypassing a new check.
+            decision, rule = "freeze", ("RUN_FROZEN", "Run was frozen; waiting for a human.")
+        elif hit:
+            decision, rule = "freeze", hit
+        else:
+            decision, rule = "allow", (None, "No rule matched.")
+
+        gate = GateDecision(call_id=call_id, tool=tool, args=args, decision=decision,
+                            layer="hard_rule", rule_id=rule[0], explanation=rule[1])
+        if hit:
+            run.incident_id = next_id("incident")
+        # Reset revokes the old run while a decision is pending; don't write its old ids into
+        # the new log. STOP/kill on an existing run still get their normal decision evidence.
+        if run.revoked_by_reset:
+            return gate
+        emit("gate.decision", gate.model_dump(mode="json"), run_id=run.id,
+             incident_id=run.incident_id if hit else None)
+        if hit:
+            spec = agents.get(run.agent)
+            snap = snapshot.save(run, run.incident_id, policy,
+                                 entrypoint=spec.entrypoint if spec else "",
+                                 runner=SDK_RUNNER if spec else None)
+            emit("incident.opened", {"incident_id": run.incident_id, "trigger_call_id": call_id,
+                                     "inputs": [i.model_dump() for i in snapshot.inputs(snap)]},
+                 run_id=run.id, incident_id=run.incident_id)
+            set_status(run, "frozen", "gate", rule[1])
+            if os.getenv("MIRAGE_MODE", "live") != "replay":
+                jobs.automatic(run.incident_id, run)
+        return gate
 
 
 def record_result(run, call_id, tool, result, error=None):

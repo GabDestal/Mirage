@@ -6,7 +6,7 @@ Status: draft, 2026-10-10. Written in simple, direct English (STE100 style).
 
 Mirage is incident response for AI agents.
 An agent gets a malicious input. Mirage freezes that agent.
-Mirage replays the agent in a simulation twin of production.
+Mirage automatically replays the frozen agent in a simulation twin of production.
 Mirage proves what caused the incident and what would have happened.
 A coding agent then writes the fix and tests it in the same simulation.
 A human merges the fix.
@@ -46,7 +46,7 @@ We do not build a new sandbox for each replay.
 
 ### Snapshot
 
-- When we freeze a run, we take a snapshot.
+- When the gate opens an incident and freezes a run, it persists a snapshot, then immediately queues three sandbox replays. No dashboard or API click is needed.
 - The snapshot holds every input the run used: emails, calendar events, CRM records, web pages.
 - The snapshot holds the full agent context: system prompt, messages, tool calls, tool results.
 - Each Mirage run starts from a fresh copy of the snapshot.
@@ -111,7 +111,7 @@ RUNNING ──(gate trips)──▶ FROZEN ──▶ DETONATE in Mirage (3 runs)
 
 1. **Detect.** The gate checks each tool call before it runs.
 2. **Freeze.** The gate stops the call. The run is frozen, not killed. Other runs continue.
-3. **Detonate.** Mirage replays the frozen run from the snapshot. The bad call is allowed in Mirage. The agent continues to the end.
+3. **Detonate automatically.** As soon as the snapshot is persisted and production is frozen, Mirage starts three background replays from the snapshot. The bad call is allowed in Mirage. The agent continues to the end.
 4. **Verdict.** The judge reads what the agent did in Mirage.
    - False positive: a human unfreezes the run. It continues in production.
    - Confirmed: Mirage shows the blast radius and finds the root cause.
@@ -259,9 +259,9 @@ We build story 1 fully. Story 2 reuses the same engine. Story 3 is short.
 | Time | What we show |
 |---|---|
 | 0:00 | Production lane. 3 agents work live. Gmail outbox, calendar and CRM panels are visible. |
-| 0:30 | Agent 2 reads the poisoned invite. It calls `crm_export` then `send_email(to=attacker@...)`. The card turns red: FROZEN. Agents 1 and 3 continue. The real outbox is empty. |
+| 0:30 | Agent 2 reads the poisoned invite. It calls `crm_export` then `send_email(to=attacker@...)`. The card turns red: FROZEN. Agents 1 and 3 continue. The real outbox is empty. Mirage automatically queues three sandbox replays. |
 | 1:00 | Incident view. Timeline, the rule that fired, the decision model score. |
-| 1:20 | Detonation in Mirage. The Mirage lane lights up. "3/3 runs: 40 records to attacker@...". Bisection grid: only the calendar event flips the result. |
+| 1:20 | The automatic detonation finishes in Mirage. The Mirage lane lights up. "3/3 runs: 40 records to attacker@...". Bisection grid: only the calendar event flips the result. |
 | 2:00 | Click "Send to Codex" or "Copy prompt". The coding agent runs `mirage detonate`. Result goes green: attack blocked 3/3, task done 3/3. |
 | 2:40 | PR opens on GitHub with report and regression test. A human merges it. A human approves the clean restart. |
 

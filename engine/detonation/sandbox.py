@@ -109,7 +109,7 @@ def blast_radius(snap, bad, n_compromised, n):
 
 
 def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, log=print,
-             verify=False):
+             verify=False, emit_started=True):
     """Replay the incident's snapshot n_runs times. Returns (Detonation, Verdict, DetonateResult).
 
     Default (operator): continue from the freeze; emits verdict.ready for a full replay.
@@ -124,10 +124,11 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
         snap["model_calls"] = []  # the recorded replies came from the unfixed agent
         policies += [p for p in [current_policy(snap["agent"])] if p and p != snap["policy"]]
     det_id = detonation_id or f"det_{incident_id.removeprefix('inc_')}_{next(_ids):02d}"
-    emit("detonation.started", {"incident_id": incident_id, "detonation_id": det_id,
-                                "n_runs": n_runs, "removed_input_id": removed_input_id,
-                                "purpose": "verify" if verify else "detonate"},
-         incident_id=incident_id, env="mirage")
+    if emit_started:
+        emit("detonation.started", {"incident_id": incident_id, "detonation_id": det_id,
+                                    "n_runs": n_runs, "removed_input_id": removed_input_id,
+                                    "purpose": "verify" if verify else "detonate"},
+             incident_id=incident_id, env="mirage")
 
     all_effects, compromised, legit, crashed = [], 0, 0, []
     # MIRAGE_PARALLEL=3 runs the replays at once (stage: ~3x faster). Default 1 keeps the team

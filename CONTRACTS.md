@@ -293,7 +293,7 @@ All POST bodies with a human action carry `{actor, reason}`.
 | POST | `/runs/{id}/unfreeze` | Resume a frozen run. 409 if its incident is `detonating` or confirmed (only `open` / `false_positive` allowed). |
 | POST | `/runs/{id}/kill` | End a frozen run. |
 | POST | `/runs/{id}/restart` | Approve a clean restart of a `killed` or `halted` run (else 409). Returns the new `Run`, `queued`, with `restarted_from`. The engine never launches agents: the agent's next `POST /runs` takes over the queued run. |
-| POST | `/incidents/{id}/detonate` | Start detonation. Returns `{detonation_id}`. Results come as events. |
+| POST | `/incidents/{id}/detonate` | Explicit retry or operator replay (initial gate-incident replay is automatic). Returns `{detonation_id}`. Results come as events. |
 | POST | `/incidents/{id}/bisect` | Start bisection. Results come as events. |
 | POST | `/incidents/{id}/handoff` | Optional body `{actor, reason}`. Needs a confirmed verdict (409). Returns `{prompt, codex_url, mirage_token, report}`: the prompt for a coding agent (facts, fenced untrusted input, where the code is, the check command), the report (markdown), a token for this incident only (never logged). Incident → `fix_pending`. |
 | POST | `/incidents/{id}/pr` | Body `PullRequest` `{url}`. The fix PR (coding agent or human). Emits `pr.opened`. Incident → `pr_open`. CLI: `engine.cli pr --incident X --url Y`. |
@@ -307,6 +307,29 @@ All POST bodies with a human action carry `{actor, reason}`.
 | POST | `/demo/reset` | Live: stops the demo agents process, clears runs, agents, event log, snapshots and handoff tokens, lifts a global STOP. Replay: restarts the recording. |
 
 Long actions (detonate, bisect, verify) return at once. Progress comes as events.
+
+In live mode, a newly opened gate incident automatically queues three detonation replays
+**after** its snapshot is persisted and its production run is frozen. The SDK/HTTP gate and
+the in-process dev gate use the same scheduler; no operator action or UI polling triggers it.
+Repeated `RUN_FROZEN` checks, manual freezes without an incident/snapshot, restore and replay
+fixtures do not schedule live work. The automatic queue is logged with `run.status`
+(`from: frozen`, `to: frozen`, `actor: system`, reason naming automatic detonation);
+`detonation.started` means execution has begun, not just reservation. No automatic action
+is recorded as a `human.action`. Completion/failure use the existing lifecycle events.
+
+One shared, thread-safe runtime reservation covers automatic/manual detonate, bisect and
+verify. Jobs run one at a time across incidents, retaining the sandbox's existing sequential
+replay pacing by default. Failed work leaves production frozen and needs an explicit manual
+retry through `/incidents/{id}/detonate`; there is no automatic retry or verdict-driven
+unfreeze/kill/restart. STOP rejects new jobs and cancels queued jobs when they reach execution;
+an already active sandbox job can finish but cannot release production.
+
+`/demo/reset` and `/demo/start` return 409 while a sandbox job is active, **before** changing
+agents, events, snapshots or tokens; wait for completion and retry. When idle, reset excludes
+new reservations, cancels queued jobs and clears data atomically relative to the scheduler.
+Graceful shutdown cancels queued work and drains active sandbox work before exit.
+Reservations are process-local: stop standalone dev/CLI processes before resetting shared
+data, and use the SDK/API fleet for the dashboard demo. Replay mode retains fixture stepping.
 
 ## 6. Coding agent contract (`mirage detonate`)
 
