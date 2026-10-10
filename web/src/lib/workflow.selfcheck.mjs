@@ -1,14 +1,7 @@
 // Run from web: node src/lib/workflow.selfcheck.mjs. No browser or new test framework.
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import ts from 'typescript'
-import { activityState, buildWorkflow, stageState } from './workflow.ts'
+import { activityState, buildTraceCalls, buildWorkflow, stageState } from './workflow.ts'
 
-// Exercise the actual fold without loading the page's React/CSS dependencies in Node.
-const source = readFileSync(new URL('../pages/trace.tsx', import.meta.url), 'utf8')
-const fold = 'export ' + source.slice(source.indexOf('function buildTraceCalls'))
-const compiled = ts.transpileModule(fold, { compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext } }).outputText
-const { buildTraceCalls } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`)
 const event = (type, callId, payload = {}, offset = 0) => ({
   seq: offset + 1, ts: new Date(Date.UTC(2026, 9, 10, 12, 0, offset)).toISOString(),
   run_id: 'test', env: 'prod', type, payload: { call_id: callId, ...payload },

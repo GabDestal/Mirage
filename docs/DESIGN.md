@@ -204,8 +204,12 @@ Assistant replies use the same Miragio portrait, static at 32px (28px on phones)
 
 ## 9. Fleet and incident presentation
 
-Fleet remains one row per run: avatar, agent/task, one-line state sentence, compact trace,
-relative time. A frozen run exposes **Open incident**, changes its sentence and stops its trace.
+Fleet remains one row per run: avatar, agent, availability sentence, compact activity summary,
+relative time. Completed production runs read “Healthy” and “Ready for the next task”; their
+backend state remains completed. Healthy Agents counts running and completed production rows.
+Activity shows the latest observed work area and its action/result counts, opening the full
+trace on click. Denied actions retain the complete destination and a red blocked label; sandbox
+replay status comes from incident/event evidence. A frozen run exposes **Open incident**, changes its sentence and stops its trace.
 Keep the rest of the fleet readable and moving.
 
 The incident is one story column:
@@ -236,15 +240,18 @@ adds “Removed → clean” or “Removed → still compromised” to the input
 Compact Fleet traces remain text and flexbox. Reuse existing React, CSS and SVG for a linear
 trace; consider a graph library only when the actual interaction needs it.
 
-Keep the existing SVG agent characters: owl, octopus, bee, paper plane, fox, and the hashed
-fallback. Their shapes and colors provide identity within the neutral workspace.
+Keep the seeded bot-avatars characters and the hashed fallback. Their shapes and colors
+provide identity within the neutral workspace. Idle and working characters use the renderer’s
+occasional blinks and small glances (turn 0.15, speed 0.8), with jumps and pointer play disabled.
+Frozen and killed characters remain paused; reduced motion also pauses all characters, including
+a live preference change. Preserve the blue frozen character and its translucent ice cube.
 Sizes: 20 px in navigation and rows, 32–64 px in headers and incident context, up to 80 px
 on a chat welcome surface. A state word accompanies each meaningful avatar change.
 
 | State | Presentation |
 |---|---|
-| Working | Eyes open, subtle occasional blink; “Working · read_calendar” |
-| Done | Still avatar; “Done 2 min ago” |
+| Working | Subtle seeded blinks and glances; “Working” |
+| Healthy / ready | Occasional quiet blink or glance; “Ready for the next task” in Fleet |
 | Waiting | Raised hand; “Waiting for your approval” |
 | Frozen | Existing ice treatment; “Frozen after reading an invite” |
 | Killed | Desaturated avatar; “Stopped by Liam” |

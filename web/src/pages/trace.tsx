@@ -1,26 +1,15 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, ArrowUpRight, Calendar, Check, ChevronRight, Circle, Clock, Mail, Pause, Search, ShieldAlert, Wrench } from 'lucide-react'
-import { useEvents, useRuns, type GateDecision, type MirageEvent, type Run } from '@/api/client'
+import { useEvents, useRuns, type Run } from '@/api/client'
 import { useNow } from '@/api/stream'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
 import { avatarState, relTime, runLabel } from '@/lib/runs'
-import { actionSummary, activityFacts, activityLabels, activityState, buildWorkflow, stageState, type ActivityState } from '@/lib/workflow'
+import { actionSummary, activityFacts, activityLabels, activityState, buildTraceCalls, buildWorkflow, stageState, type ActivityState, type TraceCallDetail } from '@/lib/workflow'
 import './trace.css'
 
-export type TraceCallDetail = {
-  callId: string
-  tool: string
-  args: Record<string, unknown>
-  result: unknown
-  error: string | null
-  decision?: GateDecision
-  blocked: boolean
-  ts: string
-  resultRecorded?: boolean
-  released?: boolean
-}
+export type { TraceCallDetail } from '@/lib/workflow'
 
 const STATUS: Record<Run['status'], string> = {
   queued: 'Waiting to start', running: 'Working', frozen: 'Paused for review',
@@ -194,39 +183,4 @@ function ActionDetail({ call, run }: { call: TraceCallDetail; run: Run }) {
       <h4>Error</h4><pre>{call.error ?? 'No error recorded.'}</pre>
     </details>
   </div>
-}
-
-function buildTraceCalls(events: MirageEvent[], runId: string): TraceCallDetail[] {
-  const map = new Map<string, TraceCallDetail>()
-  const ownEvents = events.filter((event) => event.run_id === runId
-    || (event.type === 'human.action' && event.payload.target === runId))
-  // Replay fixtures can deliver a decision/result before its request; attach them in a second pass.
-  for (const event of ownEvents) {
-    if (event.type !== 'tool.requested') continue
-    const p = event.payload
-    const callId = String(p.call_id)
-    if (!map.has(callId)) map.set(callId, {
-      callId, tool: String(p.tool), args: (p.args as Record<string, unknown>) || {},
-      result: undefined, error: null, blocked: false, ts: event.ts,
-    })
-  }
-  for (const event of ownEvents) {
-    const p = event.payload
-    if ((event.type === 'human.action' && p.action === 'unfreeze')
-      || (event.type === 'run.status' && p.from === 'frozen' && p.to === 'running')) {
-      for (const call of map.values()) if (call.blocked) call.released = true
-    }
-    const existing = map.get(String(p.call_id))
-    if (!existing) continue
-    if (event.type === 'gate.decision') {
-      existing.decision = p as GateDecision
-      if (p.decision !== 'allow') { existing.blocked = true; existing.released = false }
-      else if (existing.blocked) existing.released = true
-    } else if (event.type === 'tool.result') {
-      existing.result = p.result
-      existing.error = typeof p.error === 'string' ? p.error : null
-      existing.resultRecorded = true
-    }
-  }
-  return Array.from(map.values()).sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))
 }
