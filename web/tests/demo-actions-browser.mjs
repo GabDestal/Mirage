@@ -38,6 +38,11 @@ try {
           return stop ? route.fulfill({ status: 204 }) : route.fulfill({ json: { resumed: demo ? [] : [runs[1]], skipped: [] } })
         }
         if (path === '/stream') return route.fulfill({ contentType: 'text/event-stream', body: 'retry: 50\n\n' + events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('') })
+        if (path === '/incidents/inc_001') return route.fulfill({ json: {
+          id: 'inc_001', run_id: run.id, status: 'fix_pending', snapshot_id: 'synthetic-snapshot',
+          trigger: { call_id: 'synthetic-call', tool: 'send_email', args: {}, layer: 'hard_rule', explanation: 'Synthetic blocked call' },
+          inputs: [], bisection: [], next_action: 'none',
+        } })
         return route.fulfill({ json: path === '/runs' ? runs : path === '/events' ? events : [] })
       })
       await page.goto(server.resolvedUrls.local[0] + 'runs/run_004')
@@ -87,8 +92,19 @@ try {
         { path: '/stop', body: { actor: 'liam', reason: 'Synthetic pause' } },
         { path: '/resume-all', body: { actor: 'liam', reason: 'Synthetic recovery' } },
       ])
+      events.push({ seq: events.length + 1, ts: new Date().toISOString(), type: 'handoff.created',
+        run_id: run.id, incident_id: 'inc_001', env: 'prod', payload: { prompt: 'Synthetic handoff example.' } })
+      await page.goto(server.resolvedUrls.local[0] + 'incidents/inc_001')
+      await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+      await page.getByRole('button', { name: 'Hand off to coding agent', exact: true }).click()
+      const drawer = page.getByRole('dialog', { name: demo ? 'Demo handoff to coding agent' : 'Hand off to coding agent', exact: true })
+      const liveAccess = 'This prompt includes access scoped to this incident. Share it only with your coding agent.'
+      await drawer.getByText(demo ? 'This prompt is a recorded example. It does not grant live incident access.' : liveAccess, { exact: true }).waitFor()
+      assert.equal(await drawer.getByText(liveAccess, { exact: true }).count(), demo ? 0 : 1)
+      const prompt = await drawer.getByLabel('Handoff prompt').textContent()
+      assert.ok(demo ? prompt.startsWith('Recorded demo handoff:') : prompt === 'Synthetic handoff example.')
       assert.deepEqual(errors, [])
-      console.log(`PASS ${mode}: reason/cancel/failure guards, stop/recovery routes and toasts, per-run and command-menu availability`)
+      console.log(`PASS ${mode}: reason/cancel/failure guards, stop/recovery routes and toasts, per-run and command-menu availability, truthful handoff access copy`)
     } finally { await context.close(); await server.close() }
   }
 } finally { await browser.close() }

@@ -46,7 +46,7 @@ export function HandoffDrawer({ open, onClose, prompt, error, light }: { open: b
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-meta text-ink-2">This prompt includes access scoped to this incident. Share it only with your coding agent.</p>
+              <p className="text-meta text-ink-2">{isDemo ? 'This prompt is a recorded example. It does not grant live incident access.' : 'This prompt includes access scoped to this incident. Share it only with your coding agent.'}</p>
               <Button disabled={!prompt} onClick={() => void copy(handoffPrompt!)}><Copy />Copy prompt</Button>
             </div>
             {error ? <p role="alert" className="text-alarm">{error}</p>
