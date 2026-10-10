@@ -1,0 +1,66 @@
+:is(.mirage-composer-group, .mirage-activity, .mirage-tool-card, .mirage-approval-card) {
+  color: #262626;
+  font: 14px/20px 'Mirage Login Inter', Inter, ui-sans-serif, system-ui, sans-serif;
+  --mirage-chat-blue: #2563eb;
+  --mirage-chat-line: #e5e5e5;
+  --mirage-chat-muted: #666;
+  --mirage-chat-motion: 150ms;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.mirage-composer { position: relative; padding: 14px; border: 1px solid var(--mirage-chat-line); border-radius: 12px; background: #fff; cursor: text; transition: border-color var(--mirage-chat-motion) ease-out; }
+.mirage-composer:focus-within { border-color: var(--mirage-chat-blue); }
+.mirage-composer textarea { position: relative; display: block; width: 100%; min-height: 54px; max-height: 200px; resize: none; border: 0; padding: 0; background: transparent; color: inherit; font: inherit; caret-color: var(--mirage-chat-blue); overflow-y: auto; scrollbar-color: #d4d4d4 transparent; }
+.mirage-composer textarea:focus-visible { outline: none; }
+.mirage-composer textarea::placeholder { color: var(--mirage-chat-muted); opacity: 1; }
+.mirage-composer textarea:disabled { cursor: default; }
+.mirage-beam { position: absolute; inset: -1px; pointer-events: none; }
+.mirage-beam > div, .mirage-beam-surface { width: 100%; height: 100%; border-radius: 12px; }
+.mirage-composer-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+.mirage-send-slot { position: relative; width: 44px; height: 44px; display: grid; place-items: center; }
+.mirage-send { position: relative; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid #d4d4d4; border-radius: 9px; background: #f5f5f5; color: #262626; cursor: pointer; transition: background var(--mirage-chat-motion) ease-out; }
+.mirage-send::after { content: ''; position: absolute; inset: -5px; }
+.mirage-send:hover:enabled { background: #e9edf2; }
+.mirage-send:disabled { background: #fafafa; border-color: #e5e5e5; color: #737373; cursor: default; }
+.mirage-send-metal { position: absolute; inset: 4px; pointer-events: none; z-index: 1; }
+.mirage-metal-surface { width: 36px; height: 36px; border-radius: 9px; }
+.mirage-icon-slot, .mirage-tool-icon { display: grid; place-items: center; width: 20px; height: 20px; flex-shrink: 0; }
+.mirage-icon-slot > span, .mirage-tool-icon > span { grid-area: 1/1; display: grid; place-items: center; }
+.mirage-chat-error { margin: 10px 0 0; font-size: 13px; color: #b91c1c; }
+.mirage-activity { display: flex; align-items: center; gap: 8px; min-height: 28px; font-size: 13px; color: #525252; }
+.mirage-activity-icon { display: grid; place-items: center; flex-shrink: 0; width: 20px; height: 20px; }
+.mirage-activity[data-state='done'] .mirage-activity-icon, .mirage-tool-card[data-status='complete'] .mirage-tool-icon { color: #26734b; }
+.mirage-activity[data-state='error'] .mirage-activity-icon, .mirage-tool-card[data-status='error'] .mirage-tool-icon { color: #b91c1c; }
+.mirage-tool-card { border: 1px solid var(--mirage-chat-line); border-radius: 10px; background: #fafafa; }
+.mirage-tool-header { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; list-style: none; font-size: 12px; }
+summary.mirage-tool-header { cursor: pointer; }
+summary.mirage-tool-header::-webkit-details-marker { display: none; }
+.mirage-tool-name { font-weight: 500; }
+.mirage-tool-status { margin-left: auto; flex-shrink: 0; color: var(--mirage-chat-muted); }
+.mirage-tool-icon, .mirage-tool-chevron { color: #666; }
+.mirage-tool-chevron { flex-shrink: 0; transition: transform var(--mirage-chat-motion) ease-out; }
+.mirage-tool-card details[open] .mirage-tool-chevron { transform: rotate(180deg); }
+.mirage-tool-summary { margin: 0; padding: 0 12px 12px; color: #525252; font-size: 13px; white-space: pre-wrap; }
+.mirage-tool-content { padding: 0 12px 12px; font-size: 13px; }
+.mirage-tool-content :is(pre, code) { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.mirage-tool-content pre { margin: 0; }
+.mirage-approval-card { border: 1px solid var(--mirage-chat-line); border-radius: 12px; padding: 16px; background: #fff; }
+.mirage-approval-heading { display: flex; align-items: center; gap: 8px; color: #525252; }
+.mirage-approval-heading h3 { margin: 0; color: #262626; font-size: 14px; font-weight: 500; }
+.mirage-approval-message { margin: 10px 0 18px; white-space: pre-wrap; font-size: 13px; }
+.mirage-approval-fields { display: grid; gap: 14px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.mirage-approval-field { display: grid; gap: 6px; min-width: 0; }
+.mirage-approval-field label { font-size: 12px; font-weight: 500; }
+.mirage-required { color: var(--mirage-chat-muted); font-weight: 400; }
+.mirage-approval-field p { margin: 0; font-size: 12px; color: var(--mirage-chat-muted); }
+.mirage-approval-field :is(input, select) { width: 100%; min-height: 44px; border: 1px solid #d4d4d4; border-radius: 6px; padding: 8px 10px; font: inherit; background: #fff; color: inherit; box-sizing: border-box; caret-color: var(--mirage-chat-blue); }
+.mirage-approval-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.mirage-approval-actions button { min-height: 44px; padding: 8px 14px; border: 1px solid #d4d4d4; border-radius: 7px; background: #fff; color: #404040; font: inherit; font-size: 13px; cursor: pointer; transition: background var(--mirage-chat-motion) ease-out; }
+.mirage-approval-actions button:hover:enabled { background: #f5f5f5; }
+.mirage-approval-actions .mirage-approve { border-color: #2563eb; background: #2563eb; color: #fff; }
+.mirage-approval-actions .mirage-approve:hover:enabled { background: #1d4ed8; }
+.mirage-approval-actions button:disabled { cursor: default; background: #f5f5f5; border-color: #e5e5e5; color: #737373; }
+:is(.mirage-composer-group, .mirage-tool-card, .mirage-approval-card) :focus-visible { outline: 2px solid var(--mirage-chat-blue); outline-offset: 3px; }
+:is(.mirage-composer-group, .mirage-tool-card, .mirage-approval-card) ::selection { background: #dbeafe; color: #171717; }
+@media (max-width: 600px) { .mirage-approval-card { padding: 14px; } .mirage-approval-field :is(input, select), .mirage-composer textarea { font-size: 16px; } }
+@media (prefers-reduced-motion: reduce) { .mirage-composer, .mirage-send, .mirage-tool-chevron, .mirage-approval-actions button { transition: none; } }
