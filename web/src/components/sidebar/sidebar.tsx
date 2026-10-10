@@ -1,6 +1,6 @@
 // Adapted from Opereit dashboard sidebar at 0a7a79fcab2c3d4c08156e81040302ffcdc473ce.
 import { Collapsible } from '@base-ui/react/collapsible'
-import { LayoutList, Octagon } from 'lucide-react'
+import { LayoutList, OctagonAlert } from 'lucide-react'
 import { NavLink, useLocation, useMatches } from 'react-router'
 import { useRuns } from '@/api/client'
 import { useAsk } from '@/components/actions'
@@ -53,7 +53,7 @@ export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
           <li>
             <Tooltip content={<>Halts every run and revokes all tokens <Kbd>⇧⌘.</Kbd></>}>
               <button type="button" title="Stop all" onClick={() => ask('stop')} className={cn(NAV_LINK_CLASS_NAME, 'sidebar-stop w-full')}>
-                <Octagon className="size-4 shrink-0" aria-hidden />
+                <OctagonAlert className="size-4 shrink-0" aria-hidden />
                 <span className="sidebar-label min-w-0 truncate text-sm leading-5">Stop all</span>
               </button>
             </Tooltip>

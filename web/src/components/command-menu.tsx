@@ -1,6 +1,6 @@
 // ⌘K: jump anywhere, run any action (DESIGN.md §11). Never animated (§9).
 import { Command } from 'cmdk'
-import { ArrowRight, Octagon, Search, ShieldOff, Snowflake } from 'lucide-react'
+import { ArrowRight, OctagonAlert, Search, ShieldOff, Snowflake } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { useRuns } from '@/api/client'
@@ -43,7 +43,7 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
               Kill {runLabel(r, runs)}
             </Item>
           ))}
-          <Item icon={<Octagon />} onSelect={run(() => ask('stop'))} hint="⇧⌘.">
+          <Item icon={<OctagonAlert />} onSelect={run(() => ask('stop'))} hint="⇧⌘.">
             <span className="text-alarm">Stop all agents</span>
           </Item>
         </Command.Group>
