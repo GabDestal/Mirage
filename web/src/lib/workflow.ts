@@ -35,7 +35,7 @@ function stageTitle(tool: string, agent: string): string {
     case 'list_activities': case 'read_inbox': case 'search_emails':
       return agent.includes('outreach') ? 'Read their history' : 'Read messages'
     case 'send_email':
-      return agent.includes('outreach') ? 'Send follow-ups' : agent.includes('meeting') ? 'Send meeting brief' : 'Send email'
+      return agent.includes('outreach') ? 'Send follow-ups' : 'Send email'
     case 'schedule_follow_up': case 'log_activity': case 'update_contact': case 'create_contact':
       return agent.includes('outreach') ? 'Arrange next steps' : 'Update customer records'
     case 'read_calendar': return 'Review calendar'
@@ -59,7 +59,7 @@ export function buildWorkflow<T extends Call>(calls: T[], agent: string): Workfl
     const stage = byTitle.get(title)
     if (stage) stage.calls.push(call)
     else {
-      const next = { id: call.callId, title, calls: [call] }
+      const next = { id: title, title, calls: [call] }
       byTitle.set(title, next)
       stages.push(next)
     }
@@ -75,11 +75,19 @@ export function stageState(stage: WorkflowStage, status: Run['status']): Activit
 
 export function actionSummary(call: Call): string {
   const args = call.args
-  if (call.tool === 'send_email' && typeof args.to === 'string') return `Email to ${args.to}`
+  if (call.tool === 'send_email' && typeof args.to === 'string') return `Send email to ${args.to}`
   if ((call.tool === 'search_contacts' || call.tool === 'search_emails' || call.tool === 'crm_query') && typeof args.query === 'string' && args.query)
     return `Search for “${args.query}”`
-  if (call.tool === 'read_calendar' && typeof args.day === 'string') return `Calendar for ${args.day}`
-  if (call.tool === 'schedule_follow_up' && typeof args.send_on === 'string') return `Follow-up for ${args.send_on}`
+  if (call.tool === 'read_calendar' && typeof args.day === 'string') return `Review calendar for ${args.day}`
+  if (call.tool === 'schedule_follow_up' && typeof args.send_on === 'string') return `Schedule follow-up for ${args.send_on}`
+  const labels: Record<string, string> = {
+    get_contact: 'Read contact profile', search_contacts: 'Find customer records', crm_query: 'Find customer records',
+    list_activities: 'Review past interactions', log_activity: 'Record follow-up',
+    read_inbox: 'Read incoming messages', search_emails: 'Find messages',
+    update_contact: 'Update customer record', create_contact: 'Add contact',
+    read_ticket: 'Read support request', get_ticket: 'Read support request', read_attachment: 'Read attachment',
+  }
+  if (Object.hasOwn(labels, call.tool)) return labels[call.tool]
   return readableTool(call.tool)
 }
 

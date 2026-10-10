@@ -176,12 +176,13 @@ function ActionDetail({ call, run }: { call: TraceCallDetail; run: Run }) {
     {(call.tool === 'send_email' || call.tool === 'schedule_follow_up') && typeof call.args.body === 'string'
       ? <div className="trace-message"><h4>Message</h4><p>{call.args.body}</p></div> : null}
     {call.error !== null ? <p className="trace-held-reason">{call.error}</p> : null}
-    {hasResult ? <div className="trace-result-summary"><h4>Returned activity</h4>
+    {hasResult ? <div className="trace-result-summary"><h4>Result</h4>
       {resultItems ? <><p>{resultItems.length} {resultItems.length === 1 ? 'item' : 'items'} returned</p>
         {resultItems.slice(0, 3).map((item, index) => <div className="trace-returned-item" key={index}><Facts value={item} /></div>)}
         {resultItems.length > 3 ? <p>All {resultItems.length} items are available in technical details.</p> : null}
       </> : typeof call.result === 'string' ? <p className="trace-result-text">{call.result}</p>
-        : call.result === null ? <p>An empty result was recorded.</p> : <Facts value={call.result} />}
+        : call.result === null ? <p>An empty result was recorded.</p>
+          : activityFacts(call.result).length ? <Facts value={call.result} /> : <p>A result was recorded. Open technical details to read the full response.</p>}
     </div> : null}
     <details className="trace-technical">
       <summary>Technical details</summary>
@@ -197,7 +198,8 @@ function ActionDetail({ call, run }: { call: TraceCallDetail; run: Run }) {
 
 function buildTraceCalls(events: MirageEvent[], runId: string): TraceCallDetail[] {
   const map = new Map<string, TraceCallDetail>()
-  const ownEvents = events.filter((event) => event.run_id === runId)
+  const ownEvents = events.filter((event) => event.run_id === runId
+    || (event.type === 'human.action' && event.payload.target === runId))
   // Replay fixtures can deliver a decision/result before its request; attach them in a second pass.
   for (const event of ownEvents) {
     if (event.type !== 'tool.requested') continue
@@ -210,7 +212,8 @@ function buildTraceCalls(events: MirageEvent[], runId: string): TraceCallDetail[
   }
   for (const event of ownEvents) {
     const p = event.payload
-    if (event.type === 'human.action' && p.action === 'unfreeze') {
+    if ((event.type === 'human.action' && p.action === 'unfreeze')
+      || (event.type === 'run.status' && p.from === 'frozen' && p.to === 'running')) {
       for (const call of map.values()) if (call.blocked) call.released = true
     }
     const existing = map.get(String(p.call_id))
