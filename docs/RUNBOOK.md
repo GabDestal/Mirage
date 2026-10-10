@@ -28,6 +28,7 @@ uv run pytest -q
 uv run python -m engine.dev.demo                   # 3 dev agents, one gets poisoned
 uv run python -m engine.dev.demo --agent meeting   # Liam's meeting assistant through the SDK
 uv run python -m engine.dev.demo --keep            # keep the API up afterwards (for the UI)
+uv run python -m engine.dev.demo --agent meeting --until freeze  # stop at the freeze: drive it from the UI
 ```
 
 It starts the engine API (live mode, port 8000), runs the agents, then drives the incident over HTTP
