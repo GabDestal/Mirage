@@ -31,7 +31,8 @@ PASS_ENV = ["AWS_BEARER_TOKEN_BEDROCK", "AWS_REGION"]
 CONFIG_ENV = re.compile(r"^(\w+_MODEL_ID|DEMO_USER_EMAIL)$")
 BOOT = ("import sys, runpy; sys.path.insert(0, sys.argv[1]); "
         "runpy.run_module('engine.detonation.child', run_name='__main__')")
-RULE_POLICIES = {"DEST_NOT_ALLOWED": ["P1", "P5"], "CANARY": ["P2"], "TOOL_NOT_ALLOWED": ["P3"]}
+RULE_POLICIES = {"DEST_NOT_ALLOWED": ["P1", "P5"], "CANARY": ["P2"], "TOOL_NOT_ALLOWED": ["P3"],
+                 "BULK_RECORDS": ["P4"]}
 TIMEOUT = 180
 _ids = itertools.count(1)
 

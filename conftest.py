@@ -17,6 +17,7 @@ def isolated_data(tmp_path, monkeypatch):
     monkeypatch.setattr(events, "DB_PATH", tmp_path / "events.db")
     monkeypatch.setattr(snapshot, "SNAP_DIR", tmp_path / "snapshots")
     monkeypatch.setattr(handoff, "TOKENS", tmp_path / "tokens.json")
+    monkeypatch.setenv("MIRAGE_LAYER2", "0")  # no real model calls in tests; layer 2 tests fake it
     events.reset()
     yield
     jobs.shutdown()

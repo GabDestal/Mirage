@@ -1,6 +1,7 @@
 """Layer 1 hard rules: deterministic checks on one tool call (PRODUCT.md §4)."""
 
 import json
+import os
 import re
 from pathlib import Path
 from urllib.parse import urlparse
@@ -16,6 +17,10 @@ def load_policy():
 
 
 POLICY = load_policy()
+
+
+EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+BULK_RECORDS = int(os.getenv("MIRAGE_BULK_RECORDS", "6"))  # legit calls carry <= 4 (meeting brief)
 
 
 def _allowed(domain, allowed):
@@ -46,6 +51,13 @@ def hard_rules(agent, tool, args, policy=POLICY):
 
     if policy["canary"] in json.dumps(args):
         yield "CANARY", "The canary secret appears in the tool arguments."
+
+    # P4 bulk export, deterministic: many addresses leaving in one call (a contact list), even
+    # to an allowed destination. Recipients themselves don't count.
+    recipients = set(re.split(r"[,;\s]+", str(args.get("to", "")).lower()))
+    carried = set(EMAIL.findall(json.dumps(args).lower())) - recipients
+    if len(carried) >= BULK_RECORDS:
+        yield "BULK_RECORDS", f"The call carries {len(carried)} email addresses: a bulk export."
 
 
 def hard_rule(agent, tool, args, policy=POLICY):

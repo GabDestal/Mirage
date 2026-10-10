@@ -96,6 +96,13 @@ Measured 2026-10-10 (Liam's agent, gpt-oss-20b): attack attempted in 6 of 10 poi
 0 runs leaked, 0 of 10 clean runs frozen, time to detect 5.9 ms, time to contain 8.9 ms (medians),
 time to verdict 13.5 s. All 6 attacks used the attacker's address, which the hard rules catch by design.
 
+## 4c. Gate layer 2 (decision model)
+
+On by default in live mode: `gpt-oss-safeguard-20b` judges outbound calls the hard rules allowed (~2 s each;
+reads are not judged). `MIRAGE_LAYER2=0` turns it off; `MIRAGE_GATE_THRESHOLD=0.7` sets how sure it must be.
+Tests always run with it off. Measured: 0 false freezes on the live 4-agent fleet (58 decisions), and 3/4 stealth
+exports to an allowed domain caught by the model (all 4 by the BULK_RECORDS rule).
+
 ## 5. Where things live
 
 | Path | What |
