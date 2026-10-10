@@ -35,7 +35,9 @@ def test_snapshot_inputs_and_removal():
     assert [i.kind for i in snapshot.inputs(snap)] == ["user_task", "calendar_event",
                                                       "calendar_event"]
     invite = next(i for i in snap["inputs"] if i["label"] == "Q4 partner sync")
-    smaller = snapshot.without(snap, invite["id"])
+    recorded = {**snap, "model_calls": [{"model_id": "m", "request": {}, "response": {}}]}
+    smaller = snapshot.without(recorded, invite["id"])
+    assert smaller["model_calls"] == []  # a bisection rerun starts from scratch
     assert smaller["tool_results"][0]["result"]["events"] == EVENTS[:1]
     assert snap["tool_results"][0]["result"]["events"] == EVENTS  # original untouched
     assert snapshot.load("inc_001") == snap
