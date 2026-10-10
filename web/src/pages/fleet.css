@@ -190,6 +190,12 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+.fleet-toolbar-end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .fleet-search-wrap {
   position: relative;
   min-width: 240px;
@@ -451,7 +457,8 @@
   .fleet-stat-card { min-width: 0; padding: 12px; }
   .fleet-stat-header { gap: 8px; }
   .fleet-stat-header svg { flex: none; }
-  .fleet-search-wrap { min-width: 0; width: 100%; }
+  .fleet-toolbar-end { width: 100%; }
+  .fleet-search-wrap { min-width: 0; flex: 1; }
   .fleet-tabs { flex-wrap: wrap; }
   .fleet-tab { padding-inline: 6px; font-size: 12px; min-height: 36px; }
   .fleet-actions > a, .fleet-btn { min-height: 40px; }
