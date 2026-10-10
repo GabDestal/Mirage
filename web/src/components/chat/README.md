@@ -6,7 +6,7 @@ Import `ChatComposer`, `ChatActivity`, `ChatToolCard`, and `ChatApprovalCard` fr
 
 The controlled composer submits immediately and leaves clearing the draft to its parent. Enter sends, Shift+Enter inserts a newline, and composing/empty/busy/disabled submissions are ignored. Visual effect siblings never reparent the textarea or functional button. Auto height caps at 200px. The 36px silver send control has a 44px hit area. Error text is associated with the textarea.
 
-Dependencies: `border-beam@1.4.1`, `thinking-orbs@0.3.2` (MIT), plus existing Motion. Beam uses the traveling `md` border preset, colorful/light at strength 0.7, only while focused or busy and enabled. Its isolated decorative sibling follows the composer perimeter without reparenting the textarea. The send/stop control stays icon-only; no Metal overlay or canvas covers its functional icon. The 20px monochrome orb follows actual thinking/tool states only. Effects unmount when idle, offscreen, hidden, or reduced motion is enabled; reduced motion retains static focus styling and Lucide indicators.
+The composer uses a plain neutral border and a static blue focus-within border; the decorative beam and its dependency have been removed. Dependencies: `thinking-orbs@0.3.2` (MIT), plus existing Motion. The send/stop control stays icon-only; no Metal overlay or canvas covers its functional icon. The 20px monochrome orb follows actual thinking/tool states only. Effects unmount when idle, offscreen, hidden, or reduced motion is enabled; reduced motion retains static focus styling and Lucide indicators.
 
 Tool results use native `details`/`summary`, with real status and bounded panel/icon transitions. Status text swaps use Motion and the free Transitions.dev recipes with 4px travel and 2px blur; no invented reasoning or staged progress. Approval reveals once when visible, with a 220ms bounded transition.
 
@@ -23,6 +23,8 @@ npm run build
 npm run lint
 node --experimental-strip-types src/components/chat/approval-schema.selfcheck.ts
 ```
+
+The evidence below is historical, from before the composer beam removal; the screenshots and browser assertions do not verify the current composer. No preview or live UI was run for the removal.
 
 The preview is a separate development HTML entry with synthetic examples and explicit controls. It is not imported into the production page. Build/typecheck passes; lint has only eight existing warnings outside this feature. The approval selfcheck passes 16 checks. A separate Vite production build of the preview entry also passes (562.55kB JS, 168.73kB gzip; standard large-chunk warning). The normal app retains its existing large-chunk warning.
 

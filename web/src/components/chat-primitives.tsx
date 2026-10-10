@@ -1,4 +1,3 @@
-import { BorderBeam } from 'border-beam'
 import { ThinkingOrb } from 'thinking-orbs'
 import { AnimatePresence, motion, useReducedMotion, useAnimationControls } from 'motion/react'
 import { ArrowUp, Check, ChevronDown, Circle, CircleAlert, ShieldCheck, Square, Wrench } from 'lucide-react'
@@ -47,11 +46,9 @@ function useMotionGate() {
 export function ChatComposer({ value, onChange, onSubmit, disabled = false, busy = false, onStop, placeholder = 'Ask Miragio…', error, inputRef }: ChatComposerProps) {
   const input = useRef<HTMLTextAreaElement>(null)
   const composing = useRef(false)
-  const [focused, setFocused] = useState(false)
   const [visibilityRef, animate] = useMotionGate()
   const id = useId()
   const canSend = !disabled && !busy && !!value.trim()
-  const active = animate && !disabled && (focused || busy)
   useImperativeHandle(inputRef, () => input.current!, [])
   useLayoutEffect(() => {
     const element = input.current
@@ -61,9 +58,7 @@ export function ChatComposer({ value, onChange, onSubmit, disabled = false, busy
   }, [value])
   return <div className="mirage-composer-group" ref={visibilityRef}>
     <form className="mirage-composer" aria-label="Message Mirage" aria-busy={busy} onSubmit={event => { event.preventDefault(); if (canSend && !composing.current) onSubmit() }}
-      onFocus={() => setFocused(true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false) }}
       onMouseDown={event => { if (!(event.target as HTMLElement).closest('button, textarea')) { event.preventDefault(); input.current?.focus() } }}>
-      {active ? <div className="mirage-beam" aria-hidden="true"><BorderBeam size="md" colorVariant="colorful" theme="light" strength={0.7} active borderRadius={12}><div className="mirage-beam-surface" /></BorderBeam></div> : null}
       <textarea ref={input}
         value={value} onChange={event => onChange(event.target.value)} rows={2} disabled={disabled} readOnly={busy}
         aria-label="Message Mirage" aria-invalid={!!error} aria-describedby={error ? `${id}-error` : undefined} placeholder={placeholder}
