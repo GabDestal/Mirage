@@ -8,6 +8,7 @@ import os
 import re
 import sqlite3
 import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -27,7 +28,16 @@ def _db():
         # autocommit mode: emit() opens its own BEGIN IMMEDIATE; timeout waits for other writers
         _conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None,
                                 timeout=10)
-        _conn.execute("PRAGMA journal_mode=WAL")
+        # Switching a fresh file to WAL needs an exclusive lock and skips the busy timeout:
+        # two processes opening a new log at once (API + agents) would crash. Retry briefly.
+        for attempt in range(50):
+            try:
+                _conn.execute("PRAGMA journal_mode=WAL")
+                break
+            except sqlite3.OperationalError:
+                if attempt == 49:
+                    raise
+                time.sleep(0.1)
         _conn.execute(
             "CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY, ts TEXT, run_id TEXT,"
             " incident_id TEXT, env TEXT, type TEXT, body TEXT, prev_hash TEXT, hash TEXT)"

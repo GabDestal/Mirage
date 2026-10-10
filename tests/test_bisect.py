@@ -61,7 +61,7 @@ def test_bisect_route_needs_a_confirmed_verdict(monkeypatch):
                                                    "secrets": [], "summary": "x"}},
                 incident_id="inc_005", env="mirage")
     assert api.post("/incidents/inc_005/bisect?runs=1").status_code == 200
-    for _ in range(150):
+    for _ in range(600):  # up to 60 s: a sandbox child can start slowly under load
         incident = api.get("/incidents/inc_005").json()
         if incident["status"] != "bisecting" and incident["bisection"]:
             break

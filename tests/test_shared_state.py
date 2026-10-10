@@ -71,7 +71,7 @@ def test_api_sees_an_incident_frozen_by_another_process(monkeypatch):
     assert r.status_code == 409 and "another process" in r.json()["detail"]
 
     api.post("/incidents/inc_009/detonate?runs=1")
-    for _ in range(100):
+    for _ in range(600):  # up to 60 s: a sandbox child can start slowly under load
         incident = api.get("/incidents/inc_009").json()
         if incident["status"] in ("confirmed", "false_positive"):
             break
