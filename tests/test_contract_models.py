@@ -3,7 +3,15 @@
 import pytest
 from pydantic import ValidationError
 
-from contracts.models import AgentSpec, Event, GateDecision, Incident, Run, ToolCheck
+from contracts.models import (
+    AgentSpec,
+    Event,
+    GateDecision,
+    Incident,
+    Run,
+    Snapshot,
+    ToolCheck,
+)
 
 GATE = {
     "call_id": "call_014",
@@ -89,3 +97,23 @@ def test_data_plane_models():
     ToolCheck.model_validate({"run_id": "run_002", "tool": "send_email", "args": {"to": "x"}})
     with pytest.raises(ValidationError):
         Incident.model_validate({**INCIDENT, "next_action": "merge"})  # no tool merges a PR
+
+
+def test_snapshot_matches_the_gate_file():
+    """The shape `engine/detonation/snapshot.py` writes at freeze, plus SDK model calls."""
+    snap = Snapshot.model_validate({
+        "id": "snap_007", "incident_id": "inc_007", "run_id": "run_002", "agent": "assistant",
+        "task": "Prepare tomorrow's meetings", "system": "You are an assistant.",
+        "model_id": "us.model", "entrypoint": "agents.assistant:build_agent",
+        "runner": "mirage_sdk.sandbox:run", "policy": {"canary": "FLAG{team26-canary}"},
+        "legit": {"tool": "send_email", "to": "demo-user@mirage-demo.com"},
+        "taken_at": "2026-10-10T14:02:19Z",
+        "model_calls": [{"model_id": "us.model", "request": {"messages": []},
+                         "response": {"content": "..."}}],
+        "tool_results": [{"call_id": "call_001", "tool": "read_calendar", "args": {},
+                          "result": [{"title": "Q4 partner sync"}]}],
+        "inputs": [{"id": "in_01", "kind": "calendar_event", "label": "Q4 partner sync",
+                    "source_tool": "read_calendar", "preview": "...",
+                    "item": {"title": "Q4 partner sync"}}],
+    })
+    assert snap.inputs[0].item == {"title": "Q4 partner sync"}
