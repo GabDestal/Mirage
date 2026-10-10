@@ -27,7 +27,7 @@ const CLIENTS: Record<string, string> = {
 };
 const NEXT: Record<string, string> = {
   detonate: "detonate it in Mirage", find_cause: "find the input that caused it",
-  send_fix: "send the fix to a coding agent", open_pr: "a human opens the PR in GitHub", none: "nothing",
+  send_fix: "hand off to your coding agent", open_pr: "a human opens the PR in GitHub", none: "nothing",
 };
 /** Elicitation `_meta` key holding `{confirm, reason}`: the answer an Approve click submits in Mirage Chat. */
 export const CONFIRM_META = "mirage/confirm";
@@ -325,19 +325,21 @@ export function createServer(opts: Options = {}) {
   }, runAct("kill", ["running", "frozen"]));
 
   server.registerTool("send_fix", {
-    title: "Send fix to coding agent",
-    description: "Create the coding-agent handoff for an incident: returns the prompt and a Codex link. " +
+    title: "Hand off to coding agent",
+    description: "Hand the incident to the user's own coding agent (Claude Code, Codex). Mirage never writes code: " +
+      "returns the prompt the coding agent uses to write the fix and prove it with detonate, plus agent links. " +
       "Needs human confirmation.",
     inputSchema: { incident_id: z.string() }, annotations: act,
   }, safe(async ({ incident_id }) => {
     await call<Incident>("GET", `/incidents/${incident_id}`);
     const phrase = `send fix ${incident_id}`;
-    const ok = await confirm(`Send the fix for ${incident_id} to a coding agent. This creates a handoff and a Mirage token.`,
-      phrase, "Send fix to coding agent");
+    const ok = await confirm(`Hand off ${incident_id} to your coding agent. This creates a handoff and a Mirage token.`,
+      phrase, "Hand off to coding agent");
     if (!ok) return refuse(NOT_CONFIRMED);
-    const h = await call<{ prompt?: string; codex_url?: string }>("POST", `/incidents/${incident_id}/handoff`,
+    const h = await call<{ prompt?: string; claude_code_url?: string; codex_url?: string }>("POST", `/incidents/${incident_id}/handoff`,
       { actor: actor(), reason: ok });
-    return text(`Handoff created. Open ${h.codex_url ?? "your coding agent"} and paste this prompt:\n\n${h.prompt ?? ""}`, h);
+    const agents = [h.claude_code_url, h.codex_url].filter(Boolean).join(" or ") || "your coding agent";
+    return text(`Handed off. Mirage does not write the fix. Open ${agents} and paste this prompt:\n\n${h.prompt ?? ""}`, h);
   }));
 
   return server;

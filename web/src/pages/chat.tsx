@@ -1,11 +1,13 @@
-import { ArrowDown, Check, Copy, Download, Info, ListFilter, MessageSquarePlus, ShieldCheck, ChartNoAxesColumn, Unplug } from 'lucide-react'
+import { ArrowDown, ArrowRight, Check, Copy, Info, ListFilter, MessageSquarePlus, ShieldCheck, ChartNoAxesColumn, Unplug } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Fragment, memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useRuns } from '@/api/client'
 import { sanitize, useChat, type ChatPart, type ChatTurn, type ToolResult } from '@/api/chat'
 import { ChatActivity, ChatApprovalCard, ChatComposer, ChatToolCard } from '@/components/chat-primitives'
+import { HandoffDrawer } from '@/components/handoff-drawer'
 import { Miragio } from '@/components/miragio'
+import { Button } from '@/components/ui/button'
 import './chat.css'
 
 const suggestions = [
@@ -136,7 +138,7 @@ export function Chat() {
 // Users see what Miragio is doing, never the raw MCP tool name.
 const toolLabels: Record<string, string> = {
   list_runs: 'Checking your agents', get_incident: 'Reading the incident', get_audit: 'Reading the audit log', detonate: 'Detonating in Mirage',
-  find_cause: 'Finding the cause', unfreeze: 'Unfreezing the agent', kill: 'Stopping the agent', send_fix: 'Preparing the fix handoff',
+  find_cause: 'Finding the cause', unfreeze: 'Unfreezing the agent', kill: 'Stopping the agent', send_fix: 'Handing off to your coding agent',
 }
 const toolLabel = (tool: string) => toolLabels[tool] ?? tool.replaceAll('_', ' ').replace(/^./, (first) => first.toUpperCase())
 
@@ -185,46 +187,33 @@ function Tool({ part, waiting }: { part: Extract<ChatPart, { kind: 'tool' }>; wa
   const evidence = part.result ? resultText(part.result) : ''
   const handoffUrl = part.tool === 'send_fix' ? part.result?.structuredContent?.handoff_url : undefined
   const safeHandoff = typeof handoffUrl === 'string' && /^\/chat\/handoffs\/[A-Za-z0-9_-]+$/.test(handoffUrl) ? handoffUrl : undefined
-  return <ChatToolCard tool={toolLabel(part.tool)} status={waiting ? 'waiting' : part.status} summary={waiting ? 'Approve or decline below' : part.progress || (part.status === 'running' ? 'Request sent to Mirage' : part.status === 'error' ? 'Check the result before trying again' : 'Result received')}>
+  return <><ChatToolCard tool={toolLabel(part.tool)} status={waiting ? 'waiting' : part.status} summary={waiting ? 'Approve or decline below' : part.progress || (part.status === 'running' ? 'Request sent to Mirage' : part.status === 'error' ? 'Check the result before trying again' : 'Result received')}>
     <div className="chat-tool-evidence">
       <h4>Request</h4><pre>{JSON.stringify(sanitize(part.args), null, 2)}</pre>
       {evidence ? <><h4>Result</h4><pre>{evidence}</pre><CopyButton text={evidence} label="Copy visible result" /></> : null}
-      {safeHandoff ? <HandoffActions url={safeHandoff} /> : null}
     </div>
   </ChatToolCard>
+  {safeHandoff ? <HandoffActions url={safeHandoff} /> : null}</>
 }
 
 function HandoffActions({ url }: { url: string }) {
-  const [status, setStatus] = useState('')
-  const [busy, setBusy] = useState(false)
-  const lock = useRef(false)
-  async function fetchPrompt(download: boolean) {
-    if (lock.current) return
-    lock.current = true
-    setBusy(true)
-    setStatus('')
+  const [open, setOpen] = useState(false)
+  const [prompt, setPrompt] = useState<string>()
+  const [error, setError] = useState<string>()
+  async function show() {
+    setOpen(true)
+    if (prompt) return
+    setError(undefined)
     try {
       const response = await fetch(url, { headers: { Accept: 'text/plain' }, cache: 'no-store', redirect: 'error' })
-      if (!response.ok) throw new Error(`Prompt unavailable (${response.status}). Try again.`)
+      if (!response.ok) throw new Error(`Prompt unavailable (${response.status}). Close and try again.`)
       if (!response.headers.get('content-type')?.includes('text/plain')) throw new Error('The chat service did not return a handoff prompt.')
-      const prompt = await response.text()
-      if (download) {
-        const blobUrl = URL.createObjectURL(new Blob([prompt], { type: 'text/plain' }))
-        const link = document.createElement('a')
-        link.href = blobUrl
-        link.download = 'mirage-handoff.txt'
-        link.click()
-        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
-      } else await navigator.clipboard.writeText(prompt)
-      setStatus(download ? 'Prompt downloaded' : 'Prompt copied')
-    } catch (cause) { setStatus(cause instanceof Error ? cause.message : 'Couldn’t copy the prompt. Try downloading it.') }
-    finally { lock.current = false; setBusy(false) }
+      setPrompt(await response.text())
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Couldn’t load the prompt. Close and try again.') }
   }
   return <div className="chat-handoff">
-    <p>This prompt includes a scoped incident token. Share it only with your coding agent.</p>
-    <div><button type="button" className="chat-copy" disabled={busy} onClick={() => void fetchPrompt(false)}><Copy size={13} aria-hidden="true" />{busy ? 'Loading prompt…' : 'Copy prompt'}</button>
-      <button type="button" className="chat-copy" disabled={busy} onClick={() => void fetchPrompt(true)}><Download size={13} aria-hidden="true" />Download prompt</button></div>
-    {status ? <p role="status">{status}</p> : null}
+    <Button onClick={() => void show()}>Hand off to coding agent<ArrowRight /></Button>
+    <HandoffDrawer open={open} onClose={() => setOpen(false)} prompt={prompt} error={error} />
   </div>
 }
 

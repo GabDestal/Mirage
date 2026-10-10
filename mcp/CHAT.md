@@ -61,7 +61,7 @@ stale and disconnected submissions return 409.
 The frontend fetches `GET /chat/handoffs/:id` only after the human clicks Copy/Download.
 It returns the original prompt as a plaintext attachment. Prompt, capability token and
 download URL are kept out of model continuation; prompt/token are absent from tool cards.
-A safe plain Codex URL may be shown to the user. Human merge and clean restart remain
+Exact-match Claude Code and Codex URLs may be shown to the user; Mirage never writes the fix. Human merge and clean restart remain
 outside the tool catalogue.
 
 Detonation and bisection never hold the chat: the service forces `wait: false` on

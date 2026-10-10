@@ -340,7 +340,7 @@ class ChatMcpResult(Model):
     """Sanitized MCP CallToolResult; content blocks retain their MCP data shapes.
 
     send_fix structuredContent may include handoff_url (user-only relative download)
-    and a safe codex_url. Full prompt and tokens never appear in chat tool results.
+    and safe claude_code_url / codex_url. Full prompt and tokens never appear in chat tool results.
     """
 
     content: list[dict[str, Any]]

@@ -87,9 +87,7 @@
 .chat-tool-evidence h4 { margin-top: 14px; font-size: 12px; font-weight: 500; color: var(--chat-muted); }
 .chat-copy { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 6px; margin-left: -6px; border-radius: 6px; color: var(--chat-muted); font-size: 12px; cursor: pointer; }
 .chat-copy:hover:enabled { color: #334155; background: #f1f5f9; }
-.chat-handoff { margin-top: 12px; font-size: 12px; color: #525252; }
-.chat-handoff > div { display: flex; flex-wrap: wrap; gap: 14px; }
-.chat-handoff p { margin-bottom: 4px; }
+.chat-handoff { margin-block: 12px 16px; }
 .chat-stopped { font-size: 13px; color: var(--chat-muted); }
 .chat-offline { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 13px; color: #475569; }
 .chat-offline svg { flex-shrink: 0; margin-top: 3px; }

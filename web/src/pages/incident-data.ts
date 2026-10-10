@@ -4,7 +4,7 @@ export type IncidentAction = 'detonate' | 'find_cause' | 'send_fix'
 export const INCIDENT_ACTIONS = {
   detonate: { path: 'detonate', label: 'Detonate', effect: 'Replay this snapshot in Mirage. Tool writes are captured, never sent to real services.', reason: 'Investigate the blocked action in Mirage.' },
   find_cause: { path: 'bisect', label: 'Find the cause', effect: 'Remove one untrusted input at a time and replay the snapshot to test what caused the compromise.', reason: 'Find which input caused the confirmed compromise.' },
-  send_fix: { path: 'handoff', label: 'Send fix to coding agent', effect: 'Create and copy a prompt for your coding agent. Paste it into the agent of your choice to start the fix.', reason: 'Prepare a fix for this confirmed incident.' },
+  send_fix: { path: 'handoff', label: 'Hand off to coding agent', effect: 'Open the fix prompt for your coding agent. Mirage does not write the fix.', reason: 'Hand off to coding agent' },
 } as const
 
 export function incidentEvents(events: MirageEvent[], id: string) {

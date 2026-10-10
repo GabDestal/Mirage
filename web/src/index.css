@@ -207,3 +207,15 @@
     opacity: 0;
   }
 }
+@keyframes drawer {
+  from {
+    transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes drawer {
+    from {
+      opacity: 0;
+    }
+  }
+}
