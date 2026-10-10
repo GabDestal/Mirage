@@ -92,3 +92,27 @@ def test_live_mode_says_what_is_not_built(monkeypatch):
     client = TestClient(server.app)
     assert client.post("/demo/start").status_code == 501
     assert json.loads(client.get("/runs").text) == []
+
+
+def test_a_recorded_live_run_needs_one_click_per_operator_step():
+    from datetime import UTC, datetime
+
+    from engine.api.replay import segment_starts
+
+    shape = [  # what a live run writes: (type, payload)
+        ("run.started", {"task": "t"}), ("gate.decision", {}), ("incident.opened", {}),
+        ("detonation.started", {"purpose": "detonate"}), ("detonation.effect", {}),
+        ("verdict.ready", {}),
+        ("detonation.started", {"purpose": "detonate", "removed_input_id": "in_01"}),
+        ("detonation.completed", {}), ("bisection.step", {}),
+        ("detonation.started", {"purpose": "detonate", "removed_input_id": "in_02"}),
+        ("bisection.step", {}), ("bisection.completed", {}),
+        ("human.action", {"action": "handoff"}), ("handoff.created", {}),
+        ("detonation.started", {"purpose": "verify"}), ("fix.verified", {}),
+        ("pr.opened", {}), ("human.action", {"action": "kill"}), ("run.status", {}),
+    ]
+    events = [Event(seq=n, ts=datetime.now(UTC), env="prod", type=t, payload=p)
+              for n, (t, p) in enumerate(shape, start=1)]
+    steps = [events[i].type for i in segment_starts(events)]
+    assert steps == ["run.started", "detonation.started", "detonation.started",  # detonate, bisect
+                     "human.action", "detonation.started", "human.action"]  # handoff, verify, kill
