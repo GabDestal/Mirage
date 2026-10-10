@@ -15,6 +15,7 @@ assert.equal(canResume(old, [old, run('run_2', 'queued', { restarted_from: 'run_
 assert.equal(canResume(run('run_3', 'killed'), []), false)
 assert.equal(resumeBlock(old, [], false), null)
 assert.match(resumeBlock(old, [], true)!, /Lift Stop all first/)
+assert.equal(resumeBlock(old, [{ id: 'inc_1', status: 'detonating' } as Incident], false), 'Detonation is running. Wait for the verdict.')
 assert.match(resumeBlock(old, [{ id: 'inc_1', status: 'confirmed' } as Incident], false)!, /compromised/)
 assert.match(resumeBlock(old, [{ id: 'inc_1', status: 'open', verdict: { confirmed: true } } as Incident], false)!, /compromised/)
 console.log('runs selfcheck ok')

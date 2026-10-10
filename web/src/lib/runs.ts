@@ -131,6 +131,7 @@ const CONFIRMED = ['confirmed', 'bisecting', 'root_caused', 'fix_pending', 'fix_
 /** A halted run that was not restarted yet can be resumed. Returns why the Resume button is disabled, or null. */
 export function resumeBlock(run: Run, incidents: Incident[], stopped: boolean) {
   const incident = incidents.find((i) => i.id === run.incident_id)
+  if (incident?.status === 'detonating') return 'Detonation is running. Wait for the verdict.'
   if (incident && (CONFIRMED.includes(incident.status) || incident.verdict?.confirmed))
     return 'Detonation confirmed this run is compromised. Fix it, then approve a clean restart.'
   if (stopped) return 'Lift Stop all first, then resume agents one at a time.'

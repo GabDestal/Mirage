@@ -313,6 +313,7 @@ export function createServer(opts: Options = {}) {
     async ({ run_id, reason }) => {
       const run = await call<Run>("GET", `/runs/${run_id}`);
       const inc = run.incident_id ? await call<Incident>("GET", `/incidents/${run.incident_id}`) : null;
+      if (action !== "kill" && inc?.status === "detonating") return refuse("detonation is running. Wait for the verdict.");
       if (action !== "kill" && inc && (CONFIRMED.includes(inc.status) || inc.verdict?.confirmed))
         return refuse(`detonation proved ${run_id} is compromised (incident ${inc.id}: ${inc.status}, ` +
           `${inc.verdict?.compromised_runs ?? "?"} replays). ${action === "resume" ? "Fix it, then approve a clean restart." : "Kill it and restart clean."}`);
