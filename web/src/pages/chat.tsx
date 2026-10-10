@@ -133,18 +133,28 @@ export function Chat() {
   )
 }
 
+// Users see what Miragio is doing, never the raw MCP tool name.
+const toolLabels: Record<string, string> = {
+  list_runs: 'Checking your agents', get_incident: 'Reading the incident', get_audit: 'Reading the audit log', detonate: 'Detonating in Mirage',
+  find_cause: 'Finding the cause', unfreeze: 'Unfreezing the agent', kill: 'Stopping the agent', send_fix: 'Preparing the fix handoff',
+}
+const toolLabel = (tool: string) => toolLabels[tool] ?? tool.replaceAll('_', ' ').replace(/^./, (first) => first.toUpperCase())
+
 function Activity({ turn }: { turn: ChatTurn }) {
   const approval = turn.parts.some((part) => part.kind === 'approval' && ['waiting', 'sending'].includes(part.status))
   const tool = turn.parts.findLast((part) => part.kind === 'tool' && part.status === 'running')
-  return <ChatActivity state={approval ? 'approval' : tool ? 'tool' : 'thinking'} label={approval ? 'Waiting for your decision' : tool?.kind === 'tool' ? `Running ${tool.tool.replaceAll('_', ' ')}` : turn.parts.at(-1)?.kind === 'text' ? 'Responding' : 'Waiting for Miragio’s reply'} />
+  return <ChatActivity state={approval ? 'approval' : tool ? 'tool' : 'thinking'} label={approval ? 'Waiting for your decision' : tool?.kind === 'tool' ? toolLabel(tool.tool) : turn.parts.at(-1)?.kind === 'text' ? 'Responding' : 'Waiting for Miragio’s reply'} />
 }
+
+// One shared element: React skips the static SVG portrait when a streamed delta re-renders its turn.
+const answerMiragio = <Miragio className="chat-answer-miragio" />
 
 const TranscriptTurn = memo(function TranscriptTurn({ turn, onRespond }: { turn: ChatTurn; onRespond: (id: string, action: 'accept' | 'decline', content?: Record<string, unknown>) => Promise<void> }) {
   const response = turn.parts.filter((part) => part.kind === 'text').map((part) => part.text).join('\n\n')
   return <article className="chat-turn" aria-label="Conversation turn">
     <div className="chat-question"><span className="sr-only">You: </span>{turn.question}</div>
     <div className="chat-answer">
-      <Miragio className="chat-answer-miragio" />
+      {answerMiragio}
       <div className="chat-answer-content">
         {turn.parts.map((part, index) => {
           if (part.kind === 'text') return <FormattedText key={index} text={String(sanitize(part.text))} />
@@ -175,7 +185,7 @@ function Tool({ part }: { part: Extract<ChatPart, { kind: 'tool' }> }) {
   const evidence = part.result ? resultText(part.result) : ''
   const handoffUrl = part.tool === 'send_fix' ? part.result?.structuredContent?.handoff_url : undefined
   const safeHandoff = typeof handoffUrl === 'string' && /^\/chat\/handoffs\/[A-Za-z0-9_-]+$/.test(handoffUrl) ? handoffUrl : undefined
-  return <ChatToolCard tool={part.tool} status={part.status} summary={part.progress || (part.status === 'running' ? 'Request sent to Mirage' : part.status === 'error' ? 'Check the result before trying again' : 'Result received')}>
+  return <ChatToolCard tool={toolLabel(part.tool)} status={part.status} summary={part.progress || (part.status === 'running' ? 'Request sent to Mirage' : part.status === 'error' ? 'Check the result before trying again' : 'Result received')}>
     <div className="chat-tool-evidence">
       <h4>Request</h4><pre>{JSON.stringify(sanitize(part.args), null, 2)}</pre>
       {evidence ? <><h4>Result</h4><pre>{evidence}</pre><CopyButton text={evidence} label="Copy visible result" /></> : null}

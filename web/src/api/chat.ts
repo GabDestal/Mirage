@@ -129,20 +129,33 @@ export function useChat() {
       if (active.current !== controller) return
       setTurns((previous) => previous.map((turn) => turn.id === id ? change(turn) : turn))
     }
+    // Text deltas render once per frame, not once per token; any other event flushes them first to keep order.
+    let text = ''
+    let frame = 0
+    const flush = () => {
+      cancelAnimationFrame(frame)
+      frame = 0
+      if (!text) return
+      const chunk = text
+      text = ''
+      update((turn) => {
+        const parts = [...turn.parts]
+        const last = parts.at(-1)
+        if (last?.kind === 'text') parts[parts.length - 1] = { ...last, text: last.text + chunk }
+        else parts.push({ kind: 'text', text: chunk })
+        return { ...turn, parts }
+      })
+    }
     try {
       await streamTurn({ session_id: session.current, message: question, actor: 'liam' }, controller.signal, (event) => {
         if (active.current !== controller) return
         if (event.type === 'session') { session.current = event.session_id; return }
+        if (event.type === 'text_delta') { text += event.text; frame ||= requestAnimationFrame(flush); return }
+        flush()
         if (event.type === 'approval_required') pending.current.add(event.approval_id)
         update((turn) => {
           const parts = [...turn.parts]
           switch (event.type) {
-            case 'text_delta': {
-              const last = parts.at(-1)
-              if (last?.kind === 'text') parts[parts.length - 1] = { ...last, text: last.text + event.text }
-              else parts.push({ kind: 'text', text: event.text })
-              break
-            }
             case 'tool_start': parts.push({ kind: 'tool', id: event.call_id, tool: event.tool, args: event.args, status: 'running' }); break
             case 'tool_progress': return { ...turn, parts: parts.map((part) => part.kind === 'tool' && part.id === event.call_id ? { ...part, progress: event.message } : part) }
             case 'tool_result': return { ...turn, parts: parts.map((part) => part.kind === 'tool' && part.id === event.call_id ? { ...part, status: event.result.isError ? 'error' : 'complete', result: event.result, progress: undefined } : part) }
@@ -159,6 +172,7 @@ export function useChat() {
       controller.abort()
       return false
     } finally {
+      flush()
       if (active.current === controller) {
         active.current = null
         pending.current.clear()
