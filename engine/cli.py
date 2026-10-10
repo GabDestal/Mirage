@@ -1,11 +1,13 @@
 """`mirage detonate`: works without the UI and without the API server (CONTRACTS.md §6).
 
 uv run python -m engine.cli detonate --incident inc_001 [--runs 3] [--remove-input in_03] [--json]
+uv run python -m engine.cli bisect --incident inc_001 [--runs 2]
 """
 
 import argparse
 import sys
 
+from engine.bisect import bisect
 from engine.detonation.sandbox import detonate
 
 
@@ -17,7 +19,15 @@ def main(argv=None):
     det.add_argument("--runs", type=int, default=3)
     det.add_argument("--remove-input")
     det.add_argument("--json", action="store_true", help="print the DetonateResult as JSON")
+    bis = sub.add_parser("bisect", help="Remove one input at a time to prove the cause")
+    bis.add_argument("--incident", required=True)
+    bis.add_argument("--runs", type=int, default=2, help="detonations per removed input")
     args = parser.parse_args(argv)
+
+    if args.command == "bisect":
+        _, cause = bisect(args.incident, args.runs)
+        print(f"\nCause: {cause or 'no single input proven'}")
+        return 0 if cause else 1
 
     log = (lambda *_: None) if args.json else print
     log(f"Detonating {args.incident} x{args.runs}"

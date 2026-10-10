@@ -49,6 +49,8 @@ def fold(events):
                 inc.bisection.append(BisectionRow.model_validate(p))
             elif e.type == "bisection.completed":
                 inc.cause_input_id = p["cause_input_id"]
+                if not p["cause_input_id"]:  # no single proven cause: offer "find cause" again
+                    inc.status = "confirmed"
             elif e.type == "pr.opened":
                 inc.pr_url = p["url"]
     for inc in incidents.values():
