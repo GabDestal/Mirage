@@ -8,8 +8,8 @@ import { resetStream, useNow } from '@/api/stream'
 import { useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
-import { avatarState, relTime, rowSentence, runLabel, steps } from '@/lib/runs'
-import { fleetStatus, healthyAgents, sandboxStatus } from './fleet-presentation'
+import { avatarState, relTime, rowSentence, runLabel } from '@/lib/runs'
+import { fleetActivity, fleetStatus, healthyAgents, sandboxStatus } from './fleet-presentation'
 import './fleet.css'
 
 export function Fleet() {
@@ -319,7 +319,7 @@ function AgentTableRow({
 
       {/* Tool Call Activity Strip */}
       <td>
-        <InlineTraceStrip run={run} events={events} />
+        <ActivitySummary run={run} events={events} incident={incident} />
         {isFrozen && sandboxStatus(incident, events) && <span className="fleet-replay-status">{sandboxStatus(incident, events)}</span>}
       </td>
 
@@ -348,46 +348,14 @@ function AgentTableRow({
   )
 }
 
-const MAX_STEPS = 4
-
-function InlineTraceStrip({ run, events }: { run: Run; events: MirageEvent[] }) {
-  const all = steps(events, run.id)
-  const recent = all.slice(-MAX_STEPS)
-  const lastBlocked = all.findLast((step) => step.blocked)
-  // Keep the last denied call visible even after subsequent tool activity.
-  const shown = lastBlocked && !recent.includes(lastBlocked)
-    ? [lastBlocked, ...all.slice(-(MAX_STEPS - 1))]
-    : recent
-  const hidden = all.length - shown.length
-
-  if (all.length === 0) {
-    return <span style={{ color: 'var(--fleet-muted)', fontSize: '12px' }}>Initializing run…</span>
-  }
-
-  return (
-    <div className="fleet-trace-strip" aria-label="Tool call sequence">
-      {hidden > 0 && (
-        <Link
-          className="fleet-trace-more"
-          to={`/runs/${run.id}`}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={`View full trace, ${hidden} more tool calls`}
-        >+{hidden}</Link>
-      )}
-      {shown.map((step, idx) => (
-        <span key={step.callId} className="trace-step">
-          {idx > 0 && <span className="trace-arrow">→</span>}
-          <span
-            className={`trace-step-tag ${step.blocked ? 'blocked' : idx === shown.length - 1 && run.status === 'running' ? 'active' : ''}`}
-            title={`${step.tool}${step.blocked ? ' — blocked' : ''}`}
-          >
-            <span className="trace-tool-name">{step.tool}</span>
-            {step.blocked && ' ✕'}
-          </span>
-        </span>
-      ))}
-    </div>
-  )
+function ActivitySummary({ run, events, incident }: { run: Run; events: MirageEvent[]; incident?: Incident }) {
+  const activity = fleetActivity(run, events, incident)
+  return <Link className="fleet-activity-link" to={`/runs/${run.id}`} onClick={(e) => e.stopPropagation()}>
+    <span className="fleet-activity-title">{activity.title}</span>
+    {activity.results && <span className="fleet-activity-meta">{activity.results}</span>}
+    {activity.detail && <span className="fleet-activity-detail">{activity.detail}</span>}
+    {activity.blocked && <span className="fleet-activity-blocked">{activity.blocked}</span>}
+  </Link>
 }
 
 function Skeleton() {

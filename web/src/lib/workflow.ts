@@ -1,11 +1,19 @@
-import type { GateDecision, Run } from '../api/client'
+import type { GateDecision, MirageEvent, Run } from '../api/client'
 
-// Structural type keeps the incident page's trace contract independent of presentation.
-type Call = {
-  callId: string; tool: string; args: Record<string, unknown>; result: unknown
-  error: string | null; decision?: GateDecision; blocked: boolean; ts: string
-  resultRecorded?: boolean; released?: boolean
+export type TraceCallDetail = {
+  callId: string
+  tool: string
+  args: Record<string, unknown>
+  result: unknown
+  error: string | null
+  decision?: GateDecision
+  blocked: boolean
+  ts: string
+  resultRecorded?: boolean
+  released?: boolean
 }
+
+type Call = TraceCallDetail
 export type ActivityState = 'pending' | 'allowed' | 'completed' | 'blocked' | 'error' | 'paused' | 'stopped' | 'unrecorded'
 export const activityLabels: Record<ActivityState, string> = {
   pending: 'Checking action', allowed: 'Awaiting result', completed: 'Completed',
@@ -73,7 +81,7 @@ export function stageState(stage: WorkflowStage, status: Run['status']): Activit
     .find((state) => states.includes(state as ActivityState)) as ActivityState
 }
 
-export function actionSummary(call: Call): string {
+export function actionSummary(call: Pick<Call, 'tool' | 'args'>): string {
   const args = call.args
   if (call.tool === 'send_email' && typeof args.to === 'string') return `Send email to ${args.to}`
   if ((call.tool === 'search_contacts' || call.tool === 'search_emails' || call.tool === 'crm_query') && typeof args.query === 'string' && args.query)
@@ -97,4 +105,39 @@ export function activityFacts(value: unknown): [string, string][] {
   const record = value as Record<string, unknown>
   return FACT_FIELDS.flatMap((key) => typeof record[key] === 'string' || typeof record[key] === 'number'
     ? [[readableTool(key), String(record[key])] as [string, string]] : [])
+}
+
+export function buildTraceCalls(events: MirageEvent[], runId: string): TraceCallDetail[] {
+  const map = new Map<string, TraceCallDetail>()
+  const ownEvents = events.filter((event) => event.run_id === runId
+    || (event.type === 'human.action' && event.payload.target === runId))
+  // Replay fixtures can deliver a decision/result before its request; attach them in a second pass.
+  for (const event of ownEvents) {
+    if (event.type !== 'tool.requested') continue
+    const p = event.payload
+    const callId = String(p.call_id)
+    if (!map.has(callId)) map.set(callId, {
+      callId, tool: String(p.tool), args: (p.args as Record<string, unknown>) || {},
+      result: undefined, error: null, blocked: false, ts: event.ts,
+    })
+  }
+  for (const event of ownEvents) {
+    const p = event.payload
+    if ((event.type === 'human.action' && p.action === 'unfreeze')
+      || (event.type === 'run.status' && p.from === 'frozen' && p.to === 'running')) {
+      for (const call of map.values()) if (call.blocked) call.released = true
+    }
+    const existing = map.get(String(p.call_id))
+    if (!existing) continue
+    if (event.type === 'gate.decision') {
+      existing.decision = p as GateDecision
+      if (p.decision !== 'allow') { existing.blocked = true; existing.released = false }
+      else if (existing.blocked) existing.released = true
+    } else if (event.type === 'tool.result') {
+      existing.result = p.result
+      existing.error = typeof p.error === 'string' ? p.error : null
+      existing.resultRecorded = true
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts))
 }
