@@ -9,6 +9,9 @@ with their own tools. Mirage joins them later with one line (`mirage.protect`, s
 - `agents/<name>/agent.py` exposes:
   - `build_agent(model=None, middleware=())` → a `create_agent` graph. `model=None` uses `chat_model()`.
     `middleware` is where `mirage.protect(...)` goes later. Do not import the SDK yet.
+    Always add `clean_tool_names` (`agents/common/model.py`) first: it stops a malformed gpt-oss tool
+    name from crashing the next Bedrock call.
+  - Own model: `chat_model(os.getenv("<AGENT>_MODEL_ID"))` falls back to `BEDROCK_AGENT_MODEL_ID`.
   - `TASK`: the default task string for the demo.
 - `python -m agents.<name>` runs `TASK` once with Bedrock and prints every tool call (`agents/common/run.py`).
 - `agents/<name>/test_agent.py`: one offline test with `agents.common.testing.scripted(...)`. No Bedrock, no network.
