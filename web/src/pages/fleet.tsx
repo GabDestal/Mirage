@@ -36,7 +36,7 @@ export function Fleet() {
         if (!nameMatch && !taskMatch) return false
       }
       return true
-    })
+    }).sort((a, b) => b.started_at.localeCompare(a.started_at) || b.id.localeCompare(a.id, undefined, { numeric: true })) // newest first; filter already copied
   }, [runs, filterTab, searchQuery])
 
   // Keyboard navigation: J/K move, Enter opens, ⌘U unfreezes, ⌘⌫/⌘X kills (U/X fallbacks).
