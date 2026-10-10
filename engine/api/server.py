@@ -63,12 +63,14 @@ REPLAY = (Replay(_fixture(), float(os.getenv("MIRAGE_REPLAY_SPEED", "1")))
 
 def restore():
     """After an engine restart: agent registrations and a global STOP come back from the log.
-    Only /demo/reset (which clears the log) lifts a STOP."""
+    The latest of Stop all and its lift wins."""
     for e in events.read():
         if e.type == "agent.registered":
             gate.agents[e.payload["name"]] = AgentSpec.model_validate(e.payload)
         elif e.type == "global.stop":
             gate.STOP.set()
+        elif e.type == "global.stop_lifted":
+            gate.STOP.clear()
 
 
 @asynccontextmanager
@@ -287,7 +289,23 @@ def stop(body: HumanRequest) -> list[Run]:
         REPLAY.advance()
     else:
         gate.global_stop(body.actor, body.reason)
+        _stop_resumed_agents()
     return list_runs()
+
+
+@app.post("/stop/lift", status_code=204)
+def lift_stop(body: HumanRequest):
+    """Lift Stop all. Halted runs stay halted until a human resumes each one."""
+    if REPLAY:
+        REPLAY.advance()
+    else:
+        gate.lift_stop(body.actor, body.reason)
+
+
+def _compromised(inc):
+    """Detonation confirmed (or is past confirming) that the run is compromised."""
+    return inc and (inc.status not in ("open", "false_positive")
+                    or (inc.verdict and inc.verdict.confirmed))
 
 
 def _act(run_id, body, action, allowed_from):
@@ -316,8 +334,7 @@ def unfreeze(run_id: str, body: HumanRequest) -> Run:
             inc = incidents.get(runs[run_id].incident_id) if run_id in runs else None
             if inc and (inc.status == "detonating" or jobs.running(inc.id)):
                 raise HTTPException(409, "Cannot unfreeze: detonation is running. Wait for the verdict.")
-            if inc and (inc.status not in ("open", "false_positive")
-                        or (inc.verdict and inc.verdict.confirmed)):
+            if _compromised(inc):
                 raise HTTPException(409, "Cannot unfreeze: detonation confirmed this run is compromised. "
                                          "Kill it and approve a clean restart.")
         return _act(run_id, body, "unfreeze", ("frozen",))
@@ -327,7 +344,7 @@ def unfreeze(run_id: str, body: HumanRequest) -> Run:
 def restart(run_id: str, body: HumanRequest) -> Run:
     """A human approves a clean restart of a killed or halted run. The new run is created
     `queued` with `restarted_from`; the agent's next start (SDK `POST /runs`) takes it over.
-    The engine never launches agents itself."""
+    The engine does not launch it (resume does)."""
     if REPLAY:
         REPLAY.advance()
         return get_run(run_id)
@@ -336,15 +353,53 @@ def restart(run_id: str, body: HumanRequest) -> Run:
         raise HTTPException(409, f"Cannot restart a run that is {old.status}: kill it first")
     if gate.STOP.is_set():
         raise HTTPException(409, "Global STOP is on")
-    events.emit("human.action", {"actor": body.actor, "action": "approve_restart",
-                                 "target": run_id, "reason": body.reason,
+    return get_run(_queue_restart(old, body, "approve_restart").id)
+
+
+def _queue_restart(old, body, action, note=None):
+    events.emit("human.action", {"actor": body.actor, "action": action,
+                                 "target": old.id, "reason": body.reason,
                                  "ts": datetime.now(UTC).isoformat()})
     run = gate.LiveRun(id=gate.next_id("run"), agent=old.agent, task=old.task,
-                       restarted_from=run_id)
+                       restarted_from=old.id)
     gate.runs[run.id] = run
-    events.emit("run.started", {"task": run.task, "agent": run.agent, "restarted_from": run_id,
-                                "status": "queued"}, run_id=run.id)
-    return get_run(run.id)
+    events.emit("run.started", {"task": run.task, "agent": run.agent, "restarted_from": old.id,
+                                "status": "queued", **({"note": note} if note else {})},
+                run_id=run.id)
+    return run
+
+
+# Rebuilds the agent from its entrypoint ("module:factory") and runs the task from the start.
+RESUME_RUNNER = ("import importlib, sys; m, _, f = sys.argv[1].partition(':'); "
+                 "getattr(importlib.import_module(m), f)().invoke({'messages': [('user', sys.argv[2])]})")
+
+
+@app.post("/runs/{run_id}/resume")
+def resume(run_id: str, body: HumanRequest, request: Request) -> Run:
+    """Resume a halted run after Stop all: a clean restart the engine launches itself. The agent
+    restarts its task from the beginning; the old run stays halted and every call is gated."""
+    if REPLAY:
+        REPLAY.advance()
+        return get_run(run_id)
+    with jobs.lock:  # Stop all cannot land between the checks and the launch
+        old = get_run(run_id)
+        if old.status != "halted":
+            raise HTTPException(409, f"Cannot resume a run that is {old.status}: only halted runs resume")
+        if gate.STOP.is_set():
+            raise HTTPException(409, "Lift Stop all first")
+        if _compromised(_state()[1].get(old.incident_id)):
+            raise HTTPException(409, "Detonation confirmed this run is compromised. "
+                                     "Fix it, then approve a clean restart.")
+        spec = gate.agents.get(old.agent)
+        if not (spec and spec.entrypoint):
+            note = "No entrypoint recorded: the agent's owner must start it; it takes over this run."
+            return get_run(_queue_restart(old, body, "resume", note).id)
+        run = _queue_restart(old, body, "resume")
+        env = {**os.environ, "MIRAGE_URL": str(request.base_url).rstrip("/")}
+        _demo["resumed"].append(subprocess.Popen(
+            [sys.executable, "-c", RESUME_RUNNER, spec.entrypoint, old.task],
+            cwd=FIXTURES.parents[1], env=env))
+        return get_run(run.id)
 
 
 @app.post("/runs/{run_id}/kill")
@@ -447,17 +502,28 @@ def verify(incident_id: str, runs: int = 3, authorization: str = Header(""), bod
 
 
 DEMO_RUNNER = ["-m", "agents.run_demo_fleet"]  # Liam's fleet: 4 agents, one gets poisoned
-_demo = {"proc": None}  # the agents process /demo/start launched, if any
+_demo = {"proc": None, "resumed": []}  # the agents processes /demo/start and resume launched
 
 
-def _stop_demo_agents():
-    proc, _demo["proc"] = _demo["proc"], None
+def _terminate(proc):
     if proc and proc.poll() is None:
         proc.terminate()
         try:
             proc.wait(10)
         except subprocess.TimeoutExpired:
             proc.kill()
+
+
+def _stop_resumed_agents():
+    procs, _demo["resumed"] = _demo["resumed"], []
+    for proc in procs:
+        _terminate(proc)
+
+
+def _stop_demo_agents():
+    proc, _demo["proc"] = _demo["proc"], None
+    _terminate(proc)
+    _stop_resumed_agents()
 
 
 def _reset_live():
