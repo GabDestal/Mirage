@@ -155,6 +155,12 @@ class HumanRequest(Model):
     reason: str
 
 
+class PullRequest(Model):
+    """POST /incidents/{id}/pr: the fix PR, reported by the coding agent or a human."""
+
+    url: str
+
+
 class ServiceItem(Model):
     id: str
     title: str

@@ -54,6 +54,8 @@ is not fully deterministic). Each run starts from a fresh `data/` folder.
 | Detonate an incident (operator replay) | `uv run python -m engine.cli detonate --incident inc_001 --from-freeze` |
 | Find the cause | `uv run python -m engine.cli bisect --incident inc_001` |
 | Check a fix (what the coding agent runs) | `uv run python -m engine.cli detonate --incident inc_001` (exit 0 = verified) |
+| Handoff for a coding agent (prompt + report + token) | `curl -X POST localhost:8000/incidents/inc_001/handoff` |
+| Record the fix PR | `uv run python -m engine.cli pr --incident inc_001 --url <PR URL>` |
 | API docs | http://localhost:8000/docs |
 
 PowerShell: set env vars with `$env:MIRAGE_MODE='live'` before the command.

@@ -290,8 +290,9 @@ All POST bodies with a human action carry `{actor, reason}`.
 | POST | `/runs/{id}/restart` | Approve a clean restart. Returns the new `Run`. |
 | POST | `/incidents/{id}/detonate` | Start detonation. Returns `{detonation_id}`. Results come as events. |
 | POST | `/incidents/{id}/bisect` | Start bisection. Results come as events. |
-| POST | `/incidents/{id}/handoff` | Returns `{prompt, codex_url, mirage_token}`. |
-| POST | `/incidents/{id}/verify` | Run the fix check. Same output as `mirage detonate`. |
+| POST | `/incidents/{id}/handoff` | Optional body `{actor, reason}`. Needs a confirmed verdict (409). Returns `{prompt, codex_url, mirage_token, report}`: the prompt for a coding agent (facts, fenced untrusted input, where the code is, the check command), the report (markdown), a token for this incident only (never logged). Incident → `fix_pending`. |
+| POST | `/incidents/{id}/pr` | Body `PullRequest` `{url}`. The fix PR (coding agent or human). Emits `pr.opened`. Incident → `pr_open`. CLI: `engine.cli pr --incident X --url Y`. |
+| POST | `/incidents/{id}/verify` | Run the fix check. Same output as `mirage detonate`. With `MIRAGE_PUBLIC=1` (API exposed through a tunnel) it needs `Authorization: Bearer <mirage_token>`. |
 
 ### Demo control (for reliability on stage)
 

@@ -3,6 +3,7 @@
 uv run python -m engine.cli detonate --incident inc_001 [--runs 3] [--json]   # check a fix
 uv run python -m engine.cli detonate --incident inc_001 --from-freeze          # operator replay
 uv run python -m engine.cli bisect --incident inc_001 [--runs 2]
+uv run python -m engine.cli pr --incident inc_001 --url https://github.com/.../pull/42
 """
 
 import argparse
@@ -26,7 +27,15 @@ def main(argv=None):
     bis = sub.add_parser("bisect", help="Remove one input at a time to prove the cause")
     bis.add_argument("--incident", required=True)
     bis.add_argument("--runs", type=int, default=2, help="detonations per removed input")
+    pr = sub.add_parser("pr", help="Report the fix PR for an incident")
+    pr.add_argument("--incident", required=True)
+    pr.add_argument("--url", required=True)
     args = parser.parse_args(argv)
+
+    if args.command == "pr":
+        from engine.handoff import pr_opened
+        print(f"Recorded PR {pr_opened(args.incident, args.url)['url']} for {args.incident}.")
+        return 0
 
     if args.command == "bisect":
         _, cause = bisect(args.incident, args.runs)
