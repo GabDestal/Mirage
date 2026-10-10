@@ -1,146 +1,108 @@
 /* Agent avatars: DESIGN.md §8 (states) and §9 (motion). Token fallbacks are the light theme. */
 
-.mav {
-  --av-b: var(--av-body);
-  --av-a: var(--av-accent);
-  --av-e: #151716; /* eyes stay dark: they sit on the pastel body in both themes */
+.mav-bot-frame {
   --av-ease: var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
   flex: none;
   line-height: 0;
   vertical-align: middle;
+  border-radius: 6px;
+  box-sizing: border-box;
 }
 
-.mav svg {
+.mav-bot-frame .mav-bot-canvas {
+  pointer-events: auto;
+  user-select: none;
+}
+
+/* Frozen / Alert state:
+   The avatar is frozen, overlaid with a translucent ice boundary box and warning alarm glow.
+*/
+.mav-bot-ice {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+  animation: mav-freeze-in 240ms var(--av-ease) forwards;
+}
+
+.mav-bot-ice svg {
   display: block;
   overflow: visible;
 }
 
-.mav-b,
-.mav-a,
-.mav-wing,
-.mav-eye-fill {
-  transition: fill 220ms ease, stroke 220ms ease;
-}
-.mav-b { fill: var(--av-b); }
-.mav-a { fill: var(--av-a); }
-.mav-eye-fill { fill: var(--av-e); }
-
-.mav-stroke,
-.mav-eye-line {
-  fill: none;
-  stroke-width: 1.3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.mav-stroke { stroke: var(--av-a); }
-.mav-eye-line { stroke: var(--av-e); stroke-width: 1.5; }
-
-.mav-wing {
-  fill: var(--paper, #FCFCFA);
-  stroke: var(--av-a);
-  stroke-width: 1;
-}
-
-.mav[data-size='20'] .mav-detail { display: none; }
-
-/* Working: the only idle motion, a slow blink every ~6 s. */
-.mav-eyes {
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.mav[data-state='working'] .mav-eyes {
-  animation: mav-blink 6s infinite;
-  animation-delay: var(--av-blink-delay, 0s);
-}
-@keyframes mav-blink {
-  0%, 95%, 100% { transform: scaleY(1); }
-  97% { transform: scaleY(0.1); }
-}
-
-/* Waiting: eyes look up at the viewer, a small hand goes up. */
-.mav-pupil {
-  transition: transform 220ms var(--av-ease);
-}
-.mav[data-state='waiting'] .mav-pupil { transform: translateY(-0.9px); }
-
-.mav-hand {
-  fill: var(--av-a);
-  stroke: var(--paper, #FCFCFA); /* gap ring so the hand reads apart from the head */
-  stroke-width: 1.4;
-  paint-order: stroke;
-  opacity: 0;
-  transform: translateY(3px);
-  transition: opacity 160ms var(--av-ease), transform 160ms var(--av-ease);
-}
-.mav[data-state='waiting'] .mav-hand {
-  opacity: 1;
-  transform: none;
-  transition-duration: 220ms;
-}
-
-/* Frozen: a translucent ice block grows over the avatar. Exit is faster than enter. */
-.mav-ice {
-  opacity: 0;
-  transform: scale(0.9);
-  transform-box: fill-box;
-  transform-origin: center;
-  transition: opacity 160ms var(--av-ease), transform 160ms var(--av-ease);
-}
-.mav-ice rect {
-  fill: color-mix(in srgb, var(--paper, #FCFCFA) 50%, transparent);
+.mav-bot-ice rect {
+  fill: color-mix(in srgb, var(--paper, #FCFCFA) 45%, transparent);
   stroke: var(--alarm, #D93A2B);
-  stroke-width: 1.25px;
+  stroke-width: 1.5px;
   vector-effect: non-scaling-stroke;
 }
-.mav-ice path {
+
+.mav-bot-ice path {
   fill: none;
   stroke: var(--paper, #FCFCFA);
-  stroke-width: 1.2;
+  stroke-width: 1.25;
   stroke-linecap: round;
-  opacity: 0.9;
-}
-.mav[data-size='20'] .mav-ice path { display: none; }
-.mav[data-state='frozen'] .mav-ice {
-  opacity: 1;
-  transform: none;
-  transition-duration: 240ms;
+  opacity: 0.95;
 }
 
-/* Killed: desaturated, line eyes. */
-.mav[data-state='killed'] {
-  --av-b: color-mix(in srgb, var(--ink-3, #8C908E) 35%, var(--paper, #FCFCFA));
-  --av-a: var(--ink-3, #8C908E);
-  --av-e: var(--ink-3, #8C908E);
+.mav-bot-frame[data-size='20'] .mav-bot-ice path {
+  display: none;
 }
 
-/* Mirage: drawn in --mirage with the heat shimmer (§9), the one authored moment. */
-.mav[data-state='mirage'] {
-  --av-b: color-mix(in srgb, var(--mirage, #0E8C86) 28%, var(--paper, #FCFCFA));
-  --av-a: var(--mirage, #0E8C86);
-  --av-e: var(--mirage, #0E8C86);
+.mav-bot-frame[data-state='frozen'] {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--alarm, #D93A2B) 35%, transparent);
 }
-.mav[data-state='mirage'] svg {
-  -webkit-mask-image: linear-gradient(100deg, #000 40%, rgb(0 0 0 / 0.35) 50%, #000 60%);
-  mask-image: linear-gradient(100deg, #000 40%, rgb(0 0 0 / 0.35) 50%, #000 60%);
-  -webkit-mask-size: 300% 100%;
-  mask-size: 300% 100%;
-  animation: mav-shimmer 2.4s linear infinite;
+
+@keyframes mav-freeze-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
-@keyframes mav-shimmer {
-  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
-  to { -webkit-mask-position: 0 0; mask-position: 0 0; }
+
+/* Killed: desaturated, motionless */
+.mav-bot-frame[data-state='killed'] {
+  filter: grayscale(1) opacity(0.55);
+}
+
+/* Mirage: simulation twin state with distinct teal shimmer ring */
+.mav-bot-frame[data-state='mirage'] {
+  filter: drop-shadow(0 0 4px var(--mirage, #0E8C86));
+}
+
+.mav-bot-mirage-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: 6px;
+  border: 1.5px dashed var(--mirage, #0E8C86);
+  pointer-events: none;
+  z-index: 2;
+  animation: mav-spin-ring 8s linear infinite;
+}
+
+@keyframes mav-spin-ring {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mav[data-state] .mav-eyes,
-  .mav[data-state] svg {
-    animation: none;
-  }
-  .mav-pupil,
-  .mav-hand,
-  .mav-ice {
-    transform: none !important;
-    transition-duration: 100ms !important;
+  .mav-bot-ice,
+  .mav-bot-mirage-ring {
+    animation: none !important;
   }
 }
