@@ -276,7 +276,7 @@ All POST bodies with a human action carry `{actor, reason}`.
 | GET | `/stream` | Server-Sent Events, one `Event` per message |
 | GET | `/incidents` | `Incident[]` |
 | GET | `/incidents/{id}` | `Incident` |
-| GET | `/services/{service}?env=prod\|mirage` | `ServiceView` |
+| GET | `/services/{service}?env=prod\|mirage` | `ServiceView`, folded from the event log. prod outbox: sent emails (`normal`) + frozen/blocked ones (`blocked`, never sent). mirage outbox: what the main detonation would have sent (`malicious` if it broke a rule). calendar/crm: what the agents read (mirage: the frozen run's inputs). The proven cause is `malicious`. |
 | GET | `/policies` | policy pack (read-only) |
 
 ### Act

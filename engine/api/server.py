@@ -12,6 +12,7 @@ import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
@@ -27,12 +28,14 @@ from contracts.models import (
     Run,
     RunStart,
     RunStarted,
+    ServiceView,
     ToolCheck,
     ToolResult,
     WaitResult,
 )
 from engine import bisect as engine_bisect
 from engine import handoff as engine_handoff
+from engine.api import services
 from engine.api.replay import Replay
 from engine.api.state import fold
 from engine.detection.rules import POLICY
@@ -193,6 +196,13 @@ def get_incident(incident_id: str) -> Incident:
     if incident_id not in incidents:
         raise HTTPException(404, f"Unknown incident {incident_id}")
     return incidents[incident_id]
+
+
+@app.get("/services/{service}")
+def service_view(service: Literal["outbox", "calendar", "crm"],
+                 env: Literal["prod", "mirage"] = "prod") -> ServiceView:
+    """The outbox / calendar / CRM panels, prod or Mirage, folded from the event log."""
+    return services.view(list_events(), service, env)
 
 
 @app.get("/policies")
