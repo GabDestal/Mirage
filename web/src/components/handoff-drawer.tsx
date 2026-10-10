@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 // Same URLs as engine/handoff.py. No prompt in the URL: neither agent documents a prefill param.
 const AGENTS = [
   { name: 'Claude Code', url: 'https://claude.ai/code' },
-  { name: 'Codex', url: 'https://chatgpt.com/codex' },
+  { name: 'Codex', url: 'https://chatgpt.com/codex/cloud' },
 ] as const
 
 async function copy(prompt: string, agent?: string) {
