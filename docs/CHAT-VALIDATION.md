@@ -27,15 +27,17 @@ These are actual app captures using the explicitly synthetic SSE harness:
 | Failure / preserved draft | [desktop](chat-evidence/desktop-error.png) | [mobile](chat-evidence/mobile-error.png) |
 | Long reply / scroll position preserved | [desktop](chat-evidence/desktop-long.png) | [mobile](chat-evidence/mobile-long.png) |
 
-The captures use the sidebar already landed in main and the shared primitive source at `5dae334d530c6fd5ad036a3daf971f0aac18981c`. A concurrent branding-only main update can replace the favicon without changing the tested chat behavior.
+The captures use the sidebar already landed in main and the shared primitive source at `5dae334d530c6fd5ad036a3daf971f0aac18981c`. Final [desktop](chat-evidence/final-desktop.png) and [mobile](chat-evidence/final-mobile.png) welcome captures were taken after replaying only this feature onto exact merged main `1cb3a1c383e72241ea8e2de85ecc43569583b492`, preserving the approved horizon mark. The synthetic state captures predate that branding-only update.
 
 ## Real backend acceptance
 
-Pending the coordinator-owned backend service on localhost:8001. This section will record the single approved read-only composed UI turn separately from synthetic acceptance. No mutation, detonation, root-cause action or secret-bearing handoff is included in the live validation scope.
+**Full live UI/tool-result acceptance remains unconfirmed.** The merged backend was built and started in a dedicated Orca runtime terminal with the authorized preview origin; the real engine was already on localhost:8000. Two strictly read-only `list_runs` UI submissions were made: the originally authorized single turn, then one explicitly approved capture repair. The first evidence collector failed when Chromium could not expose the consumed SSE response body. The second reached completed assistant prose and an enabled Copy response action, then failed on a singleton text assertion because the response had two prose segments around tool activity. No final live tool/result assertion or screenshot was recorded, and no further provider attempt was made under the coordinator's explicit bound. These are evidence-collection failures, not evidence of a passed end-to-end tool sequence. No mutation, detonation, root-cause action or secret-bearing handoff was requested.
+
+The backend worker's own provider smoke is reported separately by that PR and is not re-certified here. The final local client/build and complete synthetic UI acceptance are proven above. A coordinator can inspect the running real preview and authorize a future bounded live verification if needed.
 
 ## Preview and startup
 
-Real-service preview: **http://127.0.0.1:5194/** (Vite `/chat` -> localhost:8001, `/api` -> localhost:8000). The backend must allow this origin. The synthetic QA preview uses port 5176 and harness port 8016. Startup commands and source references are in [CHAT.md](CHAT.md).
+Real-service preview: **http://127.0.0.1:5194/** (Vite `/chat` -> localhost:8001, `/api` -> localhost:8000). The backend must allow this origin. Runtime terminals: chat service `term_2ec83412-1a70-4907-9925-c23bde055569`, Vite preview `term_b03d5631-c881-4b4c-87ce-5fb90fd2216c`; these are dedicated runtime previews, separate from the worker agent. The synthetic QA used port 5176 and harness port 8016. Startup commands and source references are in [CHAT.md](CHAT.md).
 
 ## Risks / remaining acceptance
 
