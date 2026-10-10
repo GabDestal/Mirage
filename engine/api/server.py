@@ -429,7 +429,6 @@ def _reset_live():
         raise HTTPException(409, str(error)) from error
 
 
-
 @app.post("/demo/start", status_code=204)
 def demo_start(request: Request, body: DemoStart | None = None):
     """Live: reset, then launch the story's agents as their own process, pointed at this engine

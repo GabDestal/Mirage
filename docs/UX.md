@@ -40,11 +40,19 @@ One page, one column, read top to bottom like a story.
 5. **Why:** the inputs, each with "removed → clean / still compromised". The cause is highlighted.
 6. **Fix:** the PR card with "Replay with fix: PASS 3/3".
 
+New live gate incidents automatically queue three sandbox replays after snapshot persistence.
+No initial Detonate click is required. Queueing is a system action; the started event means
+sandbox execution has begun. During queued/running work, manual detonate/bisect/verify and
+unfreeze are refused by the engine. Failure leaves the run frozen and offers an explicit
+Detonate retry; no verdict automatically releases or restarts production. Replay fixtures
+keep their existing manual stepping. Demo reset/start refuses with 409 while sandbox work
+is active, preserving the incident; wait for completion and retry.
+
 **One main button.** Its label comes from `incident.next_action`:
 
 | `next_action` | Button |
 |---|---|
-| `detonate` | Detonate |
+| `detonate` | Detonate (explicit retry after failure, or replay of an existing incident) |
 | `find_cause` | Find the cause |
 | `send_fix` | Send fix to coding agent (Copy prompt / Send to Codex) |
 | `open_pr` | Open PR |

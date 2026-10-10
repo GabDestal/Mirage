@@ -28,7 +28,7 @@ uv run pytest -q
 uv run python -m engine.dev.demo                   # 3 dev agents, one gets poisoned
 uv run python -m engine.dev.demo --agent meeting   # Liam's meeting assistant through the SDK
 uv run python -m engine.dev.demo --keep            # keep the API up afterwards (for the UI)
-uv run python -m engine.dev.demo --agent meeting --until freeze  # stop at the freeze: drive it from the UI
+uv run python -m engine.dev.demo --agent meeting --until freeze  # stop at the freeze: automatic replay starts; use the UI for the next steps
 ```
 
 It starts the engine API (live mode, port 8000), runs the agents, then drives the incident over HTTP
@@ -66,8 +66,24 @@ is not fully deterministic). Each run starts from a fresh `data/` folder.
 
 PowerShell: set env vars with `$env:MIRAGE_MODE='live'` before the command.
 
-The CLI and the API share `data/` (event log + snapshots), so an incident frozen by one process can be
-detonated from another. `POST /demo/reset` (or deleting `data/`) starts over.
+The gate automatically queues three sandbox replays as soon as a new incident's snapshot is
+persisted and production is frozen. Restart the engine on this version to enable it; no new
+configuration is required. Production stays frozen until a human decides. `run.status` with
+actor `system` records automatic queueing; `detonation.started` records actual execution.
+Jobs across incidents are serialized, and `MIRAGE_PARALLEL` retains its existing meaning
+inside one job (default 1). A failure emits `detonation.failed`: fix the cause, then explicitly
+retry with `POST /incidents/<id>/detonate` or the operator CLI command above. Polling and
+engine restore never retry automatically.
+
+`POST /demo/reset` and `/demo/start` return 409 if sandbox work is active. This preserves the
+fleet, incident log, snapshots and tokens: wait for the job to finish and retry. Idle reset
+cancels queued work before clearing data; graceful shutdown cancels queued work and waits
+for active work. The 180-second timeout is per replay; an entire job/bisection can take longer.
+
+The CLI and API share `data/`, but job reservations are process-local. For the dashboard demo,
+use the SDK/API fleet. Stop standalone dev runners and CLI jobs before resetting shared data
+or deleting `data/`; the API cannot cancel or drain work in another process. Do not use the
+manual detonate action in another process while an automatic dev replay is still running.
 
 ## 5. Where things live
 

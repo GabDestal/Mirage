@@ -55,6 +55,7 @@ class LiveRun:
     model_calls: list = field(default_factory=list)  # snapshot material
     tool_results: list = field(default_factory=list)  # snapshot material
     calls: dict = field(default_factory=dict)  # call_id -> {tool, args}, to pair results
+    revoked_by_reset: bool = False  # fences pending checks after incident ids are reused
     check_lock: Any = field(default_factory=threading.Lock)  # serialize this run only
     resume: threading.Event = field(default_factory=threading.Event)  # set = not frozen
     # how to rebuild the agent in a detonation (set by the agent at start)
@@ -80,6 +81,7 @@ class LiveRun:
 def reset():
     with jobs.lock:
         for run in runs.values():
+            run.revoked_by_reset = True
             run.status = "halted"
             run.resume.set()
         STOP.clear()
@@ -157,7 +159,7 @@ def check(run, tool, args) -> GateDecision:
 
 def _check(run, tool, args) -> GateDecision:
     with jobs.lock:
-        if run.status == "halted" and not STOP.is_set() and runs.get(run.id) is not run:
+        if run.revoked_by_reset:
             return GateDecision(call_id=next_id("call"), tool=tool, args=args, decision="block",
                                 layer="hard_rule", rule_id="RUN_REVOKED",
                                 explanation="Run was revoked by demo reset.")
@@ -197,7 +199,7 @@ def _check(run, tool, args) -> GateDecision:
             run.incident_id = next_id("incident")
         # Reset revokes the old run while a decision is pending; don't write its old ids into
         # the new log. STOP/kill on an existing run still get their normal decision evidence.
-        if run.status == "halted" and not STOP.is_set() and runs.get(run.id) is not run:
+        if run.revoked_by_reset:
             return gate
         emit("gate.decision", gate.model_dump(mode="json"), run_id=run.id,
              incident_id=run.incident_id if hit else None)

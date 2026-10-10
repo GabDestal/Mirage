@@ -124,8 +124,7 @@ def test_atomic_auto_manual_reservations(api, held):
     def launch(k):
         barrier.wait()
         if k == 0:
-            AUTOMATIC(inc_id, gate.runs[next(
-                r.id for r in gate.runs.values() if r.incident_id == inc_id)])
+            AUTOMATIC(inc_id, next(r for r in gate.runs.values() if r.incident_id == inc_id))
             return None
         return api.post(f"/incidents/{inc_id}/detonate", json=HUMAN).status_code
 
@@ -133,6 +132,7 @@ def test_atomic_auto_manual_reservations(api, held):
         results = list(pool.map(launch, range(8)))
     assert entered.wait(2)
     assert len(calls) == 1 and results.count(200) <= 1
+    assert not any(e.type == "detonation.failed" for e in events.read())
     release.set()
     idle(inc_id)
 
@@ -220,7 +220,7 @@ def test_freeze_storm_serializes_incidents(api, held):
     assert [c[0] for c in calls] == [first, second]
 
 
-@pytest.mark.parametrize("control", ["stop", "reset"])
+@pytest.mark.parametrize("control", ["stop", "reset", "reset_then_stop"])
 def test_slow_decision_does_not_block_healthy_run_or_control(api, monkeypatch, control):
     entered, release = threading.Event(), threading.Event()
     original = gate.hard_rule
@@ -247,6 +247,9 @@ def test_slow_decision_does_not_block_healthy_run_or_control(api, monkeypatch, c
         else:
             assert api.post("/demo/reset").status_code == 204
             assert events.read() == []
+            if control == "reset_then_stop":
+                api.post("/stop", json=HUMAN)
+                reset_log = events.read()
         release.set()
         thread.join(2)
         assert not thread.is_alive() and out[0].decision == "block"
@@ -254,6 +257,8 @@ def test_slow_decision_does_not_block_healthy_run_or_control(api, monkeypatch, c
         assert not list(snapshot.SNAP_DIR.glob("*.json"))
         if control == "reset":
             assert events.read() == []  # pending old decisions never write into the new log
+        elif control == "reset_then_stop":
+            assert events.read() == reset_log
     finally:
         release.set()
         thread.join(2)
