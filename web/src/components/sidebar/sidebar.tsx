@@ -20,12 +20,7 @@ export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
   return (
     <aside aria-label="Main" className="mirage-sidebar flex h-full w-(--sidebar-width) flex-col overflow-hidden border-r border-r-neutral-200 bg-neutral-50 antialiased">
       <div className="sidebar-brand flex items-center justify-between gap-1.5 px-3.5 pt-3.5 pb-5">
-        <div className="flex items-center gap-2">
-          <div className="flex size-6 shrink-0 items-center justify-center rounded-md overflow-hidden">
-            <Logo />
-          </div>
-          <span className="sidebar-label text-sm font-medium text-neutral-950">Mirage</span>
-        </div>
+        <img className="sidebar-mark" src="/brand/mirage-mark.svg" width="72" height="43" alt="Mirage" />
       </div>
       <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-2.5">
         <nav aria-label="Assistant" className="pb-3">
@@ -151,13 +146,3 @@ export const NAV_LINK_CLASS_NAME =
 
 const NAV_LINK_ACTIVE_CHILD_CLASS_NAME =
   'not-data-[panel-open]:data-[active-child]:bg-neutral-200/85 not-data-[panel-open]:data-[active-child]:text-neutral-950'
-
-/** Two heat lines over a road: the mirage. */
-function Logo() {
-  return (
-    <svg viewBox="0 0 24 24" className="size-6 shrink-0" aria-hidden>
-      <rect width="24" height="24" rx="6" className="fill-mirage" />
-      <path d="M5 14c2.3-1.6 4.7-1.6 7 0s4.7 1.6 7 0M5 10c2.3-1.6 4.7-1.6 7 0s4.7 1.6 7 0" fill="none" className="stroke-paper" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  )
-}

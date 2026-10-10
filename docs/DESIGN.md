@@ -42,7 +42,8 @@ one clear next action. Keep the evidence and human controls central to that expe
 ## 3. Color and surfaces
 
 Light is the reference. Use neutral greys from Opereit, blue for interaction, and Mirage aqua
-for the existing logo and simulated content. Red identifies blocked actions and compromise.
+for simulated content. The approved horizon brandmark keeps its own navy, terracotta and cobalt
+colors; [brand usage](BRAND.md) defines the reusable artwork. Red identifies blocked actions and compromise.
 Dark mode needs a matching, separately checked translation of this reference.
 
 | Token | Light target | Use |
@@ -57,7 +58,7 @@ Dark mode needs a matching, separately checked translation of this reference.
 | `--accent` | `#0C55C4` | Links, interactive emphasis, user initials |
 | `--focus` | `oklch(0.62 0.186 260.066)` | Focus borders and rings |
 | `--accent-wash` | `#E4EEFF` | Selection and subtle interaction backgrounds |
-| `--mirage` | `#0E8C86` | Logo, simulated edges and large marks |
+| `--mirage` | `#0E8C86` | Simulated edges and content |
 | `--mirage-text` | `#0F766E` | Small text identifying simulated content |
 | `--mirage-wash` | `#E3F4F2` | Simulated result areas |
 | `--alarm` | `#B91C1C` | Frozen/blocked text, errors, destructive actions |
@@ -122,7 +123,7 @@ The sidebar's hierarchy and account footer remain visible while the content scro
 | Part | Target |
 |---|---|
 | Sidebar | 256 px wide, `--paper-2`, 1 px right separator |
-| Brand row | 24 px Mirage mark, 14 px medium name, 14 px inset |
+| Brand row | Horizon mark alone, 72 × 43 px desktop / 44 × 27 px phone, 14 px inset |
 | Navigation | 30–32 px rows, 16 px icons, 10 px icon/text gap, 8 px radius |
 | Active item | Soft grey filled row with darker text and icon |
 | Groups | Compact caption, 20 px separation; collapsible only when useful |
@@ -159,7 +160,7 @@ Match the actual Opereit auth source and the existing Mirage implementation:
 - Centred panel, maximum width 384 px, minimum height 404 px, 12 px radius.
   Padding: 56 px top, 32 px sides, 36 px bottom.
 - Translucent white gradient, original subtle shadows, 22 px backdrop blur and 1.3 saturation.
-- White 52 px logo holder with an 11 px radius and subtle outline; 28 px Mirage mark inside.
+- White 72 × 56 px logo holder with an 11 px radius and subtle outline; 56 × 34 px horizon mark inside.
 - Inter heading, 20 / 28 px, medium, with a 20 px gap below the logo.
 - 36 px white fields with 8 px radius, quiet outline, blue focus border and soft focus ring.
 - Password visibility control, right-aligned recovery link, and 36 px full-width dark gradient button.
@@ -178,7 +179,7 @@ The recovery control displays the demo credentials. Real authentication is separ
 supplied Opereit dashboard screenshot and `agent-home.tsx` composition: a centred, left-aligned
 column (672 px maximum, 24 px horizontal clearance) on a white workspace.
 
-1. An 80 px Mirage mark above “What needs your attention today?” (20 / 28 px, medium).
+1. A 96 × 58 px horizon mark (80 × 48 px on phones) above “What needs your attention today?” (20 / 28 px, medium).
 2. A white multiline composer with a 12 px radius, subtle outline and small bottom shadow.
 3. A neutral context strip with current fleet state, frozen-run count and a relevant text action.
 4. Three plain suggestion rows with small icons, 32 px below the composer group. Clicking a

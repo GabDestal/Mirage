@@ -18,7 +18,8 @@
 }
 .chat-column { width: 100%; max-width: 672px; margin-inline: auto; }
 .chat-welcome { margin-bottom: 20px; }
-.chat-mark { display: block; width: 80px; height: 80px; }
+.chat-mark { display: block; width: 96px; height: 58px; object-fit: contain; }
+.chat-answer-mark { width: 36px; height: 24px; object-fit: contain; }
 .chat-welcome h2 { margin-top: 20px; font-size: 20px; line-height: 28px; font-weight: 500; letter-spacing: -0.02em; }
 .chat-composer-group { border-radius: 16px; }
 .chat-composer-group--context { padding: 4px; background: var(--chat-wash); }
@@ -62,7 +63,7 @@
 .chat-thread { flex: 1; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; scrollbar-color: var(--chat-line) transparent; }
 .chat-exchange { padding-block: 24px; }
 .chat-question { width: fit-content; max-width: 85%; margin: 0 0 24px auto; padding: 10px 14px; border-radius: 12px; background: var(--chat-wash); white-space: pre-wrap; }
-.chat-answer { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; }
+.chat-answer { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; }
 .chat-answer p { margin-bottom: 12px; }
 .chat-answer-time { margin-top: 16px; font-size: 11px; color: var(--chat-muted); }
 .chat-run-list { margin-block: 16px; }
@@ -74,7 +75,7 @@
 .chat-page--conversation .chat-scope { margin-top: 8px; text-align: center; }
 @media (max-width: 600px) {
   .chat-page { padding: 32px 20px 48px; }
-  .chat-mark { width: 64px; height: 64px; }
+  .chat-mark { width: 80px; height: 48px; }
   .chat-welcome h2 { max-width: 260px; }
   .chat-page--conversation { padding-block: 0 16px; }
   .chat-context { align-items: flex-start; }
@@ -83,10 +84,12 @@
   --chat-blue: #93b4ff; --chat-muted: #a3a3a3; --chat-surface: #141414; --chat-wash: #202020; --chat-line: #333;
   color: #ededed;
 }
+:root[data-theme='dark'] :is(.chat-mark, .chat-answer-mark) { background: #fcfcfa; border-radius: 6px; padding: 4px; }
 :root[data-theme='dark'] .chat-page :is(.chat-context, .chat-suggestions button, .chat-run-list p) { color: #d4d4d4; }
 :root[data-theme='dark'] .chat-send { background: #ededed; color: #171717; }
 :root[data-theme='dark'] .chat-send:disabled { background: #262626; color: #a3a3a3; }
 @media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) :is(.chat-mark, .chat-answer-mark) { background: #fcfcfa; border-radius: 6px; padding: 4px; }
   :root:not([data-theme='light']) .chat-page { --chat-blue: #93b4ff; --chat-muted: #a3a3a3; --chat-surface: #141414; --chat-wash: #202020; --chat-line: #333; color: #ededed; }
   :root:not([data-theme='light']) .chat-page :is(.chat-context, .chat-suggestions button, .chat-run-list p) { color: #d4d4d4; }
   :root:not([data-theme='light']) .chat-send { background: #ededed; color: #171717; }
