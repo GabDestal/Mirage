@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { useRuns } from '@/api/client'
 import { sanitize, useChat, type ChatPart, type ChatTurn, type ToolResult } from '@/api/chat'
 import { ChatActivity, ChatApprovalCard, ChatComposer, ChatToolCard } from '@/components/chat-primitives'
+import { Miragio } from '@/components/miragio'
 import './chat.css'
 
 const suggestions = [
@@ -19,6 +20,7 @@ export function Chat() {
   const stopChat = chat.stop
   const runs = useRuns()
   const [draft, setDraft] = useState('')
+  const [composerFocused, setComposerFocused] = useState(false)
   const [online, setOnline] = useState(navigator.onLine)
   const [behind, setBehind] = useState(false)
   const thread = useRef<HTMLDivElement>(null)
@@ -102,7 +104,7 @@ export function Chat() {
 
       <div className="chat-column chat-start" ref={composer}>
           {!conversation ? <div className="chat-welcome">
-            <img className="chat-mark" src="/brand/mirage-mark.svg" width="96" height="58" alt="Mirage" />
+            <Miragio className="chat-miragio" animate readingProgress={composerFocused ? Math.min(draft.length / 200, 1) : null} />
             <h2>What needs your attention today?</h2>
           </div> : null}
         <AnimatePresence>
@@ -110,7 +112,9 @@ export function Chat() {
             <ArrowDown size={14} aria-hidden="true" /> Jump to latest
           </motion.button> : null}
         </AnimatePresence>
-        <div className={`chat-composer-group${!conversation ? ' chat-composer-group--context' : ''}`}>
+        <div className={`chat-composer-group${!conversation ? ' chat-composer-group--context' : ''}`}
+          onFocusCapture={(event) => { if (event.target instanceof HTMLTextAreaElement) setComposerFocused(true) }}
+          onBlurCapture={(event) => { if (event.target instanceof HTMLTextAreaElement) setComposerFocused(false) }}>
           <ChatComposer value={draft} onChange={setDraft} onSubmit={() => void send()} busy={chat.busy} disabled={!online}
             onStop={stopReply} placeholder={conversation ? 'Ask a follow-up…' : 'Ask which agents are frozen, and what happened…'} error={lastError ? 'Your draft is saved. Review any actions before sending again.' : undefined} />
           {!conversation ? <div className="chat-context">
@@ -140,7 +144,7 @@ const TranscriptTurn = memo(function TranscriptTurn({ turn, onRespond }: { turn:
   return <article className="chat-turn" aria-label="Conversation turn">
     <div className="chat-question"><span className="sr-only">You: </span>{turn.question}</div>
     <div className="chat-answer">
-      <img className="chat-answer-mark" src="/brand/mirage-mark.svg" width="24" height="15" alt="Mirage" />
+      <Miragio className="chat-answer-miragio" />
       <div className="chat-answer-content">
         {turn.parts.map((part, index) => {
           if (part.kind === 'text') return <FormattedText key={index} text={String(sanitize(part.text))} />
