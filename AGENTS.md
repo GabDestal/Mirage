@@ -137,6 +137,18 @@ Repo layout and ownership are in `CONTRACTS.md` section 8.
 
 `mirage detonate` must work without the UI. It is the riskiest demo part: test it often.
 
+## Repo rules (all agents, all the time)
+Skills live in `.claude/skills/`. Agents that do not load skills: read the `SKILL.md` file.
+- **Demo first.** Build only what the demo in `PRODUCT.md` shows. `CONTRACTS.md` is the
+  link between engine (Person A) and UI (Person B).
+- **Reuse before writing** (`ponytail` skill): smallest complete change; existing code,
+  stdlib, installed deps, then open source, then new code.
+- **Align before building** (`align-first` skill): check product fit and browse open source,
+  propose options, get an OK before committing to a new approach.
+- **One feature = one worktree = one atomic PR** (`atomic-worktree` skill). Never work
+  directly on `main`.
+- **Commit often, push often**: commit each working step, push at least every 30 minutes.
+
 ## Working style
 - Build one step at a time and run it before moving on.
 - Keep code simple and readable; this is a 24-hour prototype.
