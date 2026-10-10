@@ -158,10 +158,10 @@ const TranscriptTurn = memo(function TranscriptTurn({ turn, onRespond }: { turn:
       <div className="chat-answer-content">
         {turn.parts.map((part, index) => {
           if (part.kind === 'text') return <FormattedText key={index} text={String(sanitize(part.text))} />
-          if (part.kind === 'tool') return <Tool key={part.id} part={part} />
+          if (part.kind === 'tool') return <Tool key={part.id} part={part} waiting={turn.parts.some((other) => other.kind === 'approval' && other.callId === part.id && ['waiting', 'sending'].includes(other.status))} />
           return <div key={part.id} className="chat-approval">
             {['waiting', 'sending'].includes(part.status) ? <>
-              <ChatApprovalCard message={part.message} schema={part.schema} pending={part.status === 'sending'} onRespond={(action, content) => void onRespond(part.id, action, content)} />
+              <ChatApprovalCard message={part.message} pending={part.status === 'sending'} onRespond={(action) => void onRespond(part.id, action)} />
               {part.error ? <p className="chat-error" role="alert">{part.error}</p> : null}
             </> : <ChatActivity state={part.status === 'cancelled' ? 'error' : 'done'} label={part.status === 'accepted' ? 'You approved this action' : part.status === 'declined' ? 'You declined this action' : part.error ? 'Decision not confirmed; check the incident before trying again' : 'Approval cancelled when the connection ended'} />}
           </div>
@@ -181,11 +181,11 @@ function resultText(result: ToolResult) {
   return safe.structuredContent ? JSON.stringify(safe.structuredContent, null, 2) : texts.length ? texts.join('\n\n') : JSON.stringify(safe.content, null, 2)
 }
 
-function Tool({ part }: { part: Extract<ChatPart, { kind: 'tool' }> }) {
+function Tool({ part, waiting }: { part: Extract<ChatPart, { kind: 'tool' }>; waiting: boolean }) {
   const evidence = part.result ? resultText(part.result) : ''
   const handoffUrl = part.tool === 'send_fix' ? part.result?.structuredContent?.handoff_url : undefined
   const safeHandoff = typeof handoffUrl === 'string' && /^\/chat\/handoffs\/[A-Za-z0-9_-]+$/.test(handoffUrl) ? handoffUrl : undefined
-  return <ChatToolCard tool={toolLabel(part.tool)} status={part.status} summary={part.progress || (part.status === 'running' ? 'Request sent to Mirage' : part.status === 'error' ? 'Check the result before trying again' : 'Result received')}>
+  return <ChatToolCard tool={toolLabel(part.tool)} status={waiting ? 'waiting' : part.status} summary={waiting ? 'Approve or decline below' : part.progress || (part.status === 'running' ? 'Request sent to Mirage' : part.status === 'error' ? 'Check the result before trying again' : 'Result received')}>
     <div className="chat-tool-evidence">
       <h4>Request</h4><pre>{JSON.stringify(sanitize(part.args), null, 2)}</pre>
       {evidence ? <><h4>Result</h4><pre>{evidence}</pre><CopyButton text={evidence} label="Copy visible result" /></> : null}

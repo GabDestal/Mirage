@@ -49,10 +49,12 @@ through that proxy. No CORS. Non-loopback Host and cross-site requests are rejec
 
 `POST /chat/turn` sends `{session_id?, message, actor}` and receives the dispatched
 SSE events. Only the server owns history/tool results. `POST /chat/approvals/:id`
-submits `{action: "accept" | "decline", content?}`; `{accepted:true}` acknowledges receipt,
+submits `{action: "accept" | "decline"}` only; `{accepted:true}` acknowledges receipt,
 while the eventual tool result confirms engine outcome. The original stream remains
-open through the dynamic MCP form. Typed confirmations, decline, wrong phrase and blank
-reason retain the existing MCP semantics. Approval expires in two minutes; duplicate,
+open while the human decides. The card has no inputs: the click is the confirmation. On
+Approve the service answers the MCP form server-side with the phrase and reason from the
+request's `_meta["mirage/confirm"]` (actor stays the session human, reason is the tool's).
+Any client-sent `content` is rejected; external MCP clients keep the typed phrase. Approval expires in two minutes; duplicate,
 stale and disconnected submissions return 409.
 
 `send_fix` returns a sanitized tool result with `structuredContent.handoff_url`.

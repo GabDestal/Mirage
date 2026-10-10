@@ -582,14 +582,17 @@ There is no synthetic model fallback. Startup: `cd mcp && npm ci && npm run buil
 
 The existing `createServer` is connected to an MCP SDK `Client` with paired in-memory
 transports. `listTools` supplies the eight-tool catalogue; `callTool` executes the
-existing handlers. Elicitation is presented to the human, with its original typed
-confirmation and dynamic JSON schema. Engine guards, actor audit labels and untrusted
+existing handlers. Elicitation is presented to the human as one plain-language sentence
+with Decline and Approve; the click is the confirmation. On Approve the service answers the
+MCP form itself with the phrase and reason the tool put in the request's `_meta["mirage/confirm"]`
+(the model-supplied reason or the tool default), so the browser cannot inject content. External
+MCP clients (Claude Code, Codex) keep the typed phrase, which fails closed. Engine guards, actor audit labels and untrusted
 fences remain authoritative. No merge/restart tools are added.
 
 | Method | Path | Contract |
 |---|---|---|
 | POST | `/chat/turn` | `ChatTurn` `{session_id?: string, message: string, actor: string}` → SSE |
-| POST | `/chat/approvals/{approval_id}` | `ChatApproval` `{action: "accept" \| "decline", content?: object}` → `{accepted: true}` |
+| POST | `/chat/approvals/{approval_id}` | `ChatApproval` `{action: "accept" \| "decline"}` (any other field → 400) → `{accepted: true}` |
 | GET | `/chat/handoffs/{handoff_id}` | Human-click prompt download, `text/plain` attachment; unavailable/expired → 404 |
 | GET | `/chat/sessions/{session_id}/events` | SSE of automatic follow-up turns for that session; unknown/expired → 404 |
 
@@ -603,15 +606,15 @@ SSE uses unnamed events: `data: <JSON>\n\n`. Each JSON is `ChatEvent` from
 | `tool_start` | `call_id`, `tool`, `args` |
 | `tool_progress` | `call_id`, `message` |
 | `tool_result` | `call_id`, `tool`, `result` (sanitized MCP CallToolResult: `content`, optional `structuredContent` / `isError`) |
-| `approval_required` | `approval_id`, `call_id`, `message`, `schema` (MCP requestedSchema) |
+| `approval_required` | `approval_id`, `call_id`, `message` (plain sentence), `schema` (always `{"type":"object","properties":{}}`: nothing to fill) |
 | `follow_up` | `title` (session stream only: opens an automatic turn, followed by its usual events and `done`/`error`) |
 | `done` | no additional fields |
 | `error` | `code`, `message` (sanitized; also used for pre-stream HTTP errors) |
 
 `done` terminates success; `error` terminates failure. Do not automatically retry turns
 or action calls. SSE comments are keepalives. The original stream stays open during
-approval. `{accepted: true}` means the form submission was received, not that the engine
-action succeeded; its `tool_result` is authoritative. Wrong phrases/declines fail closed.
+approval. `{accepted: true}` means the decision was received, not that the engine
+action succeeded; its `tool_result` is authoritative. Declines, expiry and disconnects fail closed.
 Stale, repeated or disconnected approval IDs return 409. Approval expires after 120s.
 
 Detonation and bisection do not block the chat. The service calls `detonate` / `find_cause`

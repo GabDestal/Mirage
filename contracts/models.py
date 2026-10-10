@@ -304,8 +304,9 @@ class ChatTurn(Model):
 
 
 class ChatApproval(Model):
+    """The click is the confirmation: no form content. The chat service answers the MCP form."""
+
     action: Literal["accept", "decline"]
-    content: dict[str, Any] | None = None
 
 
 class ChatApprovalAccepted(Model):
@@ -360,6 +361,7 @@ class ChatApprovalRequired(Model):
     call_id: str
     message: str
     # "schema" is the wire field; use an alias to avoid shadowing BaseModel.schema.
+    # Always an empty object schema in chat: nothing to fill, only Approve or Decline.
     requested_schema: dict[str, Any] = Field(alias="schema")
 
 

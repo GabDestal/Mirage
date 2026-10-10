@@ -14,11 +14,13 @@ for example in examples:
     assert adapter.validate_python(example).model_dump(mode="json", by_alias=True, exclude_none=True) == example
 assert len({event["type"] for event in examples}) == 9
 ChatTurn(message="Which run is frozen?", actor="liam")
-ChatApproval(action="accept", content={"confirm": "kill run_002", "reason": "Contained"})
+ChatApproval(action="accept")
 ChatApprovalAccepted(accepted=True)
-for invalid in [{"message": "x", "actor": "liam", "history": []}, {"message": "x" * 8001, "actor": "liam"}]:
+for model, invalid in [(ChatTurn, {"message": "x", "actor": "liam", "history": []}),
+                       (ChatTurn, {"message": "x" * 8001, "actor": "liam"}),
+                       (ChatApproval, {"action": "accept", "content": {"confirm": "kill run_002", "reason": "x"}})]:
     try:
-        ChatTurn.model_validate(invalid)
+        model.model_validate(invalid)
     except ValidationError:
         pass
     else:

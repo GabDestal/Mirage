@@ -1,7 +1,7 @@
 {"type":"session","session_id":"9c08b1bd-6529-431d-8f44-5bbdb9727835"}
 {"type":"text_delta","text":"I will check the frozen run."}
 {"type":"tool_start","call_id":"b5a454f7-2601-4c71-a3fb-a6d0ddb4d8b6","tool":"kill","args":{"run_id":"run_002","reason":"Contain the confirmed compromise"}}
-{"type":"approval_required","approval_id":"f2f3969d-50f5-420a-bb85-c8efb65fed8f","call_id":"b5a454f7-2601-4c71-a3fb-a6d0ddb4d8b6","message":"KILL run_002: ends the run for good.","schema":{"type":"object","properties":{"confirm":{"type":"string","title":"Type \"kill run_002\" to confirm"},"reason":{"type":"string","title":"Reason (logged in the audit trail)"}},"required":["confirm","reason"]}}
+{"type":"approval_required","approval_id":"f2f3969d-50f5-420a-bb85-c8efb65fed8f","call_id":"b5a454f7-2601-4c71-a3fb-a6d0ddb4d8b6","message":"Kill run_002 (meeting_assistant). It stops for good and cannot be resumed.","schema":{"type":"object","properties":{}}}
 {"type":"tool_progress","call_id":"b5a454f7-2601-4c71-a3fb-a6d0ddb4d8b6","message":"Working in Mirage"}
 {"type":"tool_result","call_id":"b5a454f7-2601-4c71-a3fb-a6d0ddb4d8b6","tool":"kill","result":{"content":[{"type":"text","text":"Done: run_002 is now killed."}],"structuredContent":{"run":{"id":"run_002","status":"killed"}}}}
 {"type":"tool_result","call_id":"ccaf29c0-af9f-42df-8356-16bc6ee6a015","tool":"send_fix","result":{"content":[{"type":"text","text":"Handoff created. The UI offers the full prompt to the human."}],"structuredContent":{"handoff_url":"/chat/handoffs/c5fb644c-7347-418c-b3ae-dcfc781d2de0","codex_url":"https://chatgpt.com/codex"}}}

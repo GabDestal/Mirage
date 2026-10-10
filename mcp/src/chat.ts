@@ -7,7 +7,7 @@ import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { CallToolResult, ElicitResult, Tool as McpTool } from "@modelcontextprotocol/sdk/types.js";
 import type { ContentBlock, Message, Tool } from "@aws-sdk/client-bedrock-runtime";
 import { z } from "zod";
-import { createServer, effectTools, engineClient, untrusted } from "./server.js";
+import { CONFIRM_META, createServer, effectTools, engineClient, untrusted } from "./server.js";
 import type { Options as McpOptions } from "./server.js";
 import { ChatError, publicError } from "./bedrock.js";
 import type { ModelProvider } from "./bedrock.js";
@@ -21,7 +21,9 @@ export const LIMITS = {
 const id = z.string().uuid();
 const turnInput = z.object({ session_id: id.optional(), message: z.string().trim().min(1).max(LIMITS.inputChars),
   actor: z.string().trim().min(1).max(80).regex(/^[\p{L}\p{N} ._@-]+$/u) }).strict();
-const approvalInput = z.object({ action: z.enum(["accept", "decline"]), content: z.record(z.string(), z.unknown()).optional() }).strict();
+// The click is the confirmation: the browser sends only its decision, never form content.
+const approvalInput = z.object({ action: z.enum(["accept", "decline"]) }).strict();
+const confirmAnswer = z.object({ confirm: z.string().min(1), reason: z.string() }).strict();
 
 export type ChatEvent =
   | { type: "session"; session_id: string }
@@ -37,7 +39,7 @@ export type ChatEvent =
 type FollowUp = { title: string; message: string; incidentId: string };
 type Session = { actor: string; turns: Message[][]; touched: number; busy: boolean; secrets: Set<string>;
   queue: FollowUp[]; listener?: ServerResponse };
-type Approval = { session: Session; signal: AbortSignal; settle: (answer: ElicitResult) => void };
+type Approval = { session: Session; signal: AbortSignal; settle: (action: "accept" | "decline") => void };
 type Handoff = { session: Session; prompt: string };
 type Emit = (event: ChatEvent) => void;
 type ChatOptions = { provider: ModelProvider; mcp?: McpOptions; origins?: string[] };
@@ -111,22 +113,23 @@ export function createChatService(opts: ChatOptions) {
     for (const [key, handoff] of handoffs) if (!alive.has(handoff.session)) handoffs.delete(key);
   }
 
-  function approval(session: Session, signal: AbortSignal, callId: string, params: { message: string; requestedSchema: object }, emit: Emit) {
+  /** Approve answers the MCP form server-side with the tool's own phrase and reason, so the actor and reason stay audited. */
+  function approval(session: Session, signal: AbortSignal, callId: string, message: string, answer: z.infer<typeof confirmAnswer>, emit: Emit) {
     signal.throwIfAborted();
     return new Promise<ElicitResult>((resolve) => {
       const approvalId = randomUUID();
-      const settle = (answer: ElicitResult) => {
+      const settle = (action: "accept" | "decline") => {
         clearTimeout(timer);
         signal.removeEventListener("abort", decline);
         approvals.delete(approvalId);
-        resolve(answer);
+        resolve(action === "accept" ? { action, content: answer } : { action });
       };
-      const decline = () => settle({ action: "decline" });
+      const decline = () => settle("decline");
       const timer = setTimeout(decline, LIMITS.approvalMs);
       approvals.set(approvalId, { session, signal, settle });
       signal.addEventListener("abort", decline, { once: true });
       emit({ type: "approval_required", approval_id: approvalId, call_id: callId,
-        message: sanitize(params.message, session.secrets), schema: sanitize(params.requestedSchema as Record<string, unknown>, session.secrets) });
+        message: sanitize(message, session.secrets), schema: { type: "object", properties: {} } });
     });
   }
 
@@ -142,8 +145,9 @@ export function createChatService(opts: ChatOptions) {
     const server = createServer({ ...opts.mcp, actor: session.actor, fetch: boundedFetch });
     const client = new Client({ name: "Mirage Chat", version: "0.1.0" }, { capabilities: { elicitation: { form: {} } } });
     client.setRequestHandler(ElicitRequestSchema, async (request) => {
-      if (request.params.mode === "url" || !callId || callSignal.aborted) return { action: "decline" };
-      return approval(session, callSignal, callId, request.params, emit);
+      const answer = confirmAnswer.safeParse(request.params._meta?.[CONFIRM_META]);
+      if (request.params.mode === "url" || !answer.success || !callId || callSignal.aborted) return { action: "decline" };
+      return approval(session, callSignal, callId, request.params.message, answer.data, emit);
     });
     const [a, b] = InMemoryTransport.createLinkedPair();
     const turn: Message[] = [{ role: "user", content: [{ text: sanitize(message, session.secrets) }] }];
@@ -323,10 +327,10 @@ export function createChatService(opts: ChatOptions) {
       const body = await readJson(req);
       if (path.startsWith("/chat/approvals/")) {
         const input = approvalInput.safeParse(body);
-        if (!input.success) throw new ChatError("INVALID_APPROVAL", "Approval requires action accept or decline and optional form content.");
+        if (!input.success) throw new ChatError("INVALID_APPROVAL", "Approval requires only action accept or decline.");
         const pending = approvals.get(path.slice("/chat/approvals/".length));
         if (!pending || !pending.session.busy || pending.signal.aborted) throw new ChatError("APPROVAL_STALE", "This approval is expired, already submitted, or disconnected.", 409);
-        pending.settle(input.data as ElicitResult);
+        pending.settle(input.data.action);
         json(res, 200, { accepted: true }); return;
       }
       if (path !== "/chat/turn") throw new ChatError("NOT_FOUND", "Chat endpoint not found.", 404);
