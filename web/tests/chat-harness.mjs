@@ -22,7 +22,7 @@ const server = createServer(async (request, response) => {
     const id = decodeURIComponent(request.url.split('/').at(-1))
     const approval = approvals.get(id)
     if (!approval) return json({ message: 'Approval no longer available' }, 404)
-    if (input.content?.reason === 'retry fixture' && !approval.retried) { approval.retried = true; return json({ message: 'Synthetic transient failure' }, 503) }
+    if (input.action === 'accept' && !approval.retried) { approval.retried = true; return json({ message: 'Synthetic transient failure' }, 503) }
     seen.approvals.push({ id, ...input })
     approval.resolve(input)
     if (approval.race) await delay(500)
@@ -52,9 +52,7 @@ const server = createServer(async (request, response) => {
     emit({ type: 'tool_start', call_id: 'approval-call', tool: 'kill', args: { run_id: 'synthetic-run' } })
     pendingId = randomUUID()
     const decision = new Promise((resolve) => { pendingResolve = resolve; approvals.set(pendingId, { resolve, retried: false, race: message.includes('race') }) })
-    emit({ type: 'approval_required', approval_id: pendingId, call_id: 'approval-call', message: 'Synthetic fixture: end synthetic-run? No production action is performed.', schema: {
-      type: 'object', properties: { reason: { type: 'string', title: 'Reason', minLength: 3 }, confirm: { type: 'string', title: 'Type "kill synthetic-run" to confirm', description: 'Type kill synthetic-run' } }, required: ['reason', 'confirm'],
-    } })
+    emit({ type: 'approval_required', approval_id: pendingId, call_id: 'approval-call', message: 'Synthetic fixture: end synthetic-run? No production action is performed.', schema: { type: 'object', properties: {} } })
     const answer = await decision
     approvals.delete(pendingId)
     if (response.destroyed) return

@@ -10,7 +10,7 @@ The composer uses a plain neutral border and a static blue focus-within border; 
 
 Tool results use native `details`/`summary`, with real status and bounded panel/icon transitions. Status text swaps use Motion and the free Transitions.dev recipes with 4px travel and 2px blur; no invented reasoning or staged progress. Approval reveals once when visible, with a 220ms bounded transition.
 
-Approval supports flat string, boolean, number, and integer fields; required fields; enum/const; numeric bounds; string length/pattern; email/URI formats. Unknown constraints or nested schemas fail closed and still allow decline. The actual MCP title `Type "<phrase>" to confirm` makes the phrase mandatory and exact; it is never prefilled. Required text must contain non-whitespace content. Browser validity runs before our constraint check. Content retains scalar types. This is presentation validation; the MCP/backend must enforce authority as before.
+Approval shows one plain-language sentence and two buttons, Decline and Approve; there are no inputs. The click is the human confirmation: the browser sends only `{action}`, and the chat service answers the MCP form server-side with the tool's own phrase and reason (`CONTRACTS.md` §13). While it waits, the matching tool card reads "Waiting for you".
 
 ## Startup and evidence
 
@@ -21,7 +21,6 @@ npm run dev -- --host 127.0.0.1 --port 5193 --strictPort
 # http://127.0.0.1:5193/src/components/chat/preview.html
 npm run build
 npm run lint
-node --experimental-strip-types src/components/chat/approval-schema.selfcheck.ts
 ```
 
 The evidence below is historical, from before the composer beam removal; the screenshots and browser assertions do not verify the current composer. No preview or live UI was run for the removal.

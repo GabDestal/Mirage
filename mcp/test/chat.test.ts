@@ -154,8 +154,10 @@ test("all eight tools execute via MCP, retain progress/fences/audit labels and i
   const app = await start(p.model);
   const events = await collect(await app.post("/chat/turn", turn), async (event) => {
     if (event.type === "approval_required") {
-      const confirm = (event.schema as any).properties.confirm.title.match(/Type "(.*)" to confirm/)[1];
-      const r = await app.post(`/chat/approvals/${event.approval_id}`, { action: "accept", content: { confirm, reason: "Human reason" } });
+      // The card shows only a plain sentence and Approve/Decline: no form fields to fill.
+      expect(event.schema).toEqual({ type: "object", properties: {} });
+      expect(event.message).not.toMatch(/[A-Z]{4,}|root_caused|Type "/);
+      const r = await app.post(`/chat/approvals/${event.approval_id}`, { action: "accept" });
       expect(await r.json()).toEqual({ accepted: true });
     }
   });
@@ -165,7 +167,10 @@ test("all eight tools execute via MCP, retain progress/fences/audit labels and i
   // detonate/find_cause return at start in chat (wait=false), so no progress events.
   expect(events.filter((e) => e.type === "tool_progress")).toHaveLength(0);
   expect(app.posts.map((r) => r.path)).toEqual(["/incidents/inc_007/detonate", "/incidents/inc_007/bisect", "/runs/run_002/unfreeze", "/runs/run_002/kill", "/incidents/inc_007/handoff"]);
-  expect(app.posts[2].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Human reason" });
+  // The click confirms; the human actor and the tool's own reason are logged.
+  expect(app.posts[2].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Customer approved" });
+  expect(app.posts[3].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Contain" });
+  expect(app.posts[4].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Send fix to coding agent" });
   const continuation = JSON.stringify(p.requests[1].messages);
   expect(continuation).toContain("&lt;untrusted_input");
   expect(continuation).not.toContain("synthetic-capability-001");
@@ -179,19 +184,19 @@ test("all eight tools execute via MCP, retain progress/fences/audit labels and i
   expect(await download.text()).toBe("Full original prompt with capability synthetic-capability-001");
 });
 
-test.each([
-  { action: "decline" },
-  { action: "accept", content: { confirm: "wrong phrase", reason: "Human reason" } },
-  { action: "accept", content: { confirm: "unfreeze run_002", reason: "" } },
-])("approval fails closed with %j and cannot be submitted twice", async (answer) => {
+test("decline sends nothing, a client cannot approve with its own content, and decisions cannot repeat", async () => {
   const p = provider(calls(["unfreeze", { run_id: "run_002", reason: "draft" }]), plain("Nothing was resumed"));
   const app = await start(p.model); let approvalId = "";
   const events = await collect(await app.post("/chat/turn", turn), async (e) => {
-    if (e.type === "approval_required") { approvalId = e.approval_id; expect((await app.post(`/chat/approvals/${approvalId}`, answer)).status).toBe(200); }
+    if (e.type !== "approval_required") return;
+    approvalId = e.approval_id;
+    const injected = { action: "accept", content: { confirm: "unfreeze run_002", reason: "Injected by the browser" } };
+    expect((await app.post(`/chat/approvals/${approvalId}`, injected)).status).toBe(400);
+    expect((await app.post(`/chat/approvals/${approvalId}`, { action: "decline" })).status).toBe(200);
   });
   expect(app.posts).toEqual([]);
   expect(events.find((e) => e.type === "tool_result")).toMatchObject({ result: { isError: true } });
-  expect((await app.post(`/chat/approvals/${approvalId}`, answer)).status).toBe(409);
+  expect((await app.post(`/chat/approvals/${approvalId}`, { action: "accept" })).status).toBe(409);
 });
 
 test("confirmed incident unfreeze remains refused by existing guards without elicitation", async () => {
@@ -212,7 +217,7 @@ test("approval timeout declines automatically and a late accept is stale", async
   const approval = events.find((e) => e.type === "approval_required")!;
   expect(app.posts).toEqual([]);
   expect(events.find((e) => e.type === "tool_result")).toMatchObject({ result: { isError: true } });
-  expect((await app.post(`/chat/approvals/${approval.approval_id}`, { action: "accept", content: { confirm: "kill run_002", reason: "Late" } })).status).toBe(409);
+  expect((await app.post(`/chat/approvals/${approval.approval_id}`, { action: "accept" })).status).toBe(409);
 });
 
 test("a hanging model is cancelled at its deadline with an explicit timeout event", async () => {
@@ -255,7 +260,7 @@ test("disconnect declines pending approval, aborts continuation and makes its ID
   await vi.waitFor(() => expect(p.requests[0].signal.aborted).toBe(true));
   expect(app.posts).toEqual([]);
   expect(p.requests).toHaveLength(1);
-  expect((await app.post(`/chat/approvals/${approvalId}`, { action: "accept", content: { confirm: "kill run_002", reason: "Late" } })).status).toBe(409);
+  expect((await app.post(`/chat/approvals/${approvalId}`, { action: "accept" })).status).toBe(409);
 });
 
 test("malformed JSON, invalid args, unknown tools and extra properties do not dispatch effects", async () => {
@@ -326,7 +331,7 @@ test("sessions own history and actor, reject parallel turns, and expire their ha
     if (e.type === "session") sessionId = e.session_id;
     if (e.type === "approval_required") {
       expect((await app.post("/chat/turn", { ...turn, session_id: sessionId })).status).toBe(409);
-      await app.post(`/chat/approvals/${e.approval_id}`, { action: "accept", content: { confirm: "send fix inc_007", reason: "Human reason" } });
+      await app.post(`/chat/approvals/${e.approval_id}`, { action: "accept" });
     }
     if (e.type === "tool_result") handoffUrl = e.result.structuredContent!.handoff_url as string;
   });

@@ -80,7 +80,7 @@ test("unfreeze with the right phrase posts with the MCP actor label", async () =
   } });
   const r = await callText("unfreeze", { run_id: "run_003", reason: "draft" });
   expect(r.isError).toBe(false);
-  expect(message).toContain("send_email");
+  expect(message).toMatch(/^Unfreeze run_003 \(meeting_assistant\) and resume it in production\./);
   expect(posts).toEqual([{ path: "/runs/run_003/unfreeze",
     body: { actor: "liam via Claude Code (MCP)", reason: "Customer gave this address" } }]);
 });

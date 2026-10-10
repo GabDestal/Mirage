@@ -4,11 +4,6 @@ import { ChatActivity, ChatApprovalCard, ChatComposer, ChatToolCard, type ChatAc
 import '../../pages/login.css'
 import './preview.css'
 
-const approval = { type: 'object', properties: {
-  confirm: { type: 'string', title: 'Type "unfreeze run_002" to confirm' },
-  reason: { type: 'string', title: 'Reason (logged in the audit trail)', default: 'The destination is approved by the customer.' },
-}, required: ['confirm', 'reason'] }
-
 export function Preview() {
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -17,7 +12,6 @@ export function Preview() {
   const [count, setCount] = useState(0)
   const [decision, setDecision] = useState('No decision sent')
   const [pending, setPending] = useState(false)
-  const [unsupported, setUnsupported] = useState(false)
   return <main className="mirage-preview">
     <p className="preview-note">Component validation · synthetic examples · no engine calls</p>
     <img src="/favicon.svg" width="64" height="64" alt="" />
@@ -27,8 +21,8 @@ export function Preview() {
     <ChatActivity state={state} label={{ thinking: 'Miragio is thinking…', tool: 'Checking the incident evidence…', approval: 'Waiting for your decision', error: 'Could not reach Mirage', done: 'Evidence is ready' }[state]} />
     <div className="preview-controls">{(['thinking', 'tool', 'approval', 'error', 'done'] as const).map(next => <button key={next} onClick={() => setState(next)}>{next}</button>)}</div>
     <ChatToolCard tool="mirage_get_incident" status={state === 'done' ? 'complete' : state === 'error' ? 'error' : 'running'} summary="Calendar invite · Q4 partner sync"><pre>{JSON.stringify({ incident_id: 'inc_007', status: 'frozen', source: 'calendar_invite', result: 'Synthetic evidence for component validation. ' + 'long-result-'.repeat(22) }, null, 2)}</pre></ChatToolCard>
-    <ChatApprovalCard message="Resume run_002 after reviewing this false positive. The held tool call will continue." schema={unsupported ? { ...approval, allOf: [] } : approval} pending={pending} onRespond={(action, content) => setDecision(JSON.stringify({ action, content }))} />
-    <div className="preview-controls"><button onClick={() => setPending(!pending)}>Toggle pending</button><button onClick={() => setUnsupported(!unsupported)}>Toggle unsupported schema</button></div>
+    <ChatApprovalCard message="Unfreeze run_002 (support_agent) and resume it in production. The action it was stopped on goes through the gate again." pending={pending} onRespond={(action) => setDecision(JSON.stringify({ action }))} />
+    <div className="preview-controls"><button onClick={() => setPending(!pending)}>Toggle pending</button></div>
     <output className="preview-decision">{decision}</output>
   </main>
 }
