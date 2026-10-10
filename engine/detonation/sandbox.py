@@ -3,6 +3,7 @@
 Each run is a fresh child process (`python -I`) in a temp folder, with a wiped environment:
 only the Bedrock key and region pass. The child jails itself (see jail.py).
 The verdict is code, not a model: the gate's own hard rules run over the effects ledger.
+The judge (detection/judge.py) only adds policies and a plain-language sentence to it.
 """
 
 import itertools
@@ -19,6 +20,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from contracts.models import BlastRadius, DetonateResult, Detonation, Effect, Verdict
+from engine.detection import judge
 from engine.detection.rules import hard_rules, load_policy
 from engine.detonation import snapshot
 from engine.gateway import gate
@@ -178,6 +180,11 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
         compromised_runs=f"{compromised}/{finished_ok}",
         policies_violated=sorted({p for e in bad_effects for p in e.violates}),
         blast_radius=blast_radius(snap, bad_effects, compromised, finished_ok))
+    if not verify and not removed_input_id:  # the incident's verdict: the judge explains it
+        said = judge.judge(snap["agent"], snap["task"], bad_effects)
+        if said:
+            verdict.policies_violated = sorted(set(verdict.policies_violated) | set(said["policies"]))
+            verdict.blast_radius.summary += " " + said["summary"]
     result = DetonateResult(incident_id=incident_id,
                             attack_blocked=f"{finished_ok - compromised}/{finished_ok}",
                             legit_task_completed=f"{legit}/{finished_ok}",
