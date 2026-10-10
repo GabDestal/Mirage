@@ -6,7 +6,7 @@ Import `ChatComposer`, `ChatActivity`, `ChatToolCard`, and `ChatApprovalCard` fr
 
 The controlled composer submits immediately and leaves clearing the draft to its parent. Enter sends, Shift+Enter inserts a newline, and composing/empty/busy/disabled submissions are ignored. Visual effect siblings never reparent the textarea or functional button. Auto height caps at 200px. The 36px silver send control has a 44px hit area. Error text is associated with the textarea.
 
-Dependencies: `border-beam@1.4.1`, `thinking-orbs@0.3.2`, `metal-fx@2.0.11` (MIT, no additional runtime peers), plus existing Motion. Beam is ocean/light at strength 0.25 only while focused or busy. Metal is silver/light at strength 0.45 on the focused, enabled send control. The 20px monochrome orb follows actual thinking/tool states only. Effects unmount when idle, offscreen, hidden, or reduced motion is enabled; reduced motion uses static Lucide indicators. Metal's upstream WebGL2 fallback retains its plain child; the functional button is also independent of it.
+Dependencies: `border-beam@1.4.1`, `thinking-orbs@0.3.2` (MIT), plus existing Motion. Beam uses the traveling `md` border preset, colorful/light at strength 0.7, only while focused or busy and enabled. Its isolated decorative sibling follows the composer perimeter without reparenting the textarea. The send/stop control stays icon-only; no Metal overlay or canvas covers its functional icon. The 20px monochrome orb follows actual thinking/tool states only. Effects unmount when idle, offscreen, hidden, or reduced motion is enabled; reduced motion retains static focus styling and Lucide indicators.
 
 Tool results use native `details`/`summary`, with real status and bounded panel/icon transitions. Status text swaps use Motion and the free Transitions.dev recipes with 4px travel and 2px blur; no invented reasoning or staged progress. Approval reveals once when visible, with a 220ms bounded transition.
 
@@ -30,6 +30,8 @@ Orca browser harness checks passed: 14 composer assertions covering IME/Enter/Sh
 
 Screenshots are **component-harness evidence**, not integrated Bedrock/MCP acceptance. Desktop uses the incumbent 672px column; mobile is 390px with expanded long output. Final connected behavior and provider-live acceptance remain with the page/backend workers. Shader timing/performance on real mobile hardware was not tested.
 
+The composer border/button follow-up passes build/typecheck, lint (the same eight existing warnings), the Impeccable detector, and 17 browser assertions for icon visibility, input/composition guards, stop, focus, selection, and error association. Orca harness geometry matches the full composer perimeter at 1280px and 390px without horizontal overflow; a simulated reduced-motion preference has no beam/canvas and retains static focus and arrow. Orca's media emulation did not change the native media query, and embedded browser timing can stall when its panel is hidden, so harness screenshots alone do not establish native reduced-motion or animation timing acceptance. The coordinator separately verified the untouched preview in native Dia: focused `hey` shows the arrow and the colorful glow travels around the perimeter. No provider calls or real writes were used.
+
 - [Desktop screenshot](evidence/desktop.png)
 - [Mobile screenshot](evidence/mobile.png)
 
@@ -38,5 +40,5 @@ Screenshots are **component-harness evidence**, not integrated Bedrock/MCP accep
 - Incumbent: `web/src/pages/chat.tsx`, `web/src/pages/chat.css`.
 - Opereit reference (read-only): `/Users/liamszefner/Opereit/obsydian/apps/dashboard/src/app/agent/components/chat-input.tsx`; visual direction retained, artificial submit delay omitted as requested.
 - Actual MCP elicitation shape: `mcp/src/server.ts`, `confirm()`.
-- [Beam docs](https://libraries.dev/beam), [orbs docs](https://libraries.dev/orbs), [metal docs](https://libraries.dev/metal), [MIT source and examples](https://github.com/Jakubantalik/Libraries.dev).
+- [Beam docs](https://libraries.dev/beam), [orbs docs](https://libraries.dev/orbs), [MIT source and examples](https://github.com/Jakubantalik/Libraries.dev).
 - Free motion recipes: [text states swap](https://github.com/Jakubantalik/transitions.dev/blob/main/cli/free/text-states-swap.md), [panel reveal](https://github.com/Jakubantalik/transitions.dev/blob/main/cli/free/panel-reveal.md), [icon swap](https://github.com/Jakubantalik/transitions.dev/blob/main/cli/free/icon-swap.md). No Pro dependency or purchase.
