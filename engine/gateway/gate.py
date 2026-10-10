@@ -18,6 +18,7 @@ from typing import Any
 
 from contracts.models import AgentSpec, GateDecision, HumanAction, Incident, Run
 from engine.detection.rules import POLICY, hard_rule
+from engine.detonation import snapshot
 from engine.dev import tools  # shortcut: in-process tool dispatch, dev harness only
 from engine.store.events import emit
 
@@ -47,7 +48,13 @@ class LiveRun:
     token: str = field(default_factory=lambda: secrets.token_urlsafe(24))
     model_calls: list = field(default_factory=list)  # snapshot material
     tool_results: list = field(default_factory=list)  # snapshot material
+    calls: dict = field(default_factory=dict)  # call_id -> {tool, args}, to pair results
     resume: threading.Event = field(default_factory=threading.Event)  # set = not frozen
+    # how to rebuild the agent in a detonation (set by the agent at start)
+    entrypoint: str = ""
+    system: str = ""
+    model_id: str = ""
+    legit: dict = field(default_factory=dict)  # "legit task completed" check: {tool, to}
     # dev harness only
     user_name: str = ""
     user_email: str = ""
@@ -123,6 +130,7 @@ def global_stop(actor, reason):
 def check(run, tool, args) -> GateDecision:
     call_id = next_id("call")
     run.tool_calls += 1
+    run.calls[call_id] = {"tool": tool, "args": args}
     emit("tool.requested", {"call_id": call_id, "tool": tool, "args": args}, run_id=run.id)
 
     hit = None
@@ -142,17 +150,23 @@ def check(run, tool, args) -> GateDecision:
     emit("gate.decision", gate.model_dump(mode="json"), run_id=run.id,
          incident_id=run.incident_id if hit else None)
     if hit:
+        spec = agents.get(run.agent)
+        snap = snapshot.save(run, run.incident_id, policy_for(run.agent),  # freeze = snapshot
+                             entrypoint=spec.entrypoint if spec else "")
         incidents[run.incident_id] = Incident(
             id=run.incident_id, run_id=run.id, status="open", opened_at=datetime.now(UTC),
-            trigger=gate, snapshot_id=f"snap_{run.incident_id[4:]}")
-        emit("incident.opened", {"incident_id": run.incident_id, "trigger_call_id": call_id},
+            trigger=gate, snapshot_id=snap["id"], inputs=snapshot.inputs(snap))
+        emit("incident.opened", {"incident_id": run.incident_id, "trigger_call_id": call_id,
+                                 "inputs": [i.model_dump() for i in snapshot.inputs(snap)]},
              run_id=run.id, incident_id=run.incident_id)
         set_status(run, "frozen", "gate", rule[1])
     return gate
 
 
 def record_result(run, call_id, tool, result, error=None):
-    run.tool_results.append({"call_id": call_id, "tool": tool, "result": result, "error": error})
+    args = run.calls.get(call_id, {}).get("args", {})
+    run.tool_results.append({"call_id": call_id, "tool": tool, "args": args, "result": result,
+                             "error": error})
     emit("tool.result", {"call_id": call_id, "tool": tool, "result": result, "error": error},
          run_id=run.id)
 

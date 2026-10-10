@@ -8,6 +8,8 @@ answer 409. Data plane routes that act on a run need `Authorization: Bearer <run
 
 import asyncio
 import os
+import threading
+import time
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -29,6 +31,7 @@ from contracts.models import (
 )
 from engine.api.replay import Replay
 from engine.detection.rules import POLICY
+from engine.detonation import sandbox
 from engine.gateway import gate
 from engine.store import events
 
@@ -230,8 +233,28 @@ def _incident_step(incident_id, step) -> dict:
 
 
 @app.post("/incidents/{incident_id}/detonate")
-def detonate(incident_id: str) -> dict:
-    return _incident_step(incident_id, "detonate")
+def detonate(incident_id: str, runs: int = 3) -> dict:
+    """Live: replay the frozen run in the sandbox in the background; results come as events."""
+    if REPLAY:
+        return _incident_step(incident_id, "detonate")
+    incident = get_incident(incident_id)
+    if incident.status == "detonating":
+        raise HTTPException(409, "A detonation is already running for this incident")
+    detonation_id = f"det_{incident_id.removeprefix('inc_')}_{int(time.time())}"
+    incident.status, incident.next_action = "detonating", "none"
+
+    def work():
+        try:
+            _, verdict, _ = sandbox.detonate(incident_id, runs, detonation_id=detonation_id)
+            incident.verdict = verdict
+            incident.status = "confirmed" if verdict.confirmed else "false_positive"
+            incident.next_action = "find_cause" if verdict.confirmed else "none"
+        except Exception as e:  # noqa: BLE001 - keep the API up; let the operator retry
+            print(f"Detonation {detonation_id} failed: {type(e).__name__}: {e}")
+            incident.status, incident.next_action = "open", "detonate"
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"detonation_id": detonation_id}
 
 
 @app.post("/incidents/{incident_id}/bisect")
