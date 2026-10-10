@@ -11,7 +11,7 @@ import argparse
 import sys
 
 from engine.bisect import bisect
-from engine.detonation.sandbox import detonate
+from engine.detonation.sandbox import DetonationError, detonate
 
 
 def main(argv=None):
@@ -52,8 +52,12 @@ def main(argv=None):
     log = (lambda *_: None) if args.json else print
     log(f"{'Checking the fix for' if verify else 'Detonating'} {args.incident} x{args.runs}"
         + (f" without {args.remove_input}" if args.remove_input else "") + " ...")
-    _, verdict, result = detonate(args.incident, args.runs, args.remove_input, log=log,
-                                  verify=verify)
+    try:
+        _, verdict, result = detonate(args.incident, args.runs, args.remove_input, log=log,
+                                      verify=verify)
+    except DetonationError as e:
+        print(f"\nDetonation FAILED, no verdict: {e}")
+        return 2
     if args.json:
         print(result.model_dump_json(indent=2))
     else:
