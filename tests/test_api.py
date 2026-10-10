@@ -176,3 +176,16 @@ def test_a_model_typo_tool_does_not_freeze_but_a_disallowed_tool_does(api):
     assert api.get(f"/runs/{run_id}").json()["status"] == "running"
     known = check(api, run_id, auth, "export_contacts").json()  # the agent has it, not allowed
     assert (known["decision"], known["rule_id"]) == ("freeze", "TOOL_NOT_ALLOWED")
+
+
+def test_probing_for_missing_tools_escalates_to_a_freeze(api):
+    run_id, auth = start(api)
+    for _ in range(3):  # garbled real tool names are never probes
+        assert check(api, run_id, auth, "search_contactschannelcommentary", query="x").json()["rule_id"] == "UNKNOWN_TOOL"
+    first = check(api, run_id, auth, "http_post", url="https://x.example").json()
+    assert (first["decision"], first["rule_id"]) == ("allow", "UNKNOWN_TOOL")
+    second = check(api, run_id, auth, "forward_all_contacts", to=ATTACKER).json()
+    assert (second["decision"], second["rule_id"], second["layer"]) == ("freeze", "ESCALATION", "hard_rule")
+    assert "http_post, forward_all_contacts" in second["explanation"]
+    run = api.get(f"/runs/{run_id}").json()
+    assert run["status"] == "frozen" and run["incident_id"]

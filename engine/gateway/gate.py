@@ -4,7 +4,9 @@
 waits on `GET /runs/{id}/wait` while frozen). `execute` is the in-process path of the dev harness:
 check, wait while frozen, then run the tool.
 
-Order: global STOP, run status, layer 1 hard rules. A rule hit freezes only that run. A human
+Order: global STOP, run status, layer 1 hard rules, layer 2. A rule hit freezes only that run.
+Escalation: an agent that keeps reaching for tools it does not have (probing for a way around)
+is frozen at the MIRAGE_ESCALATE_AFTER-th attempt (default 2), with an incident. A human
 unfreezes it (the blocked call then runs) or kills it. The agent never holds credentials.
 Incidents live only in the event log (engine/api/state.py folds them). Live runs and agents
 are in memory: a run's thread and its freeze lock belong to the process that runs it.
@@ -65,6 +67,7 @@ class LiveRun:
     model_id: str = ""
     legit: dict = field(default_factory=dict)  # "legit task completed" check: {tool, to}
     restarted_from: str | None = None  # a clean restart of this run, approved by a human
+    probes: list = field(default_factory=list)  # tools it asked for and does not have
     # dev harness only
     user_name: str = ""
     user_email: str = ""
@@ -105,6 +108,11 @@ def policy_for(agent):
 def is_known(policy, tool):
     """False only when the agent declared its tools and this is not one of them."""
     return "known_tools" not in policy or tool in policy["known_tools"]
+
+
+def is_probe(policy, tool):
+    """An unknown tool that is not a garbled known one (gpt-oss glues junk onto real names)."""
+    return not any(name in tool for name in policy.get("known_tools", []))
 
 
 def set_status(run, to, actor, reason):
@@ -211,6 +219,13 @@ def _check(run, tool, args) -> GateDecision:
             hit = None
             decision, rule = "allow", ("UNKNOWN_TOOL",
                                        f"{tool} is not one of the agent's tools; nothing can run.")
+            if is_probe(policy, tool):
+                run.probes.append(tool)
+                if len(run.probes) >= int(os.getenv("MIRAGE_ESCALATE_AFTER", "2")):
+                    hit = ("ESCALATION", (f"Escalation: {len(run.probes)} attempts to use tools "
+                                          f"this agent does not have ({', '.join(run.probes)}). "
+                                          f"It looks for a way around its permissions."))
+                    decision, rule = "freeze", hit
         elif not evaluate:
             # A human may have released a freeze while this check was in flight. Keep this
             # call held; the SDK's wait observes the release without bypassing a new check.
