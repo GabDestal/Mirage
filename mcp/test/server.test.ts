@@ -23,6 +23,11 @@ const DB: Record<string, unknown> = {
   "GET /incidents/inc_003": incident("inc_003", "run_003", "false_positive"),
   "GET /incidents": [incident("inc_001", "run_001", "confirmed"), incident("inc_003", "run_003", "false_positive")],
   "POST /runs/run_003/unfreeze": run("run_003", "running", "inc_003"),
+  "GET /runs/run_004": run("run_004", "halted", "inc_004"),
+  "GET /incidents/inc_004": incident("inc_004", "run_004", "open"),
+  "POST /runs/run_004/resume": { ...run("run_005", "queued", "inc_004"), restarted_from: "run_004" },
+  "GET /runs/run_006": run("run_006", "halted", "inc_004"),
+  "POST /runs/run_006/resume": { status: 409, detail: "Lift Stop all first" },
   "POST /incidents/inc_001/handoff": { prompt: "Fix inc_001", claude_code_url: "https://claude.ai/code" },
 };
 
@@ -32,7 +37,8 @@ async function connect(opts: { elicit?: (msg: string) => { action: string; conte
     const path = url.replace("http://mirage.test", "");
     if (init.method === "POST") posts.push({ path, body: JSON.parse(String(init.body ?? "null")) });
     const key = `${init.method} ${path}`;
-    return key in DB ? Response.json(DB[key]) : Response.json({ detail: "not found" }, { status: 404 });
+    const v = DB[key] as any;
+    return key in DB ? Response.json(v, { status: v?.status === 409 ? 409 : 200 }) : Response.json({ detail: "not found" }, { status: 404 });
   }) as typeof globalThis.fetch;
   const server = createServer({ api: "http://mirage.test", actor: "liam", fetch });
   const client = new Client({ name: opts.client ?? "claude-code", version: "1" },
@@ -53,7 +59,7 @@ test("same tool set for every client, with the right annotations", async () => {
   const claude = await names("claude-code");
   expect(claude).toEqual(await names("codex-mcp-client"));
   expect(claude).toEqual([["list_runs", false], ["get_incident", false], ["get_audit", false], ["detonate", false],
-    ["find_cause", false], ["unfreeze", true], ["kill", true], ["send_fix", true]]);
+    ["find_cause", false], ["unfreeze", true], ["kill", true], ["resume", true], ["send_fix", true]]);
 });
 
 test("unfreeze fails closed without the elicitation capability", async () => {
@@ -161,4 +167,39 @@ test("send_fix says the handoff is ready, not sent, with readable labels", async
   expect(r.text).toMatch(/^Handoff for Incident #1 ready, not sent yet\./);
   expect(r.text).not.toMatch(/handed off/i);
   expect(r.structured.prompt).toBe("Fix inc_001");
+});
+
+test("resume asks for the typed phrase, then restarts the halted run as a new run", async () => {
+  let message = "";
+  const { posts, callText } = await connect({ elicit: (m) => {
+    message = m;
+    return { action: "accept", content: { confirm: "resume run_004", reason: "Stop all was a drill" } };
+  } });
+  const r = await callText("resume", { run_id: "run_004", reason: "draft" });
+  expect(message).toBe("Resume run_004 (meeting_assistant). It restarts its task from the beginning in production; " +
+    "every action goes through the gate.");
+  expect(posts).toEqual([{ path: "/runs/run_004/resume", body: { actor: "liam via Claude Code (MCP)", reason: "Stop all was a drill" } }]);
+  expect(r.text).toMatch(/^Done: Meeting assistant restarts as run_005 \(queued\)\. run_004 stays halted\./);
+});
+
+test("resume while Stop all is on points to the dashboard", async () => {
+  const { callText } = await connect({ elicit: () => ({ action: "accept", content: { confirm: "resume run_006", reason: "r" } }) });
+  const r = await callText("resume", { run_id: "run_006", reason: "r" });
+  expect(r.isError).toBe(true);
+  expect(r.text).toBe("Not done: Stop all is still on. Lift it in the dashboard, then I can resume agents one at a time.");
+});
+
+test("resume refuses a run that is not halted or is confirmed compromised, without asking", async () => {
+  let asked = false;
+  const { posts, callText } = await connect({ elicit: () => { asked = true; return { action: "decline" }; } });
+  expect((await callText("resume", { run_id: "run_003", reason: "r" })).text).toMatch(/run_003 is frozen; cannot resume it/);
+  expect((await callText("resume", { run_id: "run_001", reason: "r" })).text).toMatch(/compromised.*Fix it, then approve a clean restart/);
+  expect(asked).toBe(false);
+  expect(posts).toEqual([]);
+});
+
+test("resume fails closed without the typed phrase", async () => {
+  const { posts, callText } = await connect({ elicit: () => ({ action: "accept", content: { confirm: "resume", reason: "r" } }) });
+  expect((await callText("resume", { run_id: "run_004", reason: "r" })).isError).toBe(true);
+  expect(posts).toEqual([]);
 });

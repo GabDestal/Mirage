@@ -1,6 +1,6 @@
 // Mirage MCP server (CONTRACTS.md §12): a front end like web/. It calls the engine HTTP API only.
 // Level 0 tools read or touch the sandbox only. Level 1 tools need a typed human confirmation via
-// MCP elicitation and fail closed. Level 2 (resume after STOP, merge, approve restart) is not exposed.
+// MCP elicitation and fail closed. Level 2 (lift Stop all, batch resume, merge) is dashboard-only.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -304,21 +304,34 @@ export function createServer(opts: Options = {}) {
 
   // --- Level 1: real effects, typed human confirmation, fail closed -----------------------
 
-  const runAct = (action: "unfreeze" | "kill", allowed: string[]) => safe<{ run_id: string; reason: string }>(
+  const MESSAGE = {
+    unfreeze: (run: Run) => `Unfreeze ${run.id} (${run.agent}) and resume it in production. The action it was stopped on goes through the gate again.`,
+    kill: (run: Run) => `Kill ${run.id} (${run.agent}). It stops for good and cannot be resumed.`,
+    resume: (run: Run) => `Resume ${run.id} (${run.agent}). It restarts its task from the beginning in production; every action goes through the gate.`,
+  };
+  const runAct = (action: keyof typeof MESSAGE, allowed: string[]) => safe<{ run_id: string; reason: string }>(
     async ({ run_id, reason }) => {
       const run = await call<Run>("GET", `/runs/${run_id}`);
       const inc = run.incident_id ? await call<Incident>("GET", `/incidents/${run.incident_id}`) : null;
-      if (action === "unfreeze" && inc && CONFIRMED.includes(inc.status))
+      if (action !== "kill" && inc?.status === "detonating") return refuse("detonation is running. Wait for the verdict.");
+      if (action !== "kill" && inc && (CONFIRMED.includes(inc.status) || inc.verdict?.confirmed))
         return refuse(`detonation proved ${run_id} is compromised (incident ${inc.id}: ${inc.status}, ` +
-          `${inc.verdict?.compromised_runs ?? "?"} replays). Kill it and restart clean.`);
+          `${inc.verdict?.compromised_runs ?? "?"} replays). ${action === "resume" ? "Fix it, then approve a clean restart." : "Kill it and restart clean."}`);
       if (!allowed.includes(run.status)) return refuse(`${run_id} is ${run.status}; cannot ${action} it.`);
-      const phrase = `${action} ${run_id}`;
-      const ok = await confirm(action === "unfreeze"
-        ? `Unfreeze ${run_id} (${run.agent}) and resume it in production. The action it was stopped on goes through the gate again.`
-        : `Kill ${run_id} (${run.agent}). It stops for good and cannot be resumed.`, phrase, reason);
+      const ok = await confirm(MESSAGE[action](run), `${action} ${run_id}`, reason);
       if (!ok) return refuse(NOT_CONFIRMED);
-      const after = await call<Run>("POST", `/runs/${run_id}/${action}`, { actor: actor(), reason: ok });
-      return text(`Done: ${run_id} is now ${after.status}. Logged as "${actor()}", reason "${ok}".`, { run: after });
+      let after: Run;
+      try {
+        after = await call<Run>("POST", `/runs/${run_id}/${action}`, { actor: actor(), reason: ok });
+      } catch (e) {
+        // Only the dashboard can lift Stop all; the engine refuses a resume while it is on.
+        if (action === "resume" && /→ 409: .*stop/i.test((e as Error).message))
+          return refuse("Stop all is still on. Lift it in the dashboard, then I can resume agents one at a time.");
+        throw e;
+      }
+      return text(action === "resume"
+        ? `Done: ${agentName(run.agent)} restarts as ${after.id} (${after.status}). ${run_id} stays halted. Logged as "${actor()}", reason "${ok}".`
+        : `Done: ${run_id} is now ${after.status}. Logged as "${actor()}", reason "${ok}".`, { run: after });
     });
 
   const act = { destructiveHint: true, readOnlyHint: false, openWorldHint: false };
@@ -336,6 +349,14 @@ export function createServer(opts: Options = {}) {
     description: "End a running or frozen run for good. Needs human confirmation.",
     inputSchema: runArgs, annotations: act,
   }, runAct("kill", ["running", "frozen"]));
+
+  server.registerTool("resume", {
+    title: "Resume halted run",
+    description: "Restart one run halted by Stop all: a new run starts the task from the beginning, and every " +
+      "action goes through the gate. Needs human confirmation. Refused while Stop all is on (only the dashboard " +
+      "lifts it) or if detonation confirmed the compromise.",
+    inputSchema: runArgs, annotations: act,
+  }, runAct("resume", ["halted"]));
 
   server.registerTool("send_fix", {
     title: "Hand off to coding agent",

@@ -5,10 +5,10 @@ import { toast } from 'sonner'
 import { ArrowRight, Bot, CheckCircle2, Play, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { api, useEvents, useIncidents, useRuns, type Incident, type MirageEvent, type Run } from '@/api/client'
 import { resetStream, useNow } from '@/api/stream'
-import { useAsk } from '@/components/actions'
+import { ResumeButton, useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
-import { avatarState, relTime, rowSentence, runLabel } from '@/lib/runs'
+import { avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
 import { fleetActivity, fleetStatus, healthyAgents, sandboxStatus } from './fleet-presentation'
 import './fleet.css'
 
@@ -336,6 +336,8 @@ function AgentTableRow({
           <Button asChild variant="secondary" onClick={(e) => e.stopPropagation()}>
             <Link to={`/incidents/${run.incident_id}`}>Review Incident</Link>
           </Button>
+        ) : canResume(run, runs) ? (
+          <ResumeButton run={run} />
         ) : (
           <Link
             to={`/runs/${run.id}`}

@@ -1,12 +1,12 @@
 // Adapted from Opereit dashboard sidebar at 0a7a79fcab2c3d4c08156e81040302ffcdc473ce.
 import { Collapsible } from '@base-ui/react/collapsible'
-import { LayoutList, OctagonAlert } from 'lucide-react'
+import { LayoutList, OctagonAlert, Play } from 'lucide-react'
 import { NavLink, useLocation, useMatches } from 'react-router'
-import { useRuns } from '@/api/client'
+import { useEvents, useRuns } from '@/api/client'
 import { useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Kbd, Tooltip } from '@/components/ui/tooltip'
-import { agentName, avatarState, mostUrgent } from '@/lib/runs'
+import { agentName, avatarState, mostUrgent, stopOn } from '@/lib/runs'
 import { cn } from '@/lib/utils'
 import { MascotAskIcon } from './icons/mascot-ask'
 import { ChevronRightMediumIcon } from './icons/chevron-right-medium'
@@ -16,6 +16,8 @@ import { SidebarSection } from './sidebar-section'
 
 export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
   const ask = useAsk()
+  const { data: events = [] } = useEvents()
+  const stopped = stopOn(events)
 
   return (
     <aside aria-label="Main" className="mirage-sidebar flex h-full w-(--sidebar-width) flex-col overflow-hidden border-r border-r-neutral-200 bg-neutral-50 antialiased">
@@ -51,12 +53,19 @@ export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
             </button>
           </li>
           <li>
-            <Tooltip content={<>Halts every run and revokes all tokens <Kbd>⇧⌘.</Kbd></>}>
+            {stopped ? (
+              <Tooltip content="Lets you resume halted agents one at a time">
+                <button type="button" title="Lift stop" onClick={() => ask('lift')} className={cn(NAV_LINK_CLASS_NAME, 'w-full')}>
+                  <Play className="size-4 shrink-0" aria-hidden />
+                  <span className="sidebar-label min-w-0 truncate text-sm leading-5">Lift stop</span>
+                </button>
+              </Tooltip>
+            ) : <Tooltip content={<>Halts every run and revokes all tokens <Kbd>⇧⌘.</Kbd></>}>
               <button type="button" title="Stop all" onClick={() => ask('stop')} className={cn(NAV_LINK_CLASS_NAME, 'sidebar-stop w-full')}>
                 <OctagonAlert className="size-4 shrink-0" aria-hidden />
                 <span className="sidebar-label min-w-0 truncate text-sm leading-5">Stop all</span>
               </button>
-            </Tooltip>
+            </Tooltip>}
           </li>
         </ul>
       </div>
