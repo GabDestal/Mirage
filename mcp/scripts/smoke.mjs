@@ -5,6 +5,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { fileURLToPath } from "node:url";  // .pathname gives "/C:/..." on Windows
 
 const api = process.env.MIRAGE_API ?? "http://localhost:8000";
 await fetch(`${api}/demo/reset`, { method: "POST" });
@@ -14,7 +15,7 @@ client.setRequestHandler(ElicitRequestSchema, ({ params }) => {
   console.log(`  [form] ${params.message.split("\n")[0]} → typing "${phrase}"`);
   return { action: "accept", content: { confirm: phrase, reason: "smoke test" } };
 });
-await client.connect(new StdioClientTransport({ command: "node", args: [new URL("../dist/index.js", import.meta.url).pathname],
+await client.connect(new StdioClientTransport({ command: "node", args: [fileURLToPath(new URL("../dist/index.js", import.meta.url))],
   env: { ...process.env, MIRAGE_API: api } }));
 
 let failed = 0;

@@ -85,6 +85,20 @@ test("unfreeze with the right phrase posts with the MCP actor label", async () =
     body: { actor: "liam via Claude Code (MCP)", reason: "Customer gave this address" } }]);
 });
 
+test("detonate and find_cause tell the engine who asked (audit trail)", async () => {
+  DB["GET /events"] = [];
+  DB["POST /incidents/inc_001/detonate?runs=3"] = { detonation_id: "det_1" };
+  DB["POST /incidents/inc_001/bisect"] = { incident_id: "inc_001", status: "bisecting" };
+  const { posts, callText } = await connect();
+  await callText("detonate", { incident_id: "inc_001" });
+  await callText("find_cause", { incident_id: "inc_001" });
+  expect(posts).toEqual([
+    { path: "/incidents/inc_001/detonate?runs=3",
+      body: { actor: "liam via Claude Code (MCP)", reason: "Detonation requested via MCP" } },
+    { path: "/incidents/inc_001/bisect",
+      body: { actor: "liam via Claude Code (MCP)", reason: "Bisection requested via MCP" } }]);
+});
+
 test("unfreeze on a confirmed incident refuses without asking", async () => {
   let asked = false;
   const { posts, callText } = await connect({ elicit: () => { asked = true; return { action: "decline" }; } });
