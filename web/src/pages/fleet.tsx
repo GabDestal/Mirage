@@ -209,36 +209,36 @@ export function Fleet() {
             </div>
           ) : (
             <div className="fleet-table-region" role="region" aria-label="Fleet runs" tabIndex={0}>
-            <table className="fleet-table">
-              <colgroup>
-                <col className="fleet-col-agent" />
-                <col className="fleet-col-status" />
-                <col />
-                <col className="fleet-col-action" />
-                <col className="fleet-col-time" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Agent & Task</th>
-                  <th>Status</th>
-                  <th>Recent Tool Activity</th>
-                  <th className="fleet-action-cell">Action</th>
-                  <th className="fleet-time-cell">Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRuns.map((run, i) => (
-                  <AgentTableRow
-                    key={run.id}
-                    run={run}
-                    runs={runs}
-                    events={events}
-                    now={now}
-                    selected={i === selected}
-                  />
-                ))}
-              </tbody>
-            </table>
+              <table className="fleet-table">
+                <colgroup>
+                  <col className="fleet-col-agent" />
+                  <col className="fleet-col-status" />
+                  <col />
+                  <col className="fleet-col-action" />
+                  <col className="fleet-col-time" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Agent & Task</th>
+                    <th>Status</th>
+                    <th>Recent Tool Activity</th>
+                    <th className="fleet-action-cell">Action</th>
+                    <th className="fleet-time-cell">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRuns.map((run, i) => (
+                    <AgentTableRow
+                      key={run.id}
+                      run={run}
+                      runs={runs}
+                      events={events}
+                      now={now}
+                      selected={i === selected}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
