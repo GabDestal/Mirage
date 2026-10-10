@@ -60,6 +60,15 @@ Pitch line: "Proof, not guesses. Verified fixes, not alerts."
 - Rate limit: stay under ~1 request per second per person. Add a small delay in loops,
   especially during replay bisection.
 
+## Human in the loop (core requirement, emphasize everywhere)
+- Global STOP button: one click halts all runs and revokes all tokens. The gateway checks
+  a global "halted" flag before every tool call.
+- Per-run stop button for each agent.
+- Medium-risk actions wait in an approval queue (approve/reject with reason shown).
+- Escalation rule: repeated denials followed by workaround attempts = pause run + alert human.
+- Human approves clean restarts and always merges PRs manually (no auto-merge).
+- Every human decision is logged: who, when, what, why.
+
 ## Hard rules (non-negotiable)
 - Synthetic data only. No real personal data.
 - No secrets in Git: keys live in `.env` (gitignored). Use `.env.example` as template.
