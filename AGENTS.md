@@ -44,40 +44,36 @@ Team rule: **demo first.** Build what the demo shows. Nothing else.
 ## Two environments
 - **Production:** real team-owned accounts with synthetic data: Gmail, Google Calendar,
   HubSpot free CRM.
-- **Mirage:** same tool names and arguments, different backend. Each tool has two adapters.
-  Reads come from the snapshot. Writes go to fake services we can inspect.
+- **Mirage:** the same agent, but no real tool runs. The SDK (`mirage.protect` in mirage
+  mode) answers each tool call: reads return the recorded result, writes are captured.
   **Nothing in Mirage reaches the real world** (no real HTTP, no real email).
-
-| Tool | Production adapter | Mirage adapter |
-|---|---|---|
-| `read_calendar` | Google Calendar API | calendar snapshot |
-| `send_email` | Gmail API | fake outbox (captured, never sent) |
-| `crm_query` | HubSpot API | SQLite copy of CRM records |
-| `crm_export` | HubSpot API | SQLite copy, export captured |
-| `fetch_url` | real HTTP (allowlist) | recorded or stub page |
 
 The snapshot holds every input the run read and the full agent context (system prompt,
 messages, tool calls, tool results). Each Mirage run starts from a fresh copy.
 
-## Architecture (Python 3)
-Repo layout and ownership are in `CONTRACTS.md` section 8.
+## Architecture
+Repo layout and ownership: `CONTRACTS.md` section 8. SDK: section 11. MCP: section 12. UX: `docs/UX.md`.
+`web/`, `mcp/` and `agents/` talk to the engine only over HTTP. They never import `engine/`.
 - `contracts/models.py` — Pydantic models. **Source of truth** for all data shapes. Every
   change updates `models.py`, the fixtures and `CONTRACTS.md` in the same commit.
-- `agents/` — agent loop using Bedrock Converse API with tool use. The model only *requests*
-  tool calls; our code executes them.
-- `gateway/` — **every production tool call goes through `gateway.execute(run_id, tool, args)`**.
-  It checks the global STOP flag, the run status, the tool allowlist, the canary and the
-  destination allowlist, runs the decision model, and logs every call. Agents have no other
-  path to tools or credentials. This is the core security boundary: never bypass it.
-- `detection/` — layer 1 hard rules and layer 2 decision model (policy pack P1–P6 in
+- `sdk/` — `mirage.protect(agent)`, plugged into customer agents (owner: Liam). Framework-agnostic:
+  the core wraps tools and the model client; adapters per framework (LangChain/LangGraph first).
+  Prod mode: record, check, hold. Mirage mode: answer tool calls from the snapshot.
+- `engine/gateway/` — **no tool runs before the gateway allows it.** It checks the global STOP
+  flag, the run status, the tool allowlist, the canary and the destination allowlist, runs the
+  decision model, and logs every call. This is the core security boundary: never bypass it.
+  Mirage does not hold the agents' keys.
+- `engine/detection/` — layer 1 hard rules and layer 2 decision model (policy pack P1–P6 in
   `PRODUCT.md` section 4). Policies are written before the demo, never edited live.
-- `store/` — SQLite: event log (one stream, `Event` model) and snapshots.
-- `mirage/` — Mirage adapters, snapshot loading, detonation, `mirage detonate` CLI,
-  MCP server and HTTP access with a per-incident token.
-- `replay/` — bisection over snapshot inputs.
-- `remediation/` — handoff prompt, incident report, PyGithub PR.
-- `api/` — FastAPI server. `MIRAGE_MODE=replay` plays fixtures for UI work; `live` runs the engine.
-- `ui/` — operator view. Vite + React + TypeScript. Tech stack: `CONTRACTS.md` section 10.
+- `engine/store/` — SQLite: agents, runs, event log (one stream, `Event` model), snapshots.
+- `engine/detonation/` — builds the agent in mirage mode in a subprocess (no keys, network
+  only to Bedrock), runs it, judge. `engine/bisect.py`, `engine/handoff.py`, `engine/cli.py` (`mirage detonate`).
+- `engine/api/` — FastAPI. Data plane (SDK) + control plane (web, mcp) + SSE.
+  `MIRAGE_MODE=replay` plays fixtures for UI work; `live` runs the engine.
+- `agents/` — demo agents (LangGraph for the demo) with their own tools (Gmail, Calendar,
+  HubSpot) and keys, wrapped by `mirage.protect`.
+- `web/` — dashboard (Vite + React + TypeScript). `mcp/` — MCP server (TypeScript).
+- `demo/` — seed scripts, contacts CSV, poisoned invite, pitch.
 
 ## Verdict: deterministic first
 - **`confirmed` is decided by code, not by a model.** Check the effects ledger of each
@@ -120,17 +116,17 @@ Repo layout and ownership are in `CONTRACTS.md` section 8.
 
 ## Build order (engine)
 1. Gmail, Calendar and HubSpot access works (tokens, synthetic data loaded).
-2. One agent with Converse tool use and the production adapters.
+2. SDK: `mirage.protect`. One LangGraph agent with its real tools.
 3. Gate: hard rules + SQLite log + freeze/unfreeze.
 4. Poisoned calendar invite. The gate freezes the agent.
 5. Three agents in parallel. One frozen, two continue.
-6. Mirage adapters + snapshot at freeze.
+6. Snapshot at freeze + mirage mode in the SDK.
 7. `mirage detonate` CLI: 3 runs, effects ledger, deterministic verdict, judge summary.
 8. Bisection.
 9. Decision model (layer 2) in the gate.
 10. Mirage MCP server + HTTP API + incident token.
 11. Coding agent handoff: Copy prompt + Send to Codex. Test the full loop.
-12. UI (Person B builds it in parallel on the mock server).
+12. Web dashboard + MCP server (Person B builds them in parallel on replay mode).
 13. Story 2 and story 3.
 14. Metrics on a synthetic test set (detection rate, false positives, time to detect,
     time to contain).

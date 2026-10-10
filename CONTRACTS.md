@@ -9,9 +9,9 @@ Two people. Two roles. One contract between them.
 | | Person A: Engine (Gabi) | Person B: Experience (Liam) |
 |---|---|---|
 | Owns | Everything that is real in the background | Everything the audience sees |
-| Builds | Agent loop, gate, real adapters (Gmail, Calendar, CRM), Mirage adapters, snapshot, detonation, judge, bisection, `mirage detonate` (CLI + MCP + HTTP) | UI, demo script, pitch, backup video |
+| Builds | Engine: API (data + control plane), gate, detection, snapshot store, detonation runner, judge, bisection, `mirage detonate` (CLI + HTTP) | SDK (`mirage.protect`, plugged into agents), web dashboard, MCP server (operator tools + `detonate` for coding agents), demo agents with their tools (Gmail, Calendar, HubSpot), demo script, pitch, backup video |
 | Also owns | The API server and its replay mode | Account setup and keys (Google, CRM, GitHub), seed data (synthetic contacts, poisoned invite), policy pack text P1–P6, "legit task completed" check per story, fixture `.jsonl` files, handoff prompt + Copy / Send to Codex, synthetic test set for metrics |
-| Done when | The UI works with `MIRAGE_API=real` | The demo runs end to end in 3 minutes |
+| Done when | The UI and MCP work with `MIRAGE_MODE=live` | The demo runs end to end in 3 minutes |
 
 Rule: **the contract is the only link.** Person B never waits for Person A.
 Person B builds on the server in replay mode. Person A builds the real engine. Both follow this file.
@@ -151,9 +151,14 @@ Event types and their `payload`:
   "verdict": "Verdict | null",
   "bisection": [ "BisectionRow", "..." ],
   "cause_input_id": "in_cal_03",
-  "pr_url": null
+  "pr_url": null,
+  "next_action": "send_fix"
 }
 ```
+
+`next_action`: `detonate | find_cause | send_fix | open_pr | none`.
+The engine sets it. The web dashboard shows it as the one main button. The MCP server suggests it.
+So the UI and MCP always agree on the next step.
 
 ### Input (one thing the run read)
 
@@ -324,15 +329,41 @@ mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json
 
 ## 8. Repo layout
 
+Rule: `web/`, `mcp/` and `agents/` talk to the engine **only over HTTP** (agents through the SDK).
+They never import `engine/`. The contract is the only link.
+
 ```
-contracts/
-  models.py          # Pydantic models, source of truth (Person A + B agree)
+contracts/           # shared (A + B agree)
+  models.py          # Pydantic models, source of truth
   fixtures/          # recorded demo events and state
-api/
-  server.py          # FastAPI, MIRAGE_MODE=replay|live (Person A)
-agents/  gateway/  store/  detection/  mirage/  replay/  remediation/   # engine (Person A)
-ui/                  # UI (Person B)
-demo/                # seed data, scripts, pitch, video (Person B)
+sdk/                 # Liam: `mirage-sdk`, the package customer agents install
+  mirage_sdk/
+    core.py          # tool wrapper + model wrapper, prod/mirage modes, talks to the data plane API
+    protect.py       # mirage.protect(agent): detects the framework, picks an adapter
+    adapters/
+      langchain.py   # LangChain / LangGraph middleware (built for the demo)
+engine/              # Gabi: the Mirage service
+  api/               # FastAPI: data plane (SDK) + control plane (web, mcp) + SSE, MIRAGE_MODE=replay|live
+  gateway/           # check(tool call), freeze/kill, log
+  detection/         # hard rules, decision model, policies.yaml (P1–P6)
+  store/             # SQLite: agents, runs, events, snapshots
+  detonation/        # builds the agent in mirage mode, subprocess + network jail, judge
+  bisect.py
+  handoff.py         # prompt + report for the coding agent
+  cli.py             # mirage detonate
+agents/              # Liam: demo agents (the victims): their tools (Gmail, Calendar, HubSpot) + mirage.protect
+web/                 # Liam: dashboard (docs/UX.md)
+mcp/                 # Liam: MCP server, operator tools + detonate for coding agents
+demo/                # Liam: seed scripts, contacts CSV, poisoned invite, pitch, video
+docs/UX.md           # screens, interactions, MCP verbs
+```
+
+Processes during the demo:
+
+```
+agents/run_demo.py (3 runs) ──tools──▶ real Gmail / Calendar / HubSpot   (only after the gate allows)
+        └──SDK/HTTP──▶ engine ──▶ detonation subprocess (agent in mirage mode, no keys, no real tools)
+web (React) ──HTTP/SSE──▶ engine ◀──HTTP── mcp server ◀── Claude / Codex
 ```
 
 ## 9. Sync points
@@ -340,7 +371,7 @@ demo/                # seed data, scripts, pitch, video (Person B)
 | When | Both people check |
 |---|---|
 | Sat +1h | `contracts/models.py` and first fixtures pushed. Server runs in replay mode. |
-| Sat evening | First real run shows in the UI (`MIRAGE_API=real`). Gate freezes it. |
+| Sat evening | First real run shows in the UI (`MIRAGE_MODE=live`). Gate freezes it. |
 | Sat night | Detonation and verdict real in the UI. |
 | Sun 09:00 | Full demo on real backend. Bisection and handoff work. Record backup video. |
 | Sun 11:00 | Two full rehearsals. No new features. |
@@ -357,13 +388,14 @@ Rule: everything runs on one laptop. AWS is used only for Bedrock.
 | Runtime | Python 3.12, `uv` |
 | API | FastAPI + uvicorn, `sse-starlette` for `/stream` |
 | Contract | Pydantic v2 in `contracts/models.py` |
-| Agent loop | Own Converse loop (`boto3` + `python-dotenv`). Stretch: same agent in LangGraph, tools wrapped by the gate, to show Mirage is framework-agnostic. |
-| Concurrency | One thread per run. Each run has its own freeze flag (`threading.Event`). The gateway waits on it before each tool call. Freeze pauses only that thread. Global STOP is one shared flag. |
-| Gmail + Calendar | `google-api-python-client` + `google-auth-oauthlib` |
-| CRM | HubSpot free CRM via its REST SDK in the gate path (MCP only for us and the coding agent) |
-| Storage | Python's built-in `sqlite3` (WAL): event log, snapshots, Mirage fake services |
-| Mirage adapters | Plain Python classes over SQLite. No Docker. No network. |
-| `mirage detonate` | `argparse` CLI + MCP server (`mcp` SDK, FastMCP) + HTTP route. One function. |
+| Demo agents | LangGraph for the demo (`create_agent` + `langchain-aws` `ChatBedrockConverse`, temperature 0), wrapped by `mirage.protect`. The SDK is framework-agnostic (section 11). |
+| SDK | `mirage-sdk`: LangChain middleware, talks to the engine with `httpx` |
+| Concurrency | One thread per run in the agents process. Freeze: the SDK waits on `GET /runs/{id}/wait` inside that run's tool call. Only that thread pauses. Global STOP is one engine flag. |
+| Gmail + Calendar (demo agent tools, `agents/`) | `google-api-python-client` + `google-auth-oauthlib` |
+| CRM (demo agent tools, `agents/`) | HubSpot free CRM via its REST SDK |
+| Storage | Python's built-in `sqlite3` (WAL): agents, runs, event log, snapshots |
+| Mirage mode | The SDK answers tool calls from the snapshot. No Docker. No real tools. |
+| `mirage detonate` | `argparse` CLI + HTTP route. One function. The MCP tool in `mcp/` calls the HTTP route. |
 | Decision model + judge | `gpt-oss-safeguard-20b` / `-120b` via Converse (fallback: `InvokeModel`) |
 | Tunnel for cloud coding agents | `cloudflared` |
 | Tests / lint | `pytest`, `ruff` |
@@ -378,3 +410,92 @@ Rule: everything runs on one laptop. AWS is used only for Bedrock.
 | Data | TanStack Query (REST), native `EventSource` (`/stream`) |
 | Types | `openapi-typescript` from `/openapi.json` |
 | PR diff view | `react-diff-viewer-continued` |
+| MCP server | TypeScript, `@modelcontextprotocol/sdk`, reuses the generated types. Stretch: MCP Apps card. |
+| UI mockups | Google Stitch (prompts in `docs/UX.md`) |
+
+## 11. SDK: how an agent joins Mirage
+
+Owner: Liam. The SDK goes **into the customer's agent**, not into our engine. It is the developer experience.
+
+The customer keeps their agent as it is: any framework, their tools, their keys. Mirage wraps the agent.
+Mirage does not hold keys. It decides whether each tool call may run.
+
+```python
+import mirage
+
+agent = mirage.protect(agent, name="assistant", owner="liam",
+                       allow={"tools": ["read_calendar", "crm_query", "send_email"],
+                              "email_to": ["demo-user@..."]})
+```
+
+### Framework-agnostic by design
+
+Every framework has the same two things: **tools** (functions the model can call) and a **model client**.
+The SDK core wraps those two. Framework adapters only find them inside the agent.
+
+| Layer | Does | Works with |
+|---|---|---|
+| Core: tool wrapper | Wraps each tool function: check → hold → run (prod) or answer from snapshot (mirage). | Any framework. Fallback: `mirage.tools([...])` wraps a plain list of functions. |
+| Core: model wrapper | Wraps the provider client and records each call (prompt, messages, model ID, settings, response). | Bedrock (`boto3`), OpenAI, Anthropic clients. Fallback: `mirage.wrap_model(client)`. |
+| Adapter: LangChain / LangGraph | Uses LangChain middleware (`wrap_tool_call`, `wrap_model_call`). | `create_agent` graphs. **Built for the demo.** |
+| Adapter: others | OpenAI Agents SDK, AWS Strands, CrewAI, Google ADK: their tool and model hooks. | Next steps. One adapter each. |
+
+`mirage.protect(agent)` detects the framework and picks the adapter. If none fits, the customer uses the two
+core wrappers directly. The engine never knows which framework the agent uses: it only sees tool calls and
+model calls in the contract format.
+
+### Two modes
+
+| Mode | Model call | Tool call |
+|---|---|---|
+| `prod` | Recorded. | Checked with `POST /gateway/check`. Allow: the agent's own tool runs. Freeze: waits on `GET /runs/{id}/wait`. Kill or block: raises. The tool does not run. The result is recorded. |
+| `mirage` | Recorded. | **Never runs the real tool.** Reads return the recorded result from the snapshot. Writes are captured in the effects ledger and return a fake "ok". |
+
+Verified in two spikes with the LangChain adapter (LangChain 1.4, LangGraph):
+- Production: waiting inside the tool hook holds the run until release, then it finishes. Raising stops it before the tool runs.
+- Mirage: the middleware answered every tool call from the snapshot. No real tool ran. The write was captured.
+
+Limit: Mirage sees only what goes through tools. Code that calls an API outside a tool is not seen.
+
+### Data plane API (SDK → engine)
+
+| Method | Path | Does |
+|---|---|---|
+| POST | `/agents` | Register an agent: name, owner, tools, allowlist, entrypoint (`agents.assistant:build_agent`). |
+| POST | `/runs` | Start a run. Returns `{run_id, run_token}`. Emits `run.started`. |
+| POST | `/runs/{id}/model-calls` | Record one model call (request + response). |
+| POST | `/gateway/check` | Check one tool call. Returns `GateDecision`. |
+| POST | `/runs/{id}/tool-results` | Record one tool result (this is what the snapshot is made of). |
+| GET | `/runs/{id}/wait` | Long poll while frozen. Returns `{status: running \| killed \| halted}`. |
+
+### Snapshot and replay
+
+- The snapshot is the recorded run: task, model calls, and every tool call with its result.
+- A tool result can hold several inputs (example: `read_calendar` returns 4 events). Each one is an `Input`.
+- Detonation: the engine starts a subprocess. It builds the agent from its entrypoint with the SDK in `mirage` mode,
+  the gate off, and the snapshot loaded. It runs the same task. The poisoned invite comes back from the
+  snapshot, so the agent takes the same path. The subprocess also has no third-party keys and network access
+  only to Bedrock.
+- Bisection: remove one `Input` from the snapshot (example: the invite from `read_calendar`'s result). Run again.
+
+## 12. MCP server (operator interface)
+
+A second front end, like `web/`. It calls the control plane API. It never imports the engine.
+
+| Tool | Kind | Does |
+|---|---|---|
+| `list_runs` | read | Runs and their status. |
+| `get_incident` | read | Headline, attack chain, verdict, cause, `next_action`. |
+| `get_audit` | read | Human actions for a run or incident. |
+| `detonate` | act | Same as the dashboard button. Also used by coding agents. |
+| `find_cause` | act | Start bisection. |
+| `unfreeze` | act | Resume a frozen run. |
+| `kill` | act | End a frozen run. |
+| `send_fix` | act | Create the handoff for a coding agent. |
+
+Rules:
+
+- Read tools are on by default. Act tools carry `destructiveHint`, ask for a reason (MCP elicitation), and are
+  logged as `"<actor> via <client> (MCP)"`.
+- All checks run in the engine, not in the MCP server.
+- No tool merges a PR.
