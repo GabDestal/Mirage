@@ -26,7 +26,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <Chat />, handle: { title: 'Chat' } },
       { path: '/fleet', element: <Fleet />, handle: { title: 'Fleet' } },
-      { path: '/integrations', element: <Integrations />, handle: { title: 'Integrations' } },
+      { path: '/integrations', element: <Integrations />, handle: { title: 'API keys' } },
       { path: '/incidents', element: <Incidents />, handle: { title: 'Incidents' } },
       { path: '/incidents/:id', element: <IncidentPage />, handle: { title: 'Incident' } },
       { path: '/runs/:id', element: <RunPage />, handle: { title: 'Run' } },
