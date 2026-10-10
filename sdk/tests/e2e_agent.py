@@ -1,10 +1,10 @@
 """An SDK-protected LangGraph agent the sandbox child rebuilds (test_detonation.py)."""
 
+import mirage
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 
-import mirage
 from agents.common.testing import scripted
 
 
