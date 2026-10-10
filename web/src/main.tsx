@@ -8,7 +8,8 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { Fleet } from '@/pages/fleet'
 import { Chat } from '@/pages/chat'
 import { DemoEntry } from '@/pages/login'
-import { IncidentPage, Incidents, RunPage } from '@/pages/placeholders'
+import { Incidents, RunPage } from '@/pages/placeholders'
+import { IncidentPage } from '@/pages/incident'
 import './index.css'
 
 try {
