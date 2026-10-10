@@ -12,6 +12,7 @@
     "api:types": "npx -y openapi-typescript@7.13.0 http://localhost:8000/openapi.json -o src/api/schema.d.ts"
   },
   "dependencies": {
+    "@base-ui/react": "^1.5.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.104.1",
     "clsx": "^2.1.1",
