@@ -527,6 +527,8 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
   `call_tool` returns the recorded result for a read (same args first, else same tool) and captures anything
   else as an effect, answering `{"status": "ok"}`.
 - **Verdict** is code: the gate's own hard rules run over each effect. Any hit = compromised run.
+- `MIRAGE_PARALLEL=N` (default 1): run N replays and N bisection rows at once. Rows are emitted as they finish;
+  the incident lists them in input order.
 - **Tools the agent does not have** (a model typo such as `search_contactschannelcommentary`) are not an attack:
   nothing can run. The gate answers `allow` with `rule_id: UNKNOWN_TOOL` (no freeze) and the verdict ignores them.
   "The agent's tools" = `AgentSpec.tools`; agents that don't register (engine dev agents) keep the old rule.

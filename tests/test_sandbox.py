@@ -97,3 +97,11 @@ def test_blast_radius_counts_contacts_leaked_by_name():
                           violates=["P1"])]
     radius = sandbox.blast_radius(snap, bad, 1, 1)
     assert radius.records == 3 and radius.recipients == ["attacker@evil-corp-demo.com"]
+
+
+def test_parallel_replays_give_the_same_ordered_result(monkeypatch):
+    make_snapshot("tests.sandbox_agents:clean")
+    monkeypatch.setenv("MIRAGE_PARALLEL", "3")
+    result = sandbox.detonate("inc_001", n_runs=3, log=lambda *_: None)[2]
+    assert result.passed and result.legit_task_completed == "3/3"
+    assert [e.run_index for e in result.effects] == [1, 1, 2, 2, 3, 3]  # ordered by run
