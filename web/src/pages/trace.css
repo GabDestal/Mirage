@@ -1,0 +1,324 @@
+.trace-page {
+  --trace-blue: #2563eb;
+  --trace-muted: #64748b;
+  --trace-surface: #ffffff;
+  --trace-wash: #fafafa;
+  --trace-line: #e2e8f0;
+  --trace-ink: #18181b;
+  --trace-ink-2: #52525b;
+  --trace-ink-3: #71717a;
+  --trace-alarm: #dc2626;
+  --trace-alarm-wash: #fef2f2;
+  --trace-alarm-border: #fecaca;
+  --trace-emerald: #16a34a;
+  --trace-emerald-wash: #f0fdf4;
+  --trace-mirage: #0e8c86;
+  --trace-mirage-wash: #e6f6f5;
+
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: 32px 36px 64px;
+  background: var(--trace-surface);
+  color: var(--trace-ink);
+  font-family: 'Mirage Login Inter', 'Sidebar Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  color-scheme: light;
+}
+
+.trace-container {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Breadcrumb & Navigation */
+.trace-nav-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--trace-muted);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 120ms ease;
+  width: fit-content;
+}
+.trace-nav-back:hover {
+  color: var(--trace-ink);
+}
+
+/* Header Banner */
+.trace-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  background: #ffffff;
+  border: 1px solid var(--trace-line);
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.trace-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.trace-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trace-header-title h2 {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--trace-ink);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.trace-header-title p {
+  font-size: 13px;
+  color: var(--trace-muted);
+  margin: 0;
+  max-width: 600px;
+}
+
+/* Two-column Trace Layout: Timeline vs Detail Sheet */
+.trace-layout-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(360px, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .trace-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Visual Timeline List */
+.trace-timeline-card {
+  background: #ffffff;
+  border: 1px solid var(--trace-line);
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.trace-timeline-card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--trace-ink);
+  margin: 0 0 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.trace-node-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-left: 28px;
+}
+
+.trace-node-list::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 24px;
+  left: 11px;
+  width: 2px;
+  background: var(--trace-line);
+}
+
+.trace-node-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid var(--trace-line);
+  border-radius: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 140ms ease;
+}
+
+.trace-node-item:hover {
+  border-color: #cbd5e1;
+  background: var(--trace-wash);
+}
+
+.trace-node-item.selected {
+  border-color: var(--trace-blue);
+  background: #f8faff;
+  box-shadow: 0 0 0 1px var(--trace-blue);
+}
+
+.trace-node-item.node-blocked {
+  border-color: var(--trace-alarm-border);
+  background: var(--trace-alarm-wash);
+}
+.trace-node-item.node-blocked:hover {
+  border-color: var(--trace-alarm);
+}
+
+/* The connector dot */
+.trace-dot {
+  position: absolute;
+  left: -28px;
+  top: 16px;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #94a3b8;
+  z-index: 2;
+  transition: all 120ms ease;
+}
+
+.trace-dot.dot-blocked {
+  border-color: var(--trace-alarm);
+  background: var(--trace-alarm);
+  box-shadow: 0 0 0 3px var(--trace-alarm-wash);
+}
+
+.trace-dot.dot-active {
+  border-color: var(--trace-blue);
+  background: var(--trace-blue);
+}
+
+.trace-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.trace-node-name {
+  font-family: 'Geist Mono', 'Sidebar JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--trace-ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trace-node-time {
+  font-size: 11px;
+  color: var(--trace-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.trace-node-summary {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--trace-ink-2);
+}
+
+/* Detail Inspection Panel */
+.trace-detail-card {
+  position: sticky;
+  top: 24px;
+  background: #ffffff;
+  border: 1px solid var(--trace-line);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.trace-detail-card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--trace-ink);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.trace-detail-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-weight: 500;
+}
+
+.trace-meta-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--trace-line);
+  padding-bottom: 14px;
+}
+
+.trace-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.trace-meta-label {
+  color: var(--trace-muted);
+}
+
+.trace-meta-value {
+  color: var(--trace-ink);
+  font-weight: 500;
+}
+
+.trace-code-section h4 {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--trace-muted);
+  margin: 0 0 6px 0;
+}
+
+.trace-code-block {
+  background: var(--trace-wash);
+  border: 1px solid var(--trace-line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: 'Geist Mono', 'Sidebar JetBrains Mono', monospace;
+  font-size: 11.5px;
+  line-height: 18px;
+  color: var(--trace-ink);
+  overflow-x: auto;
+  max-height: 260px;
+}
+
+.trace-blocked-banner {
+  padding: 12px 14px;
+  background: var(--trace-alarm-wash);
+  border: 1px solid var(--trace-alarm-border);
+  border-radius: 8px;
+  color: var(--trace-alarm);
+  font-size: 12.5px;
+}
+.trace-blocked-banner strong {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
