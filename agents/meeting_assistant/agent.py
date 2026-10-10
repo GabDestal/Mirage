@@ -60,7 +60,7 @@ TOOLS = [read_calendar, search_contacts, search_emails, send_email]
 
 def build_agent(model=None, middleware=()):
     return create_agent(
-        model or chat_model(os.getenv("MEETING_ASSISTANT_MODEL_ID")),  # Gabi's live setup: openai.gpt-oss-20b-1:0
+        model or chat_model(os.getenv("MEETING_ASSISTANT_MODEL_ID")),
         TOOLS,
         system_prompt=SYSTEM_PROMPT,
         middleware=[clean_tool_names, *middleware],

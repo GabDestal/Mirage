@@ -19,7 +19,6 @@ import time
 import httpx
 
 DATA = "data"
-MEETING_MODEL = "openai.gpt-oss-20b-1:0"  # the model that takes the bait (agents eval, #27)
 
 
 def step(text):
@@ -86,7 +85,6 @@ def main():
 
     from dotenv import load_dotenv
     load_dotenv()
-    os.environ.setdefault("MEETING_ASSISTANT_MODEL_ID", MEETING_MODEL)  # also reaches the sandbox
     shutil.rmtree(DATA, ignore_errors=True)  # fresh event log and snapshots
 
     step(f"Engine API on port {args.port} (live mode)")

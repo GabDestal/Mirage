@@ -123,6 +123,7 @@ def test_detonate_route_runs_the_sandbox(api):
     incident_id = api.get("/incidents").json()[0]["id"]
     snap = Snapshot.model_validate(snapshot.load(incident_id))  # the file matches the contract
     assert snap.runner == gate.SDK_RUNNER and snap.entrypoint == "tests.sandbox_agents:attacker"
+    assert snap.model_id == "openai.gpt-oss-20b-1:0"
     assert snap.model_calls[0].model_id == "openai.gpt-oss-20b-1:0"
     assert [r.tool for r in snap.tool_results] == ["read_calendar", "export_contacts"]
 

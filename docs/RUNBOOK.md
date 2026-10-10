@@ -9,6 +9,10 @@ uv sync                 # Python 3.12+, installs everything (engine, agents, the
 cp .env.example .env    # then fill AWS_BEARER_TOKEN_BEDROCK (short-term key, it expires)
 ```
 
+The meeting-assistant victim uses `MEETING_ASSISTANT_MODEL_ID` in production and Mirage. The demo
+default is GPT-OSS 20B (`openai.gpt-oss-20b-1:0`); the gate and judge use their separate safeguard
+model settings. Temperature is 0.
+
 Check Bedrock works: `uv run python test_bedrock.py` prints a sentence.
 If any command fails with an auth error later, regenerate the Bedrock key and update `.env`.
 
