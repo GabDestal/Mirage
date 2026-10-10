@@ -25,6 +25,14 @@ export function Fleet() {
   const [selected, setSelected] = useState(-1)
   const [startingDemo, setStartingDemo] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
+  const [view, setView] = useState<'agent' | 'list'>(() => {
+    try { return localStorage.getItem('mirage-fleet-view') === 'list' ? 'list' : 'agent' } catch { return 'agent' }
+  })
+  const chooseView = (next: 'agent' | 'list') => {
+    setView(next)
+    setSelected(-1)
+    try { localStorage.setItem('mirage-fleet-view', next) } catch { /* private mode: keep the choice for this visit */ }
+  }
 
   const filteredRuns = useMemo(() => {
     return runs.filter((r) => {
@@ -39,7 +47,8 @@ export function Fleet() {
       return true
     }).sort((a, b) => b.started_at.localeCompare(a.started_at) || b.id.localeCompare(a.id, undefined, { numeric: true })) // newest first; filter already copied
   }, [runs, filterTab, searchQuery])
-  const groups = useMemo(() => groupByAgent(filteredRuns), [filteredRuns])
+  // List view is one headerless group, so rendering and J/K stay shared.
+  const groups = useMemo(() => view === 'agent' ? groupByAgent(filteredRuns) : [{ agent: '', runs: filteredRuns }], [view, filteredRuns])
   // J/K and the highlight follow the rows on screen: collapsed groups are skipped.
   const visibleRuns = useMemo(() => groups.flatMap((g) => collapsed.has(g.agent) ? [] : g.runs), [groups, collapsed])
   const toggle = (agent: string) => setCollapsed((prev) => {
@@ -204,15 +213,25 @@ export function Fleet() {
             </button>
           </div>
 
-          <div className="fleet-search-wrap">
-            <Search size={14} className="fleet-search-icon" />
-            <input
-              type="search"
-              className="fleet-search-input"
-              placeholder="Filter by agent or task…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          <div className="fleet-toolbar-end">
+            <div className="fleet-search-wrap">
+              <Search size={14} className="fleet-search-icon" />
+              <input
+                type="search"
+                className="fleet-search-input"
+                placeholder="Filter by agent or task…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="fleet-tabs" role="group" aria-label="View">
+              <button type="button" className={`fleet-tab ${view === 'agent' ? 'active' : ''}`} aria-pressed={view === 'agent'} onClick={() => chooseView('agent')}>
+                By agent
+              </button>
+              <button type="button" className={`fleet-tab ${view === 'list' ? 'active' : ''}`} aria-pressed={view === 'list'} onClick={() => chooseView('list')}>
+                List
+              </button>
+            </div>
           </div>
         </div>
 
@@ -249,7 +268,7 @@ export function Fleet() {
                   const open = !collapsed.has(agent)
                   return (
                     <tbody key={agent}>
-                      <tr className="fleet-group-row">
+                      {view === 'agent' && <tr className="fleet-group-row">
                         <th colSpan={5} scope="rowgroup">
                           <button type="button" className="fleet-group-toggle" aria-expanded={open} onClick={() => toggle(agent)}>
                             <ChevronRight size={14} className="fleet-group-chevron" aria-hidden="true" />
@@ -258,7 +277,7 @@ export function Fleet() {
                             <span className="fleet-group-count">{agentRuns.length} {agentRuns.length === 1 ? 'run' : 'runs'}</span>
                           </button>
                         </th>
-                      </tr>
+                      </tr>}
                       {open && agentRuns.map((run) => (
                         <AgentTableRow
                           key={run.id}
