@@ -27,5 +27,5 @@ package = false
 line-length = 100
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "agents"]
-pythonpath = ["."]
+testpaths = ["tests", "agents", "sdk/tests"]
+pythonpath = [".", "sdk"]
