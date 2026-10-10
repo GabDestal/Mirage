@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react';
+import { useMemo, useSyncExternalStore, type CSSProperties } from 'react';
 import { BotAvatar, type BotAvatarType } from 'bot-avatars';
 import './avatars.css';
 
@@ -55,6 +55,14 @@ export function agentBotType(agent: string): BotAvatarType {
   return FALLBACK_TYPES[h % FALLBACK_TYPES.length];
 }
 
+const motionPreference = () => window.matchMedia('(prefers-reduced-motion: reduce)');
+function subscribeMotionPreference(onChange: () => void) {
+  const preference = motionPreference();
+  preference.addEventListener('change', onChange);
+  return () => preference.removeEventListener('change', onChange);
+}
+const isReducedMotion = () => motionPreference().matches;
+
 export function AgentAvatar({
   agent,
   state = 'idle',
@@ -65,6 +73,7 @@ export function AgentAvatar({
   const type = agentBotType(agent);
   const seed = useMemo(() => (hash(agent) % 1000) / 1000, [agent]);
 
+  const reduce = useSyncExternalStore(subscribeMotionPreference, isReducedMotion, () => true);
   const isFrozen = state === 'frozen';
   const isMirage = state === 'mirage';
 
@@ -91,8 +100,11 @@ export function AgentAvatar({
         seed={seed}
         color={isFrozen ? '#78c9ea' : undefined}
         saturation={isFrozen ? 1 : undefined}
-        // Hold the renderer still; CSS adds only a tiny working-state drift.
-        paused
+        // Native seeded blinks/glances, without the renderer's hops or spins.
+        paused={reduce || (state !== 'working' && state !== 'idle')}
+        turn={0.15}
+        jumpEvery={0}
+        speed={0.8}
         interactive={false}
         className="mav-bot-canvas"
       />

@@ -16,16 +16,6 @@
   user-select: none;
 }
 
-/* Built-in hops and spins are paused in the renderer, including reduced motion. */
-.mav-bot-frame[data-state='working'] .mav-bot-canvas {
-  animation: mav-working-drift 4.8s ease-in-out infinite;
-}
-
-@keyframes mav-working-drift {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-0.6px); }
-}
-
 /* The blue bot sits behind a translucent front, top and right ice face. */
 .mav-bot-frame[data-state='frozen'] .mav-bot-canvas {
   transform: translate(-3%, 6%) scale(0.82);
@@ -85,8 +75,3 @@
   z-index: 2;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .mav-bot-frame[data-state='working'] .mav-bot-canvas {
-    animation: none;
-  }
-}

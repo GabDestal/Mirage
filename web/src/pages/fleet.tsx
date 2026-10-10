@@ -3,17 +3,19 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { ArrowRight, Bot, CheckCircle2, Play, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
-import { api, useEvents, useRuns, type MirageEvent, type Run } from '@/api/client'
+import { api, useEvents, useIncidents, useRuns, type Incident, type MirageEvent, type Run } from '@/api/client'
 import { resetStream, useNow } from '@/api/stream'
 import { useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
 import { avatarState, relTime, rowSentence, runLabel, steps } from '@/lib/runs'
+import { fleetStatus, healthyAgents, sandboxStatus } from './fleet-presentation'
 import './fleet.css'
 
 export function Fleet() {
   const { data: runs = [], isPending, isError, error } = useRuns()
   const { data: events = [] } = useEvents()
+  const { data: incidents = [] } = useIncidents()
   const now = useNow()
   const navigate = useNavigate()
   const ask = useAsk()
@@ -57,9 +59,9 @@ export function Fleet() {
   const stats = useMemo(() => {
     const active = runs.filter((r) => r.status === 'running').length
     const frozen = runs.filter((r) => r.status === 'frozen').length
-    const completed = runs.filter((r) => r.status === 'completed').length
+    const healthy = healthyAgents(runs)
     const toolCalls = runs.reduce((acc, r) => acc + (r.tool_calls || 0), 0)
-    return { active, frozen, completed, toolCalls, total: runs.length }
+    return { active, frozen, healthy, toolCalls, total: runs.length }
   }, [runs])
 
   const handleStartDemo = async () => {
@@ -141,11 +143,11 @@ export function Fleet() {
 
           <div className="fleet-stat-card">
             <div className="fleet-stat-header">
-              <span>Completed Tasks</span>
+              <span>Healthy Agents</span>
               <CheckCircle2 size={15} color="var(--fleet-emerald)" />
             </div>
-            <div className="fleet-stat-value">{stats.completed}</div>
-            <div className="fleet-stat-sub">Cleanly finished workflows</div>
+            <div className="fleet-stat-value">{stats.healthy}</div>
+            <div className="fleet-stat-sub">Working or ready for the next task</div>
           </div>
 
           <div className="fleet-stat-card">
@@ -220,9 +222,9 @@ export function Fleet() {
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>Agent & Task</th>
+                    <th>Agent</th>
                     <th>Status</th>
-                    <th>Recent Tool Activity</th>
+                    <th>Activity</th>
                     <th className="fleet-action-cell">Action</th>
                     <th className="fleet-time-cell">Time</th>
                   </tr>
@@ -234,6 +236,7 @@ export function Fleet() {
                       run={run}
                       runs={runs}
                       events={events}
+                      incident={incidents.find((incident) => incident.id === run.incident_id)}
                       now={now}
                       selected={i === selected}
                     />
@@ -252,18 +255,22 @@ function AgentTableRow({
   run,
   runs,
   events,
+  incident,
   now,
   selected,
 }: {
   run: Run
   runs: Run[]
   events: MirageEvent[]
+  incident?: Incident
   now: number
   selected: boolean
 }) {
   const navigate = useNavigate()
   const label = runLabel(run, runs)
-  const sentence = rowSentence(run, events)
+  const sentence = run.status === 'completed' ? 'Ready for the next task'
+    : run.status === 'running' ? run.task
+    : run.status === 'frozen' ? 'Held before execution' : rowSentence(run, events).text
   const when = run.ended_at ?? run.started_at
   const isFrozen = run.status === 'frozen'
 
@@ -284,8 +291,8 @@ function AgentTableRow({
             >
               {label}
             </Link>
-            <span className="fleet-agent-task" title={sentence.text || run.task}>
-              {sentence.text || run.task}
+            <span className="fleet-agent-task" title={sentence || run.task}>
+              {sentence || run.task}
             </span>
           </div>
         </div>
@@ -306,13 +313,14 @@ function AgentTableRow({
               : 'pill-killed'
           }`}
         >
-          {isFrozen ? '• FROZEN' : run.status === 'running' ? '• Working' : run.status}
+          {fleetStatus(run)}
         </span>
       </td>
 
       {/* Tool Call Activity Strip */}
       <td>
         <InlineTraceStrip run={run} events={events} />
+        {isFrozen && sandboxStatus(incident, events) && <span className="fleet-replay-status">{sandboxStatus(incident, events)}</span>}
       </td>
 
       {/* Quick Action Button */}
