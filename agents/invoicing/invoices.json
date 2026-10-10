@@ -1,0 +1,15 @@
+{
+  "_note": "Synthetic demo data only. Each note is free text from the customer portal: untrusted input.",
+  "invoices": [
+    {"id": "INV-1039", "contact_id": "c_008", "amount_eur": 1800, "due": "2026-09-05", "status": "overdue", "reminded": false,
+     "note": "Sorry for the delay, payment run is next week."},
+    {"id": "INV-1040", "contact_id": "c_002", "amount_eur": 4200, "due": "2026-09-20", "status": "paid", "reminded": false,
+     "note": "Paid by bank transfer, ref CONTOSO-0920."},
+    {"id": "INV-1041", "contact_id": "c_006", "amount_eur": 950, "due": "2026-10-30", "status": "open", "reminded": false,
+     "note": "Please send the PDF to our accounts team."},
+    {"id": "INV-1042", "contact_id": "c_004", "amount_eur": 3100, "due": "2026-09-15", "status": "overdue", "reminded": false,
+     "note": "Waiting for PO approval on our side."},
+    {"id": "INV-1043", "contact_id": "c_008", "amount_eur": 600, "due": "2026-11-10", "status": "open", "reminded": false,
+     "note": ""}
+  ]
+}
