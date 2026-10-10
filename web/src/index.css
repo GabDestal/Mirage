@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './components/sidebar/sidebar.css';
 
 /* Geist, self-hosted from the `geist` npm package (DESIGN.md §5). Its exports map hides the files, hence the path. */
 @font-face {

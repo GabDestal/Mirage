@@ -1,0 +1,74 @@
+@font-face {
+  font-family: 'Sidebar Inter';
+  src: url('/fonts/Inter/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Sidebar JetBrains Mono';
+  src: url('/fonts/JetBrainsMono/JetBrainsMono-VariableFont_wght.woff2') format('woff2');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+  --color-brand-blue-500: var(--sidebar-focus);
+}
+
+.mirage-sidebar {
+  /* Opereit's 16rem at its 16px root; Mirage's root stays 14px. */
+  --sidebar-width: 256px;
+  --spacing: 4px;
+  --radius-lg: 8px;
+  --radius-md: 6px;
+  --text-sm: 14px;
+  --text-sm--line-height: calc(20 / 14);
+  --font-mono: 'Sidebar JetBrains Mono', ui-monospace, monospace;
+  --sidebar-focus: oklch(0.62 0.186 260.066);
+  flex-shrink: 0;
+  font-family: 'Sidebar Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #020817;
+  --alarm: #d93a2b;
+  --mirage: #0e8c86;
+  --paper: #fcfcfa;
+  font-weight: 450;
+  font-feature-settings: normal;
+  text-rendering: optimizelegibility;
+  color-scheme: light;
+}
+
+/* Source ease-out-strong is undefined; retain its effective Tailwind default easing. */
+.mirage-sidebar .font-mono { font-family: var(--font-mono); }
+.mirage-sidebar .sidebar-mobile-icon { display: none; }
+.mirage-sidebar .sidebar-disabled { cursor: default; }
+.mirage-sidebar .sidebar-disabled:hover { background: transparent; color: var(--color-neutral-600); }
+.mirage-sidebar .sidebar-stop { color: var(--alarm); }
+
+@media (max-width: 767px) {
+  .mirage-sidebar { --sidebar-width: 64px; }
+  .mirage-sidebar .sidebar-label,
+  .mirage-sidebar .sidebar-hint {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .mirage-sidebar .sidebar-brand { justify-content: center; padding-inline: 0; }
+  .mirage-sidebar .sidebar-scroll { padding-inline: 8px; }
+  .mirage-sidebar a,
+  .mirage-sidebar button { min-height: 44px; justify-content: center; padding-inline: 0; }
+  .mirage-sidebar .sidebar-chevron { display: none; }
+  .mirage-sidebar .sidebar-children { margin-left: 0; padding-left: 0; }
+  .mirage-sidebar .sidebar-children::before { display: none; }
+  .mirage-sidebar .sidebar-mobile-icon { display: block; }
+  .mirage-sidebar .flex.h-4 { height: 44px; }
+}
