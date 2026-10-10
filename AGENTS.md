@@ -144,6 +144,8 @@ Skills live in `.claude/skills/`. Agents that do not load skills: read the `SKIL
 - **One feature = one worktree = one atomic PR** (`atomic-worktree` skill). Never work
   directly on `main`.
 - **Commit often, push often**: commit each working step, push at least every 30 minutes.
+- **Never merge, only rebase**: `git rebase origin/main` to update a branch; land PRs with
+  "Rebase and merge". No squash, no merge commits.
 
 ## Working style
 - Build one step at a time and run it before moving on.

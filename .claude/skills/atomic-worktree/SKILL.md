@@ -65,14 +65,17 @@ Rules:
 
 - One feature per PR. If the PR does two things, split it.
 - A `contract/` PR needs the other person to approve.
-- Squash merge. Keep `main` working at all times.
+- **Never merge, only rebase.** Update the branch with `git rebase origin/main`, never
+  `git merge`. Land the PR with **Rebase and merge** (`gh pr merge <n> --rebase`): no squash,
+  no merge commits. Each commit lands on `main` as is, so keep commits clean.
+- Keep `main` working at all times.
 
 ## Clean up
 
-After the merge:
+After the PR lands:
 
 ```bash
 git -C ~/Business/hacks/Mirage worktree remove ../Mirage-<feature>
-git -C ~/Business/hacks/Mirage branch -d <prefix>/<feature>
+git -C ~/Business/hacks/Mirage branch -D <prefix>/<feature>   # -D: rebase-merge gives new SHAs
 git -C ~/Business/hacks/Mirage pull --ff-only
 ```
