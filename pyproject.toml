@@ -5,6 +5,9 @@ description = "Incident response for compromised AI agents"
 requires-python = ">=3.12"
 dependencies = [
     "boto3",
+    "langchain>=1.4",
+    "langchain-aws>=1.8.1",
+    "langgraph>=1.2.14",
     "pydantic>=2",
     "python-dotenv",
 ]
