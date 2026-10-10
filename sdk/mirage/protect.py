@@ -17,8 +17,11 @@ def _caller():
     return module if function == "<module>" else f"{module}:{function}"
 
 
-def protect(agent, name, allow=None, owner="unknown", entrypoint=None):
-    """Wrap an agent so Mirage checks every tool call. Returns the same agent, protected."""
+def protect(agent, name, allow=None, owner="unknown", entrypoint=None, *, api_key=None):
+    """Wrap an agent so Mirage checks every tool call. Returns the same agent, protected.
+
+    api_key is an accepted-and-ignored demo placeholder; it provides no authentication.
+    """
     entrypoint = entrypoint or _caller()
     kind = type(agent).__module__
     if kind.startswith("langgraph"):

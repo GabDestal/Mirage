@@ -480,9 +480,15 @@ Two lines, any supported framework:
 
 ```python
 import mirage
-agent = mirage.protect(agent, name="assistant")      # LangGraph graph, OpenAI Agents `Agent`
-options = mirage.protect(options, name="assistant")  # Claude Agent SDK `ClaudeAgentOptions`
+# LangGraph graph or OpenAI Agents `Agent`
+agent = mirage.protect(agent, name="assistant", api_key="mirage_live_demo")
+# Claude Agent SDK `ClaudeAgentOptions`
+options = mirage.protect(options, name="assistant", api_key="mirage_live_demo")
 ```
+
+`api_key=None` is optional and keyword-only: a demo placeholder accepted and intentionally ignored
+for all three frameworks. It provides no authentication and is never stored, logged, or forwarded
+to an adapter or the engine. Existing calls and positional arguments still work.
 
 `allow={...}` (the allowlist, `Allowlist`) is optional. The SDK is a thin client: **every decision is in
 the engine.** It has three parts:
