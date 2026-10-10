@@ -62,10 +62,10 @@ export function Chat() {
   }, [conversation])
 
   function focusComposer() { composer.current?.querySelector('textarea')?.focus() }
-  function prefill(text: string) { setDraft(text); focusComposer() }
-  async function send() {
-    if (!draft.trim() || chat.busy || !online) return
-    const message = draft.trim()
+  function prefill(text: string) { setDraft(text); focusComposer(); void send(text) }
+  async function send(text = draft) {
+    if (!text.trim() || chat.busy || !online) return
+    const message = text.trim()
     const attempt = ++submission.current
     setDraft('')
     follow.current = true
