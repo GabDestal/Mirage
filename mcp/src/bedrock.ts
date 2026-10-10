@@ -20,6 +20,7 @@ export function publicError(error: unknown): ChatError {
     UnrecognizedClientException: ["BEDROCK_AUTH", "The Bedrock API key is invalid or expired."],
     ExpiredTokenException: ["BEDROCK_AUTH", "The Bedrock API key is invalid or expired."],
     InvalidSignatureException: ["BEDROCK_AUTH", "The Bedrock API key is invalid or expired."],
+    CredentialsProviderError: ["BEDROCK_AUTH_CONFIGURATION", "Bedrock bearer authentication was unavailable; no model request completed."],
     ValidationException: ["BEDROCK_VALIDATION", "Bedrock rejected this request. Check the configured model's ConverseStream and tool support."],
     ResourceNotFoundException: ["BEDROCK_MODEL_NOT_FOUND", "The configured Bedrock chat model was not found in us-east-1."],
     ThrottlingException: ["BEDROCK_THROTTLED", "Bedrock rate limited this request. No automatic retry was made."],
@@ -55,7 +56,7 @@ export function createBedrockProvider(env: NodeJS.ProcessEnv = process.env): Mod
     throw new ChatError("CONFIGURATION", "Set AWS_BEARER_TOKEN_BEDROCK and BEDROCK_CHAT_MODEL_ID (or an existing agent/model ID) in .env.");
   const client = new BedrockRuntimeClient({
     region: "us-east-1", maxAttempts: 1,
-    token: { token: env.AWS_BEARER_TOKEN_BEDROCK }, authSchemePreference: ["smithy.api#httpBearerAuth"],
+    token: { token: env.AWS_BEARER_TOKEN_BEDROCK }, authSchemePreference: ["httpBearerAuth"],
   });
   let nextStart = 0;
   return {

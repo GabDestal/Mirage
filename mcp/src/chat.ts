@@ -123,16 +123,17 @@ export function createChatService(opts: ChatOptions) {
 
   async function runTurn(session: Session, message: string, signal: AbortSignal, emit: Emit) {
     let callId = "";
+    let callSignal = signal;
     const boundedFetch: typeof fetch = (url, init) => {
-      signal.throwIfAborted();
+      callSignal.throwIfAborted();
       return (opts.mcp?.fetch ?? fetch)(url, { ...init,
-        signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]) });
+        signal: AbortSignal.any([callSignal, AbortSignal.timeout(15_000)]) });
     };
     const server = createServer({ ...opts.mcp, actor: session.actor, fetch: boundedFetch });
     const client = new Client({ name: "Mirage Chat", version: "0.1.0" }, { capabilities: { elicitation: { form: {} } } });
     client.setRequestHandler(ElicitRequestSchema, async (request) => {
-      if (request.params.mode === "url" || !callId || signal.aborted) return { action: "decline" };
-      return approval(session, signal, callId, request.params, emit);
+      if (request.params.mode === "url" || !callId || callSignal.aborted) return { action: "decline" };
+      return approval(session, callSignal, callId, request.params, emit);
     });
     const [a, b] = InMemoryTransport.createLinkedPair();
     const turn: Message[] = [{ role: "user", content: [{ text: sanitize(message, session.secrets) }] }];
@@ -147,7 +148,13 @@ export function createChatService(opts: ChatOptions) {
       for (let round = 0; round < LIMITS.rounds; round++) {
         signal.throwIfAborted();
         const modelSignal = AbortSignal.any([signal, AbortSignal.timeout(LIMITS.modelMs)]);
-        const reply = await modelReply(opts.provider, [...session.turns.flat(), ...turn], tools, modelSignal,
+        const history = [...session.turns];
+        while (history.length && (Buffer.byteLength(JSON.stringify([...history.flat(), ...turn])) > LIMITS.historyBytes ||
+          history.flat().length + turn.length > LIMITS.historyMessages)) history.shift();
+        const messages = [...history.flat(), ...turn];
+        if (Buffer.byteLength(JSON.stringify(messages)) > LIMITS.historyBytes || messages.length > LIMITS.historyMessages)
+          throw new ChatError("CONTEXT_LIMIT", "This turn reached the chat context limit. Inspect the incident dashboard for full details.");
+        const reply = await modelReply(opts.provider, messages, tools, modelSignal,
           (text) => emit({ type: "text_delta", text: sanitize(text, session.secrets) }));
         turn.push(sanitize(reply.message, session.secrets));
         const calls = reply.calls;
@@ -168,6 +175,7 @@ export function createChatService(opts: ChatOptions) {
           else {
             if (effect) attempted.add(key);
             const toolSignal = AbortSignal.any([signal, AbortSignal.timeout(LIMITS.toolMs)]);
+            callSignal = toolSignal;
             try {
               result = await client.callTool({ name: call.name, arguments: call.input }, undefined, {
                 signal: toolSignal, timeout: LIMITS.toolMs, maxTotalTimeout: LIMITS.toolMs,
@@ -175,6 +183,7 @@ export function createChatService(opts: ChatOptions) {
               }) as CallToolResult;
             } catch {
               signal.throwIfAborted();
+              toolSignal.throwIfAborted();
               result = errorResult("The tool call failed or timed out. Already-started actions may continue. Check status; no automatic retry was made.");
             }
           }
@@ -192,7 +201,10 @@ export function createChatService(opts: ChatOptions) {
               handoffs.set(handoffId, { session, prompt });
               handoffUrl = `/chat/handoffs/${handoffId}`;
             }
-            modelResult.content = [{ type: "text", text: "Handoff created. The UI offers the full prompt to the human. A human must merge any resulting PR and approve a clean restart." }];
+            modelResult.content = [{ type: "text", text: handoffUrl
+              ? "Handoff created. The UI offers the full prompt to the human. A human must merge any resulting PR and approve a clean restart."
+              : "Handoff was created in the engine, but its prompt is missing or exceeds the chat limit. Retrieve it from the incident dashboard; do not repeat this action." }];
+            if (!handoffUrl) modelResult.isError = true;
             modelResult.structuredContent = {};
             const url = result.structuredContent?.codex_url;
             const codexUrl = url === "https://chatgpt.com/codex" ? url : undefined;
@@ -202,8 +214,9 @@ export function createChatService(opts: ChatOptions) {
           emit({ type: "tool_result", call_id: callId, tool: call.name, result: uiResult });
           const modelText = Buffer.byteLength(JSON.stringify(modelResult)) <= LIMITS.resultBytes
             ? untrusted("mcp_tool_result", modelResult) : "Tool result too large; check the dashboard. Do not repeat an action.";
-          results.push({ toolResult: { toolUseId: call.id, content: [{ text: modelText }], status: result.isError ? "error" : "success" } });
+          results.push({ toolResult: { toolUseId: call.id, content: [{ text: modelText }], status: modelResult.isError ? "error" : "success" } });
           callId = "";
+          callSignal = signal;
         }
         turn.push({ role: "user", content: results });
         pendingAssistant = false;

@@ -30,6 +30,7 @@ try {
 } catch (error) {
   const safe = publicError(error);
   console.error(JSON.stringify({ ok: false, code: safe.code, message: safe.message,
+    error_class: /^[A-Za-z][A-Za-z0-9]{0,79}$/.test(error?.name ?? "") ? error.name : "UnknownError",
     ...(error?.$metadata?.httpStatusCode && { http_status: error.$metadata.httpStatusCode }) }));
   process.exitCode = 1;
 } finally {
