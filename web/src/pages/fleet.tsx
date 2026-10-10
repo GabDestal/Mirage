@@ -23,22 +23,6 @@ export function Fleet() {
   const [selected, setSelected] = useState(-1)
   const [startingDemo, setStartingDemo] = useState(false)
 
-  // Keyboard navigation: J/K move, Enter opens, U unfreezes
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!runs.length || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('[role=dialog]')) return
-      if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return
-      const run = runs[selected]
-      if (e.key === 'j') setSelected((i) => Math.min(i + 1, runs.length - 1))
-      else if (e.key === 'k') setSelected((i) => Math.max(i - 1, 0))
-      else if (e.key === 'Enter' && run) navigate(`/runs/${run.id}`)
-      else if (e.key === 'u' && run?.status === 'frozen') ask('unfreeze', run)
-      else if (e.key === 'Escape') setSelected(-1)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [runs, selected, navigate, ask])
-
   const filteredRuns = useMemo(() => {
     return runs.filter((r) => {
       if (filterTab === 'running' && r.status !== 'running') return false
@@ -52,6 +36,23 @@ export function Fleet() {
       return true
     })
   }, [runs, filterTab, searchQuery])
+
+  // Keyboard navigation: J/K move, Enter opens, U unfreezes, X kills
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!filteredRuns.length || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('[role=dialog]')) return
+      if (e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return
+      const run = filteredRuns[selected]
+      if (e.key === 'j') setSelected((i) => Math.min(i + 1, filteredRuns.length - 1))
+      else if (e.key === 'k') setSelected((i) => Math.max(i - 1, 0))
+      else if (e.key === 'Enter' && run) navigate(`/runs/${run.id}`)
+      else if (e.key === 'u' && run?.status === 'frozen') ask('unfreeze', run)
+      else if (e.key === 'x' && run && (run.status === 'running' || run.status === 'frozen')) ask('kill', run)
+      else if (e.key === 'Escape') setSelected(-1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [filteredRuns, selected, navigate, ask])
 
   const stats = useMemo(() => {
     const active = runs.filter((r) => r.status === 'running').length
