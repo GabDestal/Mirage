@@ -25,7 +25,7 @@ NextAction = Literal["detonate", "find_cause", "send_fix", "open_pr", "none"]
 EventType = Literal[
     "run.started", "agent.message", "tool.requested", "gate.decision", "tool.result",
     "run.status", "global.stop", "incident.opened", "detonation.started", "detonation.effect",
-    "detonation.completed", "verdict.ready", "bisection.step", "bisection.completed",
+    "detonation.completed", "detonation.failed", "verdict.ready", "bisection.step", "bisection.completed",
     "handoff.created", "fix.verified", "pr.opened", "human.action",
 ]
 InputKind = Literal["calendar_event", "email", "crm_record", "web_page", "attachment", "user_task"]

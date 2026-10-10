@@ -23,7 +23,9 @@ def _db():
     global _conn
     if _conn is None:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        # autocommit mode: emit() opens its own BEGIN IMMEDIATE; timeout waits for other writers
+        _conn = sqlite3.connect(DB_PATH, check_same_thread=False, isolation_level=None,
+                                timeout=10)
         _conn.execute("PRAGMA journal_mode=WAL")
         _conn.execute(
             "CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY, ts TEXT, run_id TEXT,"
@@ -45,16 +47,23 @@ def reset():
 def emit(type, payload=None, *, env="prod", run_id=None, incident_id=None) -> Event:
     with _lock:
         db = _db()
-        last = db.execute("SELECT seq, hash FROM events ORDER BY seq DESC LIMIT 1").fetchone()
-        seq, prev_hash = (last[0] + 1, last[1]) if last else (1, "")
-        event = Event(seq=seq, ts=datetime.now(UTC), run_id=run_id, incident_id=incident_id,
-                      env=env, type=type, payload=payload or {})
-        body = event.model_dump_json()
-        digest = hashlib.sha256((prev_hash + body).encode()).hexdigest()
-        db.execute("INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?)",
-                   (seq, event.ts.isoformat(), run_id, incident_id, env, type, body,
-                    prev_hash, digest))
-        db.commit()
+        # The write lock is taken before reading the last seq, so two processes (API, CLI,
+        # agents) can never give two events the same seq.
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            last = db.execute("SELECT seq, hash FROM events ORDER BY seq DESC LIMIT 1").fetchone()
+            seq, prev_hash = (last[0] + 1, last[1]) if last else (1, "")
+            event = Event(seq=seq, ts=datetime.now(UTC), run_id=run_id, incident_id=incident_id,
+                          env=env, type=type, payload=payload or {})
+            body = event.model_dump_json()
+            digest = hashlib.sha256((prev_hash + body).encode()).hexdigest()
+            db.execute("INSERT INTO events VALUES (?,?,?,?,?,?,?,?,?)",
+                       (seq, event.ts.isoformat(), run_id, incident_id, env, type, body,
+                        prev_hash, digest))
+            db.execute("COMMIT")
+        except BaseException:
+            db.execute("ROLLBACK")
+            raise
     for listener in listeners:
         listener(event)
     return event

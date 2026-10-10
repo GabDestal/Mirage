@@ -30,6 +30,7 @@ from contracts.models import (
     WaitResult,
 )
 from engine.api.replay import Replay
+from engine.api.state import fold
 from engine.detection.rules import POLICY
 from engine.detonation import sandbox
 from engine.gateway import gate
@@ -72,9 +73,7 @@ def _authed(run_id, authorization) -> gate.LiveRun:
 
 def _state():
     """(runs, incidents) as contract models, in either mode."""
-    if REPLAY:
-        return REPLAY.state()
-    return {r.id: r.model() for r in gate.runs.values()}, dict(gate.incidents)
+    return REPLAY.state() if REPLAY else fold(events.read())
 
 
 # --- data plane: SDK -> engine ------------------------------------------------------------
@@ -201,6 +200,8 @@ def _act(run_id, body, action, allowed_from):
     if REPLAY:
         REPLAY.advance()
         return get_run(run_id)
+    if run_id not in gate.runs and run_id in _state()[0]:
+        raise HTTPException(409, f"Run {run_id} is owned by another process (no live control)")
     run = _run(run_id)
     if run.status not in allowed_from:
         raise HTTPException(409, f"Cannot {action} a run that is {run.status}")
@@ -232,26 +233,31 @@ def _incident_step(incident_id, step) -> dict:
     return head.payload if head else {}
 
 
+_detonating = set()  # incident ids with a detonation running in this API process
+
+
 @app.post("/incidents/{incident_id}/detonate")
 def detonate(incident_id: str, runs: int = 3) -> dict:
-    """Live: replay the frozen run in the sandbox in the background; results come as events."""
+    """Live: replay the frozen run in the sandbox in the background; results come as events.
+    Works for incidents frozen by any process: the snapshot is read from disk."""
     if REPLAY:
         return _incident_step(incident_id, "detonate")
-    incident = get_incident(incident_id)
-    if incident.status == "detonating":
+    get_incident(incident_id)
+    if incident_id in _detonating:
         raise HTTPException(409, "A detonation is already running for this incident")
+    _detonating.add(incident_id)
     detonation_id = f"det_{incident_id.removeprefix('inc_')}_{int(time.time())}"
-    incident.status, incident.next_action = "detonating", "none"
 
     def work():
         try:
-            _, verdict, _ = sandbox.detonate(incident_id, runs, detonation_id=detonation_id)
-            incident.verdict = verdict
-            incident.status = "confirmed" if verdict.confirmed else "false_positive"
-            incident.next_action = "find_cause" if verdict.confirmed else "none"
-        except Exception as e:  # noqa: BLE001 - keep the API up; let the operator retry
-            print(f"Detonation {detonation_id} failed: {type(e).__name__}: {e}")
-            incident.status, incident.next_action = "open", "detonate"
+            sandbox.detonate(incident_id, runs, detonation_id=detonation_id)
+        except Exception as e:  # noqa: BLE001 - keep the API up; the operator can retry
+            events.emit("detonation.failed", {"incident_id": incident_id,
+                                              "detonation_id": detonation_id,
+                                              "error": f"{type(e).__name__}: {e}"},
+                        incident_id=incident_id, env="mirage")
+        finally:
+            _detonating.discard(incident_id)
 
     threading.Thread(target=work, daemon=True).start()
     return {"detonation_id": detonation_id}

@@ -133,7 +133,7 @@ def test_detonate_route_runs_the_sandbox(api):
     assert api.post(f"/incidents/{incident_id}/detonate").status_code == 409  # already running
     for _ in range(100):
         incident = api.get(f"/incidents/{incident_id}").json()
-        if incident["status"] != "detonating":
+        if incident["status"] in ("confirmed", "false_positive"):
             break
         time.sleep(0.1)
     assert incident["status"] == "confirmed" and incident["next_action"] == "find_cause"
