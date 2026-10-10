@@ -15,16 +15,21 @@ def _allowed(domain, allowed):
 
 
 def hard_rule(agent, tool, args, policy=POLICY):
-    """Return (rule_id, explanation) for the first rule the call breaks, else None."""
+    """Return (rule_id, explanation) for the first rule the call breaks, else None.
+
+    Destinations are read from the `to` and `url` arguments of any tool, so tools of
+    registered agents are checked whatever their names.
+    """
     if tool not in policy["agents"][agent]["tools"]:
         return "TOOL_NOT_ALLOWED", f"Tool {tool} is not on the allowlist of agent {agent}."
 
-    if tool == "send_email":
-        for address in filter(None, re.split(r"[,;\s]+", str(args.get("to", "")))):
-            domain = address.rpartition("@")[2].lower()
-            if not _allowed(domain, policy["destinations"]["email_domains"]):
+    if "to" in args:
+        allowed = [a.lower() for a in policy["destinations"]["email_domains"]]
+        for address in filter(None, re.split(r"[,;\s]+", str(args["to"]).lower())):
+            domain = address.rpartition("@")[2]
+            if address not in allowed and not _allowed(domain, allowed):
                 return "DEST_NOT_ALLOWED", f"Domain {domain or address} is not on the allowlist."
-    if tool == "fetch_url":
+    if "url" in args:
         host = (urlparse(str(args.get("url", ""))).hostname or "").lower()
         if not _allowed(host, policy["destinations"]["url_domains"]):
             return "DEST_NOT_ALLOWED", f"Host {host or 'unknown'} is not on the allowlist."

@@ -240,6 +240,6 @@ class ToolResult(Model):
 
 
 class WaitResult(Model):
-    """GET /runs/{id}/wait. Long poll while frozen."""
+    """GET /runs/{id}/wait. Long poll while frozen. `frozen`: still frozen, poll again."""
 
-    status: Literal["running", "killed", "halted"]
+    status: Literal["running", "frozen", "killed", "halted"]
