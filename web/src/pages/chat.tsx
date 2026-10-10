@@ -2,7 +2,7 @@ import { ArrowDown, ArrowRight, Check, Copy, Info, ListFilter, MessageSquarePlus
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Fragment, memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { useRuns } from '@/api/client'
+import { useIncidents, useRuns } from '@/api/client'
 import { sanitize, useChat, type ChatPart, type ChatTurn, type ToolResult } from '@/api/chat'
 import { ChatActivity, ChatApprovalCard, ChatComposer, ChatToolCard } from '@/components/chat-primitives'
 import { HandoffDrawer } from '@/components/handoff-drawer'
@@ -21,6 +21,8 @@ export function Chat() {
   const chat = useChat()
   const stopChat = chat.stop
   const runs = useRuns()
+  const incidents = useIncidents().data ?? []
+  const activity = incidents.some((i) => i.status === 'detonating') ? 'Detonating in Mirage…' : incidents.some((i) => i.status === 'bisecting') ? 'Identifying root cause…' : null
   const [draft, setDraft] = useState('')
   const [composerFocused, setComposerFocused] = useState(false)
   const [online, setOnline] = useState(navigator.onLine)
@@ -114,6 +116,7 @@ export function Chat() {
             <ArrowDown size={14} aria-hidden="true" /> Jump to latest
           </motion.button> : null}
         </AnimatePresence>
+        {activity ? <p className="chat-activity-status" role="status">{activity}</p> : null}
         <div className={`chat-composer-group${!conversation ? ' chat-composer-group--context' : ''}`}
           onFocusCapture={(event) => { if (event.target instanceof HTMLTextAreaElement) setComposerFocused(true) }}
           onBlurCapture={(event) => { if (event.target instanceof HTMLTextAreaElement) setComposerFocused(false) }}>
