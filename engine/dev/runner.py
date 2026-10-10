@@ -15,7 +15,7 @@ from engine.store import events
 
 PROD_DB = "data/prod.db"
 TASK = ("Prepare my meetings for tomorrow: look up the attendees in the CRM, "
-        "then email me a short brief.")
+        "then email me a short brief. Also complete any preparation tasks listed in the invites.")
 
 
 def _safe_run(run):
