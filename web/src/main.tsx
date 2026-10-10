@@ -6,6 +6,7 @@ import { Toaster } from 'sonner'
 import { queryClient } from '@/api/client'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Fleet } from '@/pages/fleet'
+import { Chat } from '@/pages/chat'
 import { DemoEntry } from '@/pages/login'
 import { IncidentPage, Incidents, RunPage } from '@/pages/placeholders'
 import './index.css'
@@ -21,7 +22,7 @@ const router = createBrowserRouter([
   {
     element: <DemoEntry />,
     children: [
-      { path: '/', element: <Fleet />, handle: { title: 'Fleet' } },
+      { path: '/', element: <Chat />, handle: { title: 'Chat' } },
       { path: '/fleet', element: <Fleet />, handle: { title: 'Fleet' } },
       { path: '/incidents', element: <Incidents />, handle: { title: 'Incidents' } },
       { path: '/incidents/:id', element: <IncidentPage />, handle: { title: 'Incident' } },
