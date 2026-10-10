@@ -1,31 +1,65 @@
 # Start Mirage
 
-## Milestone 1 — recorded background, real Miragio
+## Run the M1 demo
 
-Install dependencies once and build the real chat service from this checkout:
+M1 has **four recorded background agents and recorded engine evidence**; Miragio
+uses **real Bedrock and real MCP tools** against that recorded engine.
+
+### First-time setup
+
+Start at the main repo root below (adjust the path if your checkout is elsewhere).
+Keep the existing root `.env`: add missing `AWS_BEARER_TOKEN_BEDROCK`,
+`AWS_REGION=us-east-1`, and a working `BEDROCK_CHAT_MODEL_ID` following
+[chat setup](mcp/CHAT.md). Use the current configured model, which must support
+ConverseStream and tool use; do not overwrite the file or commit credentials.
+Have `uv`, Python 3.12+ and Node/npm installed, then install dependencies and build chat once:
 
 ```sh
+cd /Users/liamszefner/Business/hacks/Mirage
 uv sync
-cd mcp
-npm ci
-npm run build
-cd ../web
-npm ci
-npm run dev -- --mode demo
+npm ci --prefix mcp
+npm ci --prefix web
+npm run build --prefix mcp
 ```
 
-`npm run dev:demo` and `MIRAGE_UI_MODE=demo npm run dev` select the same profile.
-Open [http://127.0.0.1:5174](http://127.0.0.1:5174). The launcher owns loopback web
-**5174**, recorded engine **8010**, and real Bedrock chat **8011**. Each launch uses
-absolute `contracts/fixtures/fleet_demo_4agents.jsonl` and a fresh temporary directory
-for SQLite, snapshots and handoff tokens. Ctrl+C stops only its children and removes
-that disposable state. Startup never attaches to or stops an existing service, and
-never sends `/demo/start` or `/demo/reset`.
+### Every run
 
-Configure root `.env` with `AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION=us-east-1`, and a
-working `BEDROCK_CHAT_MODEL_ID` (see [chat setup](mcp/CHAT.md)). The launcher checks
-the file exists without reading credentials. Only chat receives provider credentials;
-Replay and Vite do not inherit them, and Replay does not load `.env`. Missing
+From the same repo root, use one terminal:
+
+```sh
+cd /Users/liamszefner/Business/hacks/Mirage
+npm run build --prefix mcp
+npm run dev:demo --prefix web
+```
+
+Open [http://127.0.0.1:5174](http://127.0.0.1:5174) and click **Sign in** with the
+prefilled demo fields (a local demo sign-in; refreshing asks you to sign in again).
+The launcher starts web, recorded engine and real chat automatically. The recording
+plays production activity, freezes the meeting assistant, and shows the initial
+**three-run detonation and proof automatically** while the healthy agents continue;
+no initial detonation click is needed. Ask Miragio about the incident; later cause
+search, handoff and verification stages advance through operator actions/approvals.
+
+In **Fleet**, click **Restart demo recording** to replay from the beginning; it resets
+only recorded evidence and replay decisions, launching no real agents. Stop with
+**Ctrl+C** in the launch terminal: it stops only this launch's children and removes
+its temporary state. Rerun the commands above for a fresh launch, including after
+changing `.env`. Use this managed demo workflow on its own; do not combine it with
+the three-terminal manual attach workflow below.
+
+## M1 launcher details and options
+
+From repo root, `npm run dev --prefix web -- --mode demo` and
+`MIRAGE_UI_MODE=demo npm run dev --prefix web` select the same profile as `dev:demo`.
+The launcher owns loopback web **5174**, recorded engine **8010**, and real Bedrock
+chat **8011**. Each launch uses
+absolute `contracts/fixtures/fleet_demo_4agents.jsonl` and a fresh temporary directory
+for SQLite, snapshots and handoff tokens. Startup never attaches to or stops an
+existing service, and never sends `/demo/start` or `/demo/reset`.
+
+The launcher checks the env file exists without reading credentials.
+Only chat receives provider credentials; Replay and Vite do not inherit them,
+and Replay does not load `.env`. Missing
 configuration fails chat startup; invalid credentials or denied model access remain
 visible provider errors on a real chat turn. GET readiness does not spend a model call
 or establish provider access. There is no scripted provider or automatic fallback.
@@ -33,7 +67,7 @@ or establish provider access. There is no scripted provider or automatic fallbac
 For Orca rehearsal, use the original checkout's credentials without copying them:
 
 ```sh
-MIRAGE_CHAT_ENV_FILE=/Users/liamszefner/Business/hacks/Mirage/.env npm run dev -- --mode demo
+MIRAGE_CHAT_ENV_FILE=/Users/liamszefner/Business/hacks/Mirage/.env npm run dev:demo --prefix web
 ```
 
 This override must be absolute. Chat keeps shell values ahead of file defaults;
@@ -66,15 +100,13 @@ Human merges remain manual.
 **Later M2:** actual agents, live gate/containment, snapshot sandbox execution and fresh
 deterministic proof require separate acceptance. This launcher implements only M1;
 it adds no live engine profile and starts no victim fleet or engine provider/job work.
-Managed Replay lifecycle and UI/chat presentation land in companion PRs.
 
-Launcher checks use stub children/disposable paths and make no provider calls:
+From repo root, launcher checks use stub children/disposable paths and make no provider calls:
 
 ```sh
-cd web
-npm run demo:selfcheck
-npm run typecheck
-npm run build
+npm run demo:selfcheck --prefix web
+npm run typecheck --prefix web
+npm run build --prefix web
 ```
 
 ## Existing manual attach workflow
@@ -84,8 +116,8 @@ at `/Users/liamszefner/Business/hacks/Mirage`; adjust that path if your checkout
 
 Before starting, keep your existing root `.env`. Operator chat needs
 `AWS_BEARER_TOKEN_BEDROCK` (your private Bedrock key), `AWS_REGION=us-east-1`, and
-`BEDROCK_CHAT_MODEL_ID=us.anthropic.claude-opus-4-8`. Add missing settings without
-overwriting the file; never commit the key.
+a working `BEDROCK_CHAT_MODEL_ID` (see [chat setup](mcp/CHAT.md)). Add missing settings
+without overwriting the file; never commit the key.
 
 If dependencies are missing, run `uv sync` at the repo root and `npm ci` inside
 each of `mcp/` and `web/` once.
