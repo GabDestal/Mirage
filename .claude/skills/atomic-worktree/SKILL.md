@@ -65,9 +65,9 @@ Rules:
 
 - One feature per PR. If the PR does two things, split it.
 - A `contract/` PR needs the other person to approve.
-- **Never merge, only rebase.** Update the branch with `git rebase origin/main`, never
-  `git merge`. Land the PR with **Rebase and merge** (`gh pr merge <n> --rebase`): no squash,
-  no merge commits. Each commit lands on `main` as is, so keep commits clean.
+- **No merge commits.** Update the branch with `git rebase origin/main`, never `git merge`.
+  Land the PR with **Squash and merge** or **Rebase and merge** (`gh pr merge <n> --squash`
+  or `--rebase`), never "Create a merge commit".
 - Keep `main` working at all times.
 
 ## Clean up
