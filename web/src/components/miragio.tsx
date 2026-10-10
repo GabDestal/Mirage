@@ -1,8 +1,15 @@
-import { motion, useAnimationControls, useReducedMotion, useSpring, useTransform, type MotionStyle } from 'motion/react'
-import { useEffect, useId, useRef, useState, type RefObject } from 'react'
+import { motion, useAnimationControls, useSpring, useTransform, type MotionStyle } from 'motion/react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
 
 type Props = { className?: string; animate?: boolean; readingProgress?: number | null }
 const spring = { stiffness: 160, damping: 20, mass: 0.55 }
+const motionPreference = () => window.matchMedia('(prefers-reduced-motion: reduce)')
+function subscribeMotionPreference(onChange: () => void) {
+  const preference = motionPreference()
+  preference.addEventListener('change', onChange)
+  return () => preference.removeEventListener('change', onChange)
+}
+const isReducedMotion = () => motionPreference().matches
 
 // Static reply portraits never mount the animation hooks or global listeners.
 export function Miragio({ animate = false, ...props }: Props) {
@@ -10,7 +17,8 @@ export function Miragio({ animate = false, ...props }: Props) {
 }
 
 function AnimatedMiragio({ className, readingProgress = null }: Omit<Props, 'animate'>) {
-  const reduce = useReducedMotion()
+  // Motion's hook snapshots the preference; subscribe so a live OS change also stops everything.
+  const reduce = useSyncExternalStore(subscribeMotionPreference, isReducedMotion, () => true)
   const [visible, setVisible] = useState(() => !document.hidden)
   const ref = useRef<SVGSVGElement>(null)
   const reading = useRef(readingProgress !== null)
