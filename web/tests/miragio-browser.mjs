@@ -78,6 +78,8 @@ try {
       const context = await browser.newContext({ viewport, colorScheme: theme,
         ...(theme === 'light' ? { recordVideo: { dir: out, size: viewport } } : {}) })
       const page = await context.newPage()
+      // Keep unrelated engine-status reflow out of the synthetic mascot lifecycle checks.
+      await page.route(/\/api\/(runs|incidents)(\?.*)?$/, (route) => route.fulfill({ json: [] }))
       const errors = []
       page.on('pageerror', (error) => errors.push(error.message))
       await page.addInitScript(instrument, { random: device === 'phone' ? 0.1 : 0.5 })
@@ -89,22 +91,25 @@ try {
       assert.equal(await entry.evaluate((el) => el.style.transform), 'translateX(-1050px)')
       const initialTile = await welcome.evaluate((svg) => {
         const group = svg.querySelector('[data-miragio="entry"]')
-        const paper = group.previousElementSibling
+        const paper = group.parentElement.firstElementChild
         const box = group.getBBox()
         return {
-          children: [...group.children].map((el) => el.dataset.miragio || el.getAttribute('fill').includes('-chest') && 'chest'),
+          children: [...group.children].map((el) => el.dataset.miragio),
+          fixed: [...group.parentElement.children].filter((el) => el !== group).map((el) => el.dataset.miragio || (el.tagName === 'rect' ? 'paper' : 'chest')),
           paperFixed: paper.tagName === 'rect' && paper.parentElement === group.parentElement && group.parentElement.hasAttribute('clip-path'),
           offTile: box.x + box.width <= 1050,
           rect: { x: svg.getBoundingClientRect().x, y: svg.getBoundingClientRect().y, width: svg.getBoundingClientRect().width, height: svg.getBoundingClientRect().height },
         }
       })
-      assert.deepEqual(initialTile.children, ['chest', 'head', 'ribbon', 'ribbon'], 'Complete illustration shares the entry transform in original paint order')
-      assert.ok(initialTile.paperFixed && initialTile.offTile, 'First frame is clean paper inside the existing fixed clip')
+      assert.deepEqual(initialTile.children, ['head'], 'Only head, gaze and blink share the entry transform')
+      assert.deepEqual(initialTile.fixed, ['paper', 'chest', 'ribbon', 'ribbon'], 'Paper, chest and sea stay outside the entrance group')
+      assert.ok(initialTile.paperFixed && initialTile.offTile, 'Head is fully outside the fixed tile on the first frame')
       await entry.evaluate((group) => {
         window.miragioEntrySamples = []
         const sample = () => {
           const matrix = new DOMMatrix(getComputedStyle(group).transform)
-          window.miragioEntrySamples.push({ a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, x: matrix.e, y: matrix.f })
+          const fixed = [...group.parentElement.children].filter((el) => el !== group).map((el) => getComputedStyle(el).transform)
+          window.miragioEntrySamples.push({ a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, x: matrix.e, y: matrix.f, fixed })
         }
         sample()
         window.miragioEntryObserver = new MutationObserver(sample)
@@ -112,7 +117,7 @@ try {
       })
       await welcome.evaluate(watchBlinks)
       await welcome.screenshot({ path: `${out}/${device}-${theme}-entry.png` })
-      for (const [frame, x] of [['early', -800], ['mid', -300]]) {
+      for (const [frame, x] of [['early', -800], ['mid', -300], ['overshoot', 0]]) {
         await page.waitForFunction((threshold) => new DOMMatrix(getComputedStyle(document.querySelector('.chat-miragio [data-miragio="entry"]')).transform).e > threshold, x, { polling: 'raf' })
         await welcome.screenshot({ path: `${out}/${device}-${theme}-${frame}.png` })
       }
@@ -123,7 +128,9 @@ try {
       await page.evaluate(() => window.miragioEntryObserver.disconnect())
       const entrySamples = await page.evaluate(() => window.miragioEntrySamples)
       assert.ok(entrySamples.length > 2 && entrySamples.some(({ x }) => x > -800 && x < -300), 'Observed intermediate side slide')
-      assert.ok(entrySamples.every(({ a, b, c, d, x, y }) => a === 1 && b === 0 && c === 0 && d === 1 && y === 0 && x >= -1050 && x <= 0), 'Entry only translates horizontally without tilt, vertical crossing, or overshoot')
+      assert.ok(entrySamples.every(({ a, b, c, d, x, y }) => a === 1 && b === 0 && c === 0 && d === 1 && y === 0 && x >= -1050), 'Head enters laterally without tilt or vertical crossing')
+      assert.ok(entrySamples.some(({ x }) => x > 0), 'Reference spring overshoots before settling')
+      assert.ok(entrySamples.every(({ fixed }) => fixed.length === 4 && fixed.every((transform) => transform === 'none')), 'Paper, chest and both ribbons stay fixed throughout entry')
       assert.deepEqual(await welcome.evaluate((svg) => {
         const { x, y, width, height } = svg.getBoundingClientRect()
         return { x, y, width, height }
@@ -164,9 +171,10 @@ try {
       await input.blur()
       await page.screenshot({ path: `${out}/${device}-${theme}.png` })
       if (device === 'desktop' && theme === 'light') {
-        const ripple = await welcome.locator('[data-miragio="ribbon"]').first().getAttribute('style')
+        const sea = await welcome.locator('[data-miragio="ribbon"]').evaluateAll((els) => els.map((el) => ({ transform: getComputedStyle(el).transform, box: el.getBoundingClientRect().toJSON() })))
         await page.waitForTimeout(400)
-        assert.notEqual(await welcome.locator('[data-miragio="ribbon"]').first().getAttribute('style'), ripple)
+        assert.ok(sea.every(({ transform }) => transform === 'none'), 'Sea has no idle transform')
+        assert.deepEqual(await welcome.locator('[data-miragio="ribbon"]').evaluateAll((els) => els.map((el) => ({ transform: getComputedStyle(el).transform, box: el.getBoundingClientRect().toJSON() }))), sea, 'Both sea ribbons stay still during idle')
         await page.evaluate(() => {
           Object.defineProperty(document, 'hidden', { configurable: true, value: true })
           document.dispatchEvent(new Event('visibilitychange'))
@@ -239,7 +247,7 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
       assert.deepEqual(errors, [])
       await page.screenshot({ path: `${out}/${device}-${theme}-replies.png` })
-      results.push({ device, theme, passed: true, timing, checks: ['clean paper first frame', 'whole-illustration alignment', 'pure side slide', 'fixed tile/layout', 'one-time entry', 'single/double blink', '2–4.5s gap', 'dimensions', 'gaze', 'reading', 'reduced pixel equality', 'static/unmount resources', 'unique ids', 'read-only synthetic SSE followup', 'overflow', 'runtime errors'] })
+      results.push({ device, theme, passed: true, timing, checks: ['head hidden first frame', 'head-only entry', 'lateral reference spring overshoot', 'fixed sea/chest throughout entry and idle', 'fixed tile/layout', 'one-time entry', 'single/double blink', '2–4.5s gap', 'dimensions', 'gaze', 'reading', 'reduced pixel equality', 'static/unmount resources', 'unique ids', 'read-only synthetic SSE followup', 'overflow', 'runtime errors'] })
       const video = page.video()
       await context.close()
       if (video) await rename(await video.path(), `${out}/${device}-animation.webm`)
@@ -248,6 +256,7 @@ try {
   for (const scenario of ['initial-reduced', 'initial-hidden', 'entry-reduced', 'entry-hidden', 'first-blink-reduced', 'second-blink-hidden']) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: scenario === 'initial-reduced' ? 'reduce' : 'no-preference' })
     const page = await context.newPage()
+    await page.route(/\/api\/(runs|incidents)(\?.*)?$/, (route) => route.fulfill({ json: [] }))
     const errors = []
     page.on('pageerror', (error) => errors.push(error.message))
     await page.addInitScript(instrument, { random: 0.1, hidden: scenario === 'initial-hidden' })
