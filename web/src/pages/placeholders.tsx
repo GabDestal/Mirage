@@ -1,12 +1,9 @@
-// Placeholders: another worker builds the run and incident pages.
+// Placeholders for Incidents; RunPage is now implemented in trace.tsx
 import { Link, useParams } from 'react-router'
 import { useIncidents, useRuns } from '@/api/client'
 import { runLabel } from '@/lib/runs'
 
-export function RunPage() {
-  const { id } = useParams()
-  return <Placeholder>Run <span className="font-mono text-code">{id}</span>. The full trace lands here.</Placeholder>
-}
+export { RunPage } from './trace'
 
 export function IncidentPage() {
   const { id } = useParams()

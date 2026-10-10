@@ -1,30 +1,32 @@
-// Fleet (DESIGN.md §11 agent row, §10 compact trace). Healthy is quiet; only the frozen row changes.
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useEffect, useState } from 'react'
+// Fleet UI (DESIGN.md §1, §2, §6, §11). Opereit-style simplicity and warmth.
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
+import { ArrowRight, Bot, CheckCircle2, Play, Search, ShieldAlert, Sparkles } from 'lucide-react'
 import { api, useEvents, useRuns, type MirageEvent, type Run } from '@/api/client'
 import { resetStream, useNow } from '@/api/stream'
 import { useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
 import { avatarState, relTime, rowSentence, runLabel, steps } from '@/lib/runs'
-import { cn } from '@/lib/utils'
-
-const EASE_OUT = [0.23, 1, 0.32, 1] as const
+import './fleet.css'
 
 export function Fleet() {
-  const { data: runs, isPending, isError, error } = useRuns()
-  const { data: events } = useEvents()
+  const { data: runs = [], isPending, isError, error } = useRuns()
+  const { data: events = [] } = useEvents()
   const now = useNow()
   const navigate = useNavigate()
   const ask = useAsk()
-  const [selected, setSelected] = useState(-1)
 
-  // J/K move, Enter opens, U unfreezes the selected run (DESIGN.md §13).
+  const [filterTab, setFilterTab] = useState<'all' | 'running' | 'frozen'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selected, setSelected] = useState(-1)
+  const [startingDemo, setStartingDemo] = useState(false)
+
+  // Keyboard navigation: J/K move, Enter opens, U unfreezes
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!runs?.length || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('[role=dialog]')) return
+      if (!runs.length || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('[role=dialog]')) return
       if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return
       const run = runs[selected]
       if (e.key === 'j') setSelected((i) => Math.min(i + 1, runs.length - 1))
@@ -37,152 +39,339 @@ export function Fleet() {
     return () => window.removeEventListener('keydown', onKey)
   }, [runs, selected, navigate, ask])
 
+  const filteredRuns = useMemo(() => {
+    return runs.filter((r) => {
+      if (filterTab === 'running' && r.status !== 'running') return false
+      if (filterTab === 'frozen' && r.status !== 'frozen') return false
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase()
+        const nameMatch = r.agent.toLowerCase().includes(q) || r.id.toLowerCase().includes(q)
+        const taskMatch = r.task.toLowerCase().includes(q)
+        if (!nameMatch && !taskMatch) return false
+      }
+      return true
+    })
+  }, [runs, filterTab, searchQuery])
+
+  const stats = useMemo(() => {
+    const active = runs.filter((r) => r.status === 'running').length
+    const frozen = runs.filter((r) => r.status === 'frozen').length
+    const completed = runs.filter((r) => r.status === 'completed').length
+    return { active, frozen, completed, total: runs.length }
+  }, [runs])
+
+  const handleStartDemo = async () => {
+    setStartingDemo(true)
+    try {
+      await api('/demo/start', {})
+      resetStream()
+      toast.success('Started 4-agent demo fleet')
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not start demo')
+    } finally {
+      setStartingDemo(false)
+    }
+  }
+
   if (isPending) return <Skeleton />
-  if (isError)
+  if (isError) {
     return (
-      <Empty text={`Can't reach the Mirage engine. ${error.message}`} action="Try again" onAction={() => location.reload()} />
-    )
-  if (!runs.length)
-    return (
-      <Empty
-        text="No agents are running. Runs show up here the moment an agent starts."
-        action="Play the demo"
-        onAction={() => api('/demo/start', {}).then(resetStream, (e) => toast.error(e.message))}
-      />
-    )
-
-  return (
-    <ul className="flex max-w-[1080px] flex-col py-2" aria-label="Runs">
-      {runs.map((run, i) => (
-        <AgentRow key={run.id} run={run} runs={runs} events={events} now={now} selected={i === selected} />
-      ))}
-    </ul>
-  )
-}
-
-function AgentRow({ run, runs, events, now, selected }: { run: Run; runs: Run[]; events: MirageEvent[]; now: number; selected: boolean }) {
-  const navigate = useNavigate()
-  const reduce = useReducedMotion()
-  const sentence = rowSentence(run, events)
-  const label = runLabel(run, runs)
-  const when = run.ended_at ?? run.started_at
-
-  return (
-    <li
-      onClick={() => navigate(`/runs/${run.id}`)}
-      className={cn(
-        'group grid h-[52px] cursor-pointer grid-cols-[20px_minmax(0,300px)_minmax(0,1fr)_auto_72px] items-center gap-4 px-6 transition-colors duration-[120ms] hover:bg-paper-2',
-        selected && 'bg-paper-3 hover:bg-paper-3',
-      )}
-    >
-      <AgentAvatar agent={run.agent} state={avatarState(run)} />
-      <div className="flex min-w-0 flex-col">
-        <Link to={`/runs/${run.id}`} onClick={(e) => e.stopPropagation()} className="truncate font-medium outline-offset-0 hover:underline">
-          {label}
-        </Link>
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.span
-            key={sentence.text}
-            initial={{ opacity: 0, filter: reduce ? 'none' : 'blur(2px)' }}
-            animate={{ opacity: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, transition: { duration: 0.12 } }}
-            transition={{ duration: 0.22, ease: EASE_OUT }}
-            className={cn('truncate text-meta', sentence.tone === 'alarm' ? 'text-alarm' : 'text-ink-2')}
-          >
-            {sentence.text}
-          </motion.span>
-        </AnimatePresence>
+      <div className="fleet-page">
+        <div className="fleet-container">
+          <div className="fleet-empty">
+            <h3>Can't reach the Mirage engine</h3>
+            <p>{error.message}</p>
+            <Button variant="secondary" onClick={() => location.reload()}>
+              Try again
+            </Button>
+          </div>
+        </div>
       </div>
-      <CompactTrace run={run} events={events} />
-      <div className="flex justify-end">
-        <AnimatePresence initial={false}>
-          {run.status === 'frozen' && run.incident_id && (
-            <motion.div
-              initial={{ opacity: 0, transform: 'scale(0.96)' }}
-              animate={{ opacity: 1, transform: 'scale(1)' }}
-              exit={{ opacity: 0, transition: { duration: 0.12 } }}
-              transition={{ duration: 0.22, ease: EASE_OUT }}
+    )
+  }
+
+  return (
+    <section className="fleet-page" aria-label="Agent Fleet">
+      <div className="fleet-container">
+        {/* Header summary & action */}
+        <div className="fleet-header">
+          <div className="fleet-title-group">
+            <h2>Agent Fleet</h2>
+            <p>Real-time protection and transparent observability for autonomous agents.</p>
+          </div>
+          <div className="fleet-actions">
+            <button
+              type="button"
+              className="fleet-btn fleet-btn-secondary"
+              onClick={handleStartDemo}
+              disabled={startingDemo}
             >
-              <Button asChild variant="secondary" onClick={(e) => e.stopPropagation()}>
-                <Link to={`/incidents/${run.incident_id}`}>Open incident</Link>
-              </Button>
-            </motion.div>
+              <Play size={13} fill="currentColor" />
+              {startingDemo ? 'Starting…' : 'Run 4-agent demo'}
+            </button>
+            <Button asChild variant="primary">
+              <Link to="/">Ask Mirage</Link>
+            </Button>
+          </div>
+        </div>
+
+        {/* Fleet KPI cards */}
+        <div className="fleet-stats-grid">
+          <div className="fleet-stat-card">
+            <div className="fleet-stat-header">
+              <span>Active Agents</span>
+              <Bot size={15} color="var(--fleet-muted)" />
+            </div>
+            <div className="fleet-stat-value">{stats.active}</div>
+            <div className="fleet-stat-sub">Parallel background workers</div>
+          </div>
+
+          <div className="fleet-stat-card">
+            <div className="fleet-stat-header">
+              <span>Safeguard Freezes</span>
+              <ShieldAlert size={15} color={stats.frozen > 0 ? 'var(--fleet-alarm)' : 'var(--fleet-muted)'} />
+            </div>
+            <div className="fleet-stat-value" style={{ color: stats.frozen > 0 ? 'var(--fleet-alarm)' : 'inherit' }}>
+              {stats.frozen}
+            </div>
+            <div className="fleet-stat-sub">Held safely for human verification</div>
+          </div>
+
+          <div className="fleet-stat-card">
+            <div className="fleet-stat-header">
+              <span>Completed Tasks</span>
+              <CheckCircle2 size={15} color="var(--fleet-emerald)" />
+            </div>
+            <div className="fleet-stat-value">{stats.completed}</div>
+            <div className="fleet-stat-sub">Cleanly finished workflows</div>
+          </div>
+
+          <div className="fleet-stat-card">
+            <div className="fleet-stat-header">
+              <span>Protection Mode</span>
+              <Sparkles size={15} color="var(--fleet-mirage)" />
+            </div>
+            <div className="fleet-stat-value" style={{ fontSize: '18px', color: 'var(--fleet-mirage)' }}>
+              Deterministic Twin
+            </div>
+            <div className="fleet-stat-sub">Pre-call interception enabled</div>
+          </div>
+        </div>
+
+        {/* Toolbar & Filter Tabs */}
+        <div className="fleet-toolbar">
+          <div className="fleet-tabs">
+            <button
+              type="button"
+              className={`fleet-tab ${filterTab === 'all' ? 'active' : ''}`}
+              onClick={() => setFilterTab('all')}
+            >
+              All Runs ({runs.length})
+            </button>
+            <button
+              type="button"
+              className={`fleet-tab ${filterTab === 'running' ? 'active' : ''}`}
+              onClick={() => setFilterTab('running')}
+            >
+              Working ({stats.active})
+            </button>
+            <button
+              type="button"
+              className={`fleet-tab ${filterTab === 'frozen' ? 'active' : ''}`}
+              onClick={() => setFilterTab('frozen')}
+            >
+              Frozen ({stats.frozen})
+            </button>
+          </div>
+
+          <div className="fleet-search-wrap">
+            <Search size={14} className="fleet-search-icon" />
+            <input
+              type="search"
+              className="fleet-search-input"
+              placeholder="Filter by agent or task…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Fleet Table Card */}
+        <div className="fleet-card">
+          {filteredRuns.length === 0 ? (
+            <div className="fleet-empty">
+              <h3>No agents matching current filter</h3>
+              <p>Your fleet will show up in this view as soon as actions begin executing.</p>
+              <button type="button" className="fleet-btn fleet-btn-primary" onClick={handleStartDemo}>
+                Launch demo fleet
+              </button>
+            </div>
+          ) : (
+            <table className="fleet-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '260px' }}>Agent & Task</th>
+                  <th style={{ width: '130px' }}>Status</th>
+                  <th>Recent Tool Activity</th>
+                  <th style={{ width: '120px', textAlign: 'right' }}>Action</th>
+                  <th style={{ width: '90px', textAlign: 'right' }}>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRuns.map((run, i) => (
+                  <AgentTableRow
+                    key={run.id}
+                    run={run}
+                    runs={runs}
+                    events={events}
+                    now={now}
+                    selected={i === selected}
+                  />
+                ))}
+              </tbody>
+            </table>
           )}
-        </AnimatePresence>
+        </div>
       </div>
-      <time dateTime={when} title={new Date(when).toLocaleString()} className="text-right text-meta text-ink-3 tabular">
-        {relTime(when, now)}
-      </time>
-    </li>
+    </section>
   )
 }
 
-const MAX_STEPS = 5
+function AgentTableRow({
+  run,
+  runs,
+  events,
+  now,
+  selected,
+}: {
+  run: Run
+  runs: Run[]
+  events: MirageEvent[]
+  now: number
+  selected: boolean
+}) {
+  const navigate = useNavigate()
+  const label = runLabel(run, runs)
+  const sentence = rowSentence(run, events)
+  const when = run.ended_at ?? run.started_at
+  const isFrozen = run.status === 'frozen'
 
-/** Tool names in mono, `→` between, newest last; older fade to ink-3, the blocked one in alarm. */
-function CompactTrace({ run, events }: { run: Run; events: MirageEvent[] }) {
+  return (
+    <tr
+      className={`fleet-row ${selected ? 'selected' : ''} ${isFrozen ? 'row-frozen' : ''}`}
+      onClick={() => navigate(`/runs/${run.id}`)}
+    >
+      {/* Agent Avatar & Task */}
+      <td>
+        <div className="fleet-agent-cell">
+          <AgentAvatar agent={run.agent} state={avatarState(run)} size={32} />
+          <div className="fleet-agent-info">
+            <Link
+              to={`/runs/${run.id}`}
+              className="fleet-agent-name"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {label}
+            </Link>
+            <span className="fleet-agent-task" title={run.task}>
+              {sentence.text || run.task}
+            </span>
+          </div>
+        </div>
+      </td>
+
+      {/* Status Pill */}
+      <td>
+        <span
+          className={`fleet-status-pill ${
+            isFrozen
+              ? 'pill-frozen'
+              : run.status === 'running'
+              ? 'pill-running'
+              : run.status === 'completed'
+              ? 'pill-completed'
+              : run.status === 'queued'
+              ? 'pill-queued'
+              : 'pill-killed'
+          }`}
+        >
+          {isFrozen ? '• FROZEN' : run.status === 'running' ? '• Working' : run.status}
+        </span>
+      </td>
+
+      {/* Tool Call Activity Strip */}
+      <td>
+        <InlineTraceStrip run={run} events={events} />
+      </td>
+
+      {/* Quick Action Button */}
+      <td style={{ textAlign: 'right' }}>
+        {isFrozen && run.incident_id ? (
+          <Button asChild variant="secondary" onClick={(e) => e.stopPropagation()}>
+            <Link to={`/incidents/${run.incident_id}`}>Review Incident</Link>
+          </Button>
+        ) : (
+          <Link
+            to={`/runs/${run.id}`}
+            className="fleet-action-link"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Trace <ArrowRight size={13} />
+          </Link>
+        )}
+      </td>
+
+      {/* Relative Time */}
+      <td style={{ textAlign: 'right', color: 'var(--fleet-ink-3)', fontSize: '12px' }}>
+        {relTime(when, now)}
+      </td>
+    </tr>
+  )
+}
+
+const MAX_STEPS = 4
+
+function InlineTraceStrip({ run, events }: { run: Run; events: MirageEvent[] }) {
   const all = steps(events, run.id)
   const shown = all.slice(-MAX_STEPS)
   const hidden = all.length - shown.length
+
+  if (all.length === 0) {
+    return <span style={{ color: 'var(--fleet-muted)', fontSize: '12px' }}>Initializing run…</span>
+  }
+
   return (
-    <ol className="flex min-w-0 items-center justify-end gap-1.5 overflow-hidden font-mono text-code whitespace-nowrap" aria-label="Tool calls">
-      {hidden > 0 && <li className="font-sans text-meta text-ink-3 tabular">+{hidden}</li>}
-      <AnimatePresence initial={false}>
-        {shown.map((s, i) => (
-          <motion.li
-            key={s.callId}
-            layout="position"
-            initial={{ opacity: 0, transform: 'translateX(-8px)' }}
-            animate={{ opacity: 1, transform: 'translateX(0px)' }}
-            transition={{ duration: 0.22, ease: EASE_OUT }}
-            className="flex shrink-0 items-center gap-1.5"
+    <div className="fleet-trace-strip" aria-label="Tool call sequence">
+      {hidden > 0 && (
+        <span style={{ fontSize: '11px', color: 'var(--fleet-ink-3)' }}>+{hidden}</span>
+      )}
+      {shown.map((step, idx) => (
+        <span key={step.callId} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+          {idx > 0 && <span className="trace-arrow">→</span>}
+          <span
+            className={`trace-step-tag ${step.blocked ? 'blocked' : idx === shown.length - 1 && run.status === 'running' ? 'active' : ''}`}
           >
-            {(i > 0 || hidden > 0) && <span className="text-ink-3" aria-hidden>→</span>}
-            <span
-              className={cn(
-                'transition-colors duration-[220ms]',
-                s.blocked ? 'text-alarm' : i === shown.length - 1 && run.status === 'running' ? 'text-ink' : 'text-ink-3',
-              )}
-            >
-              {s.tool}
-              {s.blocked && <span className="sr-only"> (blocked)</span>}
-            </span>
-          </motion.li>
-        ))}
-      </AnimatePresence>
-    </ol>
+            {step.tool}
+            {step.blocked && ' ✕'}
+          </span>
+        </span>
+      ))}
+    </div>
   )
 }
 
 function Skeleton() {
   return (
-    <ul className="flex max-w-[1080px] flex-col py-2" aria-busy="true" aria-label="Loading runs">
-      {[0, 1, 2].map((i) => (
-        <li key={i} className="grid h-[52px] grid-cols-[20px_minmax(0,300px)_minmax(0,1fr)] items-center gap-4 px-6">
-          <span className="size-5 rounded-full bg-paper-3" />
-          <span className="flex flex-col gap-1.5">
-            <span className="h-3 w-40 rounded bg-paper-3" />
-            <span className="h-2.5 w-24 rounded bg-paper-2" />
-          </span>
-          <span className="h-3 w-64 rounded bg-paper-2" />
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-const DEMO_AGENTS = ['meeting_assistant', 'support', 'invoicing']
-
-function Empty({ text, action, onAction }: { text: string; action: string; onAction: () => void }) {
-  return (
-    <div className="mx-auto flex max-w-[420px] flex-col items-center gap-5 px-6 py-24 text-center">
-      <div className="flex gap-3">
-        {DEMO_AGENTS.map((a) => (
-          <AgentAvatar key={a} agent={a} state="idle" size={32} />
-        ))}
+    <div className="fleet-page">
+      <div className="fleet-container">
+        <div style={{ height: '32px', width: '200px', background: '#f4f4f5', borderRadius: '8px' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} style={{ height: '80px', background: '#f4f4f5', borderRadius: '12px' }} />
+          ))}
+        </div>
+        <div style={{ height: '240px', background: '#f4f4f5', borderRadius: '14px' }} />
       </div>
-      <p className="text-ink-2 text-balance">{text}</p>
-      <Button variant="primary" onClick={onAction}>{action}</Button>
     </div>
   )
 }
