@@ -90,7 +90,7 @@ def test_live_mode_says_what_is_not_built(monkeypatch):
     monkeypatch.setattr(server, "REPLAY", None)
     gate.reset()
     client = TestClient(server.app)
-    assert client.post("/demo/start").status_code == 501
+    assert client.post("/demo/start", json={"scenario": "support"}).status_code == 501
     assert json.loads(client.get("/runs").text) == []
 
 

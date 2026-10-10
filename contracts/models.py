@@ -161,6 +161,12 @@ class PullRequest(Model):
     url: str
 
 
+class DemoStart(Model):
+    """POST /demo/start body (optional). Only `calendar` is built (Liam's 4-agent fleet runner)."""
+
+    scenario: Literal["calendar", "support", "false_positive"] = "calendar"
+
+
 class ServiceItem(Model):
     id: str
     title: str
