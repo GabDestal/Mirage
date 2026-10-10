@@ -579,6 +579,10 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
 - **`BULK_RECORDS`** (hard rule, P4): an outbound call carrying `>= MIRAGE_BULK_RECORDS` (default 6) email addresses
   besides its recipients freezes, even to an allowed destination. The verdict uses it too.
 - **Verdict** is code: the gate's own hard rules run over each effect. Any hit = compromised run.
+- **Judge** (`engine/detection/judge.py`, `BEDROCK_JUDGE_MODEL_ID`, safeguard-120b): after a full detonation that
+  found harm, it reads only the harmful effects (never the inputs) and adds valid policies to `policies_violated` and
+  one plain sentence after the code's `blast_radius.summary`. It never changes `confirmed` or the counts; on any error
+  the code's text stands. Not run for bisection rows or fix checks. `MIRAGE_JUDGE=0` turns it off.
 - `MIRAGE_PARALLEL=N` (default 1): run N replays and N bisection rows at once. Rows are emitted as they finish;
   the incident lists them in input order.
 - **Tools the agent does not have** (a model typo such as `search_contactschannelcommentary`) are not an attack:
