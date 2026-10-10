@@ -23,6 +23,14 @@ API). If this file and those disagree, ask before building.
 - **One feature = one Orca worktree = one atomic PR.** Main remains a coordinator workspace;
   all repository edits and delivery happen in worker worktrees. Never use raw `git worktree`
   commands or Codex-managed worktrees; use `orca-cli` for worktree management.
+- **Clean up after each human-authorized merge.** The coordinator verifies the PR is merged
+  and the feature checkout tip matches its reviewed head (squash-merged branches need not
+  be ancestors of main), updates main with `--ff-only`, releases settled workers, and confirms
+  the checkout has no active owner or uncommitted, unpushed, or unmerged follow-up work.
+  Remove it via `orca worktree rm` with an exact selector and verify it disappears. Keep main
+  and active, unmerged, or dirty worktrees; never force-delete work. Coordinators may perform
+  this operational cleanup; repository edits remain worker-owned. Cleanup does not authorize
+  new merges.
 - These `AGENTS.md` rules take precedence over the raw `git worktree` examples in
   `.claude/skills/atomic-worktree/SKILL.md`.
 
