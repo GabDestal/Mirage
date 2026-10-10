@@ -176,6 +176,8 @@ test("all eight tools execute via MCP, retain progress/fences/audit labels and i
   expect(continuation).not.toContain("synthetic-capability-001");
   expect(continuation).not.toContain("Full original prompt");
   expect(continuation).not.toContain("handoff_url");
+  expect(continuation).toContain("Handoff ready, not sent yet");
+  expect(continuation).not.toMatch(/handed off/i);
   expect(JSON.stringify(events)).not.toContain("synthetic-capability-001");
   const fix = results.find((e) => e.tool === "send_fix")!;
   expect(fix.result.structuredContent).toEqual({ handoff_url: expect.any(String), claude_code_url: "https://claude.ai/code" });

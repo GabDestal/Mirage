@@ -346,13 +346,14 @@ export function createServer(opts: Options = {}) {
   }, safe(async ({ incident_id }) => {
     await call<Incident>("GET", `/incidents/${incident_id}`);
     const phrase = `send fix ${incident_id}`;
-    const ok = await confirm(`Hand off ${incident_id} to your coding agent. This creates a handoff and a Mirage token.`,
+    const ok = await confirm(`Prepare a handoff of ${incidentLabel(incident_id)} for your coding agent. This creates a handoff and a Mirage token.`,
       phrase, "Hand off to coding agent");
     if (!ok) return refuse(NOT_CONFIRMED);
     const h = await call<{ prompt?: string; claude_code_url?: string; codex_url?: string }>("POST", `/incidents/${incident_id}/handoff`,
       { actor: actor(), reason: ok });
     const agents = [h.claude_code_url, h.codex_url].filter(Boolean).join(" or ") || "your coding agent";
-    return text(`Handed off. Mirage does not write the fix. Open ${agents} and paste this prompt:\n\n${h.prompt ?? ""}`, h);
+    return text(`Handoff for ${incidentLabel(incident_id)} ready, not sent yet. Mirage does not write the fix. ` +
+      `Open ${agents} and paste this prompt to start the fix:\n\n${h.prompt ?? ""}`, h);
   }));
 
   return server;

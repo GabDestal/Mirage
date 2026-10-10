@@ -23,6 +23,7 @@ const DB: Record<string, unknown> = {
   "GET /incidents/inc_003": incident("inc_003", "run_003", "false_positive"),
   "GET /incidents": [incident("inc_001", "run_001", "confirmed"), incident("inc_003", "run_003", "false_positive")],
   "POST /runs/run_003/unfreeze": run("run_003", "running", "inc_003"),
+  "POST /incidents/inc_001/handoff": { prompt: "Fix inc_001", claude_code_url: "https://claude.ai/code" },
 };
 
 async function connect(opts: { elicit?: (msg: string) => { action: string; content?: Record<string, unknown> }; client?: string } = {}) {
@@ -147,4 +148,17 @@ test("list_runs and get_incident lead with readable labels and keep raw IDs", as
   expect(inc.text).toContain("# Incident #1 · Confirmed (incident_id inc_001, run_id run_001)");
   expect(inc.text).toContain("Headline: Meeting assistant read");
   expect(inc.structured.incident).toMatchObject({ label: "Incident #1", status_label: "Confirmed", agent_label: "Meeting assistant", id: "inc_001" });
+});
+
+test("send_fix says the handoff is ready, not sent, with readable labels", async () => {
+  let message = "";
+  const { callText } = await connect({ elicit: (m) => {
+    message = m;
+    return { action: "accept", content: { confirm: "send fix inc_001", reason: "Fix it" } };
+  } });
+  const r = await callText("send_fix", { incident_id: "inc_001" });
+  expect(message).toContain("Incident #1");
+  expect(r.text).toMatch(/^Handoff for Incident #1 ready, not sent yet\./);
+  expect(r.text).not.toMatch(/handed off/i);
+  expect(r.structured.prompt).toBe("Fix inc_001");
 });

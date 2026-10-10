@@ -223,7 +223,7 @@ export function createChatService(opts: ChatOptions) {
               handoffUrl = `/chat/handoffs/${handoffId}`;
             }
             modelResult.content = [{ type: "text", text: handoffUrl
-              ? "Handed off. The human opens the prompt in their own coding agent (Claude Code or Codex), which writes the fix and proves it with mirage detonate. Mirage never writes code itself. A human must merge any resulting PR and approve a clean restart."
+              ? "Handoff ready, not sent yet. Nothing reaches a coding agent until the human clicks \"Hand off to coding agent\" below and opens it in Claude Code or Codex, which writes the fix and proves it with mirage detonate. Mirage never writes code itself. A human must merge any resulting PR and approve a clean restart."
               : "Handoff was created in the engine, but its prompt is missing or exceeds the chat limit. Retrieve it from the incident dashboard; do not repeat this action." }];
             if (!handoffUrl) modelResult.isError = true;
             modelResult.structuredContent = {};
