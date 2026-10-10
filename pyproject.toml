@@ -18,7 +18,12 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest", "ruff"]
+dev = [
+    "claude-agent-sdk>=0.2.165",
+    "openai-agents>=0.23.1",
+    "pytest",
+    "ruff",
+]
 
 [tool.uv]
 package = false
