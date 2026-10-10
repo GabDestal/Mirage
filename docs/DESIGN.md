@@ -1,260 +1,337 @@
 # Mirage — Design system
 
-Status: v2, 2026-10-10. Owner: Liam. `docs/UX.md` says **what** each screen shows (to be realigned
-after V1). This file says **how it looks, moves and feels**. On look and feel, this file wins.
-Builders: load the `impeccable` skill (mode: Operate) and `emil-design-eng`. This file is the
-committed world; impeccable's craft floor applies on top.
+Status: v3, 2026-10-10. Owner: Liam. Mode: Operate.
+
+The visual reference is Opereit: the supplied login and dashboard screenshots, the original
+Opereit components, and the Mirage login we have just built. This file defines the approved
+visual direction. `PRODUCT.md` and `CONTRACTS.md` define product behavior and data;
+`docs/UX.md` defines the incident story. On look and feel, this file wins over earlier drafts.
+Builders: load `ponytail`, `impeccable` and `emil-design-eng`.
+
+Implementation status: the login follows this reference. The existing Fleet, sidebar and shared
+controls still use v2 styling; the specifications below guide their next UI iterations.
+The chat section captures a composition to reuse when an operator chat surface is built.
 
 ## 1. North star
 
-**Security that feels like Linear and Vercel, not like a SOC.**
-Mirage is for a 10-person company with no security team. The owner opens it and knows in one second
-that their agents are fine. When one is not, the screen tells the story in plain words and offers
-one obvious next step.
+**Mirage should feel like the same product before and after sign-in.**
 
-Simple is not plain. The screen is quiet; the quality lives in the interactions: how a row responds
-under the cursor, how an agent freezes, how the Mirage path appears where production stopped.
+A light, calm workspace with the detail and tactility of Opereit: Inter text, white content,
+a pale sidebar, compact navigation, soft outlines and dark gradient buttons. The login adds
+the blue cursor brush and a translucent panel. Inside the app, space and hierarchy do the work.
+
+The operator should understand the fleet at a glance, see the incident as a story, and find
+one clear next action. Keep the evidence and human controls central to that experience.
 
 ## 2. Principles
 
-1. **Quiet when healthy.** A healthy fleet is ink on paper. No color, no markers, no badges.
-2. **State is shown by the thing itself**, never by a decoration next to it. The agent's avatar
-   reacts, the sentence changes, the trace stops. No status dots, no status pills, no colored stripes.
-3. **One main action per screen.** The engine's `next_action` picks it.
-4. **Show the flow, not the log.** What the agent did is a workflow you can see (n8n style).
-   Raw data is one click away, never in the default view.
-5. **Plain words.** "Frozen", "Would have sent 40 contacts", "Caused by the calendar invite".
-   Never "IOC", "TTP", "exfiltration vector". Framework IDs (OWASP ASI01, MITRE) live in the detail sheet.
-6. **Safe to click.** Unfreeze, Kill, STOP ALL say what will happen and ask for a reason.
-7. **Fast.** Optimistic updates on human actions, skeletons instead of spinners, keyboard first.
+- **Reuse the reference.** Take layout, spacing and control treatment from the actual Opereit
+  components before inventing a new pattern. Adapt their content to Mirage.
+- **Quiet when healthy.** Healthy runs use neutral text and their agent avatars. A freeze
+  changes the avatar, state sentence and blocked call; other runs keep moving.
+- **One main action.** The incident's `next_action` determines the primary button.
+- **Plain words and visible evidence.** Show the blocked call, simulated effects, cause and fix.
+  Put raw arguments, logs and framework IDs in the detail sheet.
+- **Safe human actions.** Unfreeze, Kill, Stop all and approvals explain the effect and ask
+  for a reason. Preserve every engine check and the human audit trail.
+- **Comfortable density.** Compact navigation and controls, generous space around the main task.
+  Rows and text lists carry routine information; use a panel when it groups a real interaction.
+- **Immediate response.** Keyboard actions, navigation and submission feel instant.
+  Motion explains a change or gives press feedback.
 
-## 3. Anti-AI-look rules (hard)
+## 3. Color and surfaces
 
-From the `impeccable` craft floor plus our own list. A reviewer rejects a PR that does any of these.
+Light is the reference. Use neutral greys from Opereit, blue for interaction, and Mirage aqua
+for the existing logo and simulated content. Red identifies blocked actions and compromise.
+Dark mode needs a matching, separately checked translation of this reference.
 
-- No status dots, no pill badges used as content, no count badges on nav items.
-- No colored `border-left` / stripe on rows or cards. No colored glow halos (zero-offset shadows).
-- No small uppercase label above a heading (eyebrow). No section numbers (01 / 02).
-- No grid of same-size icon + title + text cards. No nested cards. No hero-metric tiles.
-- No gradient text, no decorative glass or blur, no grid or noise backgrounds.
-- Monospace only for real code and data: tool names, arguments, IDs. Never as "technical" styling.
-- No emoji or unicode glyphs as icons. Icons are `lucide-react` or our own SVG.
-- No Magic UI eye candy: no Border Beam, Particles, Meteors, Shine Border, Sparkles, Aurora text.
-  Magic UI is allowed only where motion carries state (see §9).
-- No modal where a side sheet or inline step works. The reason dialog is the one exception.
-- No charts, gauges, threat meters or world maps on the main screens.
+| Token | Light target | Use |
+|---|---|---|
+| `--paper` | `#FFFFFF` | Main workspace, fields, menus |
+| `--paper-2` | `#FAFAFA` | Sidebar, quiet hover, composer context strip |
+| `--paper-3` | `#E5E5E5` | Selected navigation and pressed surfaces |
+| `--line` | `#E5E5E5` | Subtle outlines and separators |
+| `--ink` | `#171717` | Main text |
+| `--ink-2` | `#525252` | Navigation and secondary text |
+| `--ink-3` | `#737373` | Meta text and readable placeholders |
+| `--accent` | `#0C55C4` | Links, interactive emphasis, user initials |
+| `--focus` | `oklch(0.62 0.186 260.066)` | Focus borders and rings |
+| `--accent-wash` | `#E4EEFF` | Selection and subtle interaction backgrounds |
+| `--mirage` | `#0E8C86` | Logo, simulated edges and large marks |
+| `--mirage-text` | `#0F766E` | Small text identifying simulated content |
+| `--mirage-wash` | `#E3F4F2` | Simulated result areas |
+| `--alarm` | `#B91C1C` | Frozen/blocked text, errors, destructive actions |
+| `--alarm-wash` | `#FBE9E6` | Blocked node background |
 
-## 4. Color
+The primary action uses a dark neutral gradient, matching the login. Links and focus use blue.
+Color is accompanied by a word, icon or shape that explains it.
 
-Paper, ink, and one brand color: **Mirage aqua**. A desert mirage shows water that is not there;
-our color is that water. It marks two things only: the brand, and anything that happened in the
-simulation (not in production). Red is the only alarm color.
+Body text, labels and placeholders meet 4.5:1 contrast; large text and meaningful icons meet
+3:1. Fainter greys are reserved for disabled controls and decoration. Keep readable contrast
+in the neutral context strips and tinted simulation areas.
 
-| Token | Light (default) | Dark | Use |
-|---|---|---|---|
-| `--paper` | `#FCFCFA` | `#0C0D0D` | Page |
-| `--paper-2` | `#F4F4F1` | `#141515` | Sidebar, sheet, hover |
-| `--paper-3` | `#EAEAE6` | `#1D1E1E` | Selected, pressed |
-| `--line` | `#E3E3DE` | `#262828` | 1 px borders and dividers |
-| `--ink` | `#151716` | `#ECEDEA` | Text, primary button fill |
-| `--ink-2` | `#5C605E` | `#9DA19F` | Secondary text |
-| `--ink-3` | `#8C908E` | `#6E7270` | Timestamps, IDs, placeholders |
-| `--mirage` | `#0E8C86` | `#3CC7BE` | Brand, simulated path, Mirage text |
-| `--mirage-wash` | `#E3F4F2` | `#0F2826` | Background of simulated areas |
-| `--alarm` | `#D93A2B` | `#FF6A5C` | Frozen, blocked, STOP ALL |
-| `--alarm-wash` | `#FBE9E6` | `#2A1412` | Background of the blocked node only |
+Use the dotted background and translucent surface for login. Fleet, incidents and chat use
+plain content backgrounds. A subtle focus ring belongs to a control; a glow surrounding an
+entire page or an alert adds no useful information.
 
-- The primary button is **ink** (black on light, white on dark), Vercel style. Not aqua.
-- Waiting for a human has no color: the avatar and the sentence carry it.
-- Text contrast ≥ 4.5:1 body, ≥ 3:1 large text and icons. Theme the browser surfaces too:
-  `::selection` in `--mirage-wash`, focus ring 2 px `--ink` with 2 px offset, scrollbars in `--line`.
+## 4. Typography
 
-## 5. Type
-
-- **Geist Sans** for everything, **Geist Mono** for tool names, arguments, IDs (npm `geist`, self-hosted).
-- Tabular numbers (`font-variant-numeric: tabular-nums`) for counts, times, durations.
-- Fixed rem scale, ratio ~1.2:
+- **Inter variable**, self-hosted, for app text. The login font already lives at
+  `web/public/fonts/Inter/InterVariable.woff2` with its license.
+- **JetBrains Mono** is the Opereit reference for code and IDs. Existing Geist Mono can remain
+  during the migration; reuse the original font asset if exact matching is needed.
+- Use a 16 px root with a 14 px body. Keep component measurements stable when moving from
+  Mirage's current smaller root size. The login uses explicit pixel values for this reason.
+- Body weight 450, navigation 450, controls 500, prominent incident headings 600.
+  Tabular numerals for counts, timestamps and durations.
 
 | Role | Size / line | Weight |
 |---|---|---|
-| Incident headline | 24 / 32 | 600, tracking −0.02em |
-| Page title | 16 / 24 | 600 |
-| Body | 14 / 20 | 400 |
-| Control label | 13 / 20 | 500 |
-| Meta | 12 / 16 | 400, `--ink-3` |
-| Mono | 12.5 / 18 | 400 |
+| Incident headline | 24 / 32 px | 600 |
+| Login or chat welcome title | 20 / 28 px | 500 |
+| Page title | 16 / 24 px | 500 |
+| Body and navigation | 14 / 20 px | 450 |
+| Control and suggestion row | 13 / 20 px | 500 / 450 |
+| Meta text | 12 / 16 px | 450 |
+| Account email | 11 / 16 px | 450 |
+| Code and IDs | 12.5 / 18 px | 400 |
 
-- Sentence case everywhere. No uppercase labels.
+Use sentence case for headings and actions, and restrained tracking (−0.01em for welcome
+headings, −0.02em for incident headlines). Compact navigation group captions may follow
+Opereit's 10 px uppercase mono style; keep them confined to sidebar groups.
 
-## 6. Space, shape, depth
+## 5. Space, shape and depth
 
-- 4 px grid. Steps: 4, 8, 12, 16, 24, 32, 48, 64. Tight inside a group, generous between groups.
-- Radius: 8 px controls, 12 px nodes / sheets / menus. Full radius only for avatars' container if round.
-- One elevation rule: flat things get a 1 px `--line` border; floating things (menu, ⌘K, sheet,
-  toast) get a soft offset shadow `0 12px 32px -8px rgb(21 23 22 / 0.18)` and **no** border.
-- Rows: 52 px, full-bleed hover in `--paper-2`, no dividers inside a group.
+- Work on a 4 px grid, with small adjustments taken from the reference components:
+  6 px icon gaps, 10 px navigation inset, 14 px form gaps.
+- Tight spacing within controls and related text; 24–48 px between independent sections.
+- Radius: 8 px fields, buttons and navigation; 12 px panels, composers, nodes and sheets;
+  16 px for a composer wrapper with its context strip. Circular avatars remain circular.
+- Ordinary surfaces use a subtle 1 px outline, sometimes with a tiny downward shadow.
+  The Opereit reference deliberately combines those two on fields and composers.
+- Floating menus and sheets use a soft offset shadow. Keep their surface white and readable.
+- The dark submit button has an inset highlight and a small bottom shadow. This is the
+  reference's tactile detail; keep it consistent across primary actions.
+- List rows are 48–52 px and use a quiet hover surface. Avoid dividers between every row.
 
-## 7. Layout
+## 6. App shell and sidebar
 
-```
-┌──────────────┬───────────────────────────────────────────────────────┐
-│ Mirage       │ Fleet                    All 3 agents are working.    │
-│              │───────────────────────────────────────────────────────│
-│ Fleet        │ (owl) Meeting assistant   read_calendar → crm_query → │
-│ Incidents    │ (bee) Invoicing           …                           │
-│              │ (fox) PR reviewer         …                           │
-│ Agents       │                                                       │
-│ (owl) Meeting│                                                       │
-│ (bee) Invoic.│                                                       │
-│ (fox) PR rev.│                                                       │
-│              │                                                       │
-│ Search    ⌘K │                                                       │
-│ Stop all     │                                                       │
-└──────────────┴───────────────────────────────────────────────────────┘
-```
+Use Opereit's workspace structure: a pale, fixed-width sidebar beside a white content area.
+The sidebar's hierarchy and account footer remain visible while the content scrolls.
 
-- **Sidebar, 232 px, always visible**, `--paper-2`. Logo, Fleet, Incidents, then the agents with
-  their avatars (the avatar shows state, so the sidebar is a live view of the fleet), then Search ⌘K
-  and **Stop all** at the bottom (text button in `--alarm`, always reachable, never hidden).
-- **Header, 52 px:** page title left, the status sentence right ("All 3 agents are working." /
-  "Meeting assistant is frozen. 2 others keep working."). The sentence is the status. Nothing else.
-- **Content:** max 1080 px for lists, 880 px for the incident story.
-- **Side sheet** (right, 480 px) for any detail: tool call, input, full log. `Esc` closes.
-- Desktop first: 1440×900 projector, must hold at 1280. Under 1100 px the sidebar collapses to avatars.
-
-## 8. Agent avatars (the status system)
-
-Custom SVG characters in `web/src/agents/avatars.tsx`. Crisp geometry, not illustration: built from
-circles, rounded rects and a few strokes, two flat colors each, drawn on a 24-unit grid.
-Sizes: 20 px (sidebar, rows), 32 px (headers), 64 px (incident headline, empty states).
-
-| Agent | Character | Body color |
-|---|---|---|
-| Meeting assistant | owl | soft clay |
-| Support | octopus | soft rose |
-| Invoicing | bee | soft butter |
-| Outreach | paper plane | soft sky |
-| PR reviewer | fox | soft apricot |
-| Unknown agent | geometric blob, color + shape hashed from the name | — |
-
-Each avatar has **states**, drawn by changing the face and adding one element. The avatar plus one
-plain word in the row text is the whole status system.
-
-| State | Avatar | Row text |
-|---|---|---|
-| Working | eyes open, a slow blink every ~6 s | "Working · read_calendar" |
-| Idle / done | eyes half closed, still | "Done 2 min ago" |
-| Waiting for you | eyes look up at the viewer, small raised hand | "Waiting for your approval" |
-| Frozen | encased in a translucent ice block (`--alarm` outline), eyes closed | "Frozen 0.8 s after reading an invite" |
-| Killed | desaturated to `--ink-3`, eyes are two short lines | "Stopped by Liam" |
-| In Mirage | the character drawn in `--mirage` with the heat-shimmer (§9) | "Replaying in Mirage · 2 of 3" |
-
-Rules: the state change animates (§9), the blink is the only idle motion and stops under reduced motion.
-
-## 9. Motion
-
-Crisp, like Linear. Motion explains a state change; it never decorates a repeated action.
-
-```css
---ease-out: cubic-bezier(0.23, 1, 0.32, 1);     /* enters, most UI */
---ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* things moving on screen */
---ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);  /* side sheet */
---dur-press: 120ms; --dur-fast: 160ms; --dur-base: 220ms; --dur-sheet: 320ms;
-```
-
-**The one authored moment: the heat shimmer.** Anything simulated in Mirage (the Mirage path in the
-trace, the avatar in Mirage, the replay counter) is drawn in `--mirage` with a slow horizontal
-shimmer: an animated `mask-image` linear gradient (lighter band, 2.4 s, linear, infinite) like heat
-over a road. Under reduced motion it is static. Nothing else in the product shimmers.
-
-| Moment | Animation |
+| Part | Target |
 |---|---|
-| Press (any control) | `scale(0.97)`, 120 ms |
-| Hover | background only, 120 ms `ease`, behind `@media (hover: hover)` |
-| Menu, popover, tooltip | opacity + `scale(0.96 → 1)` from the trigger, 160 ms ease-out; adjacent tooltips instant |
-| Side sheet | `translateX(100%) → 0`, 320 ms ease-drawer; exit 200 ms |
-| New step in a trace | node fades + `translateX(-8px → 0)`, 220 ms; its edge draws in (`stroke-dashoffset`) |
-| **Freeze** | ice block grows over the avatar (`scale(0.9 → 1)` + opacity, 240 ms), the blocked node turns `--alarm-wash` with a 1 px `--alarm` border, the header sentence crossfades with a 2 px blur bridge. Other rows keep moving. |
-| Mirage path appears | edges draw past the blocked node one by one (stagger 80 ms), then the shimmer starts |
-| Verdict number | counts up once in 600 ms (Magic UI `NumberTicker`) |
-| Cause found | the cause input's border goes `--ink` → `--alarm` and its label appears, 220 ms |
+| Sidebar | 256 px wide, `--paper-2`, 1 px right separator |
+| Brand row | 24 px Mirage mark, 14 px medium name, 14 px inset |
+| Navigation | 30–32 px rows, 16 px icons, 10 px icon/text gap, 8 px radius |
+| Active item | Soft grey filled row with darker text and icon |
+| Groups | Compact caption, 20 px separation; collapsible only when useful |
+| Nested items | Indented text, thin neutral guide line, compact spacing |
+| Account footer | Top separator; 28 px initials avatar, name and email, menu affordance |
+| Header | 48–52 px, page icon/title or breadcrumb left, fleet sentence right |
+| Content padding | 24 px normally, up to 64 px on roomy desktop pages |
+| Detail sheet | Right side, 480 px wide, capped to viewport width |
 
-Never animate: ⌘K open/close, keyboard navigation, sidebar page switches, list re-sorts.
-Animate `transform`, `opacity`, `mask`, `filter`, colors. Exits faster than enters.
-Magic UI allowed: `NumberTicker`, `AnimatedBeam` (only for a live edge, if it beats our own), `BlurFade`
-(only for the trace node enter). Nothing else from Magic UI without a reason in the PR.
+Mirage navigation starts with Fleet and Incidents, then the agents. Search and **Stop all**
+stay reachable near the bottom, above the account row. The account row uses the demo identity
+until authentication is built. Add a chat item when there is a usable chat surface behind it.
 
-## 10. The trace (n8n style)
+Small outlined navigation counts may indicate a real actionable queue, as in Opereit's Claims
+row. Use an actual count and a destination that explains it. Run health remains a state sentence
+and avatar, rather than a collection of count or status badges.
 
-Every run is a left-to-right flow.
+The header keeps the fleet sentence: “All 3 agents are working.” or “Meeting assistant is
+frozen. 2 others keep working.” On an incident page, the title or breadcrumb identifies the
+incident. Healthy status stays neutral; frozen status uses `--alarm`.
 
-```
- [Calendar invite] → [Meeting assistant] → [crm_export] → [send_email to attacker@…]  ✕ Blocked
-                                                                └ ─ ─ Mirage: [send_email] → 40 contacts left
-```
+Lists use a maximum width of 1080 px; incident stories use 880 px. Chat content uses 672 px.
+Design for the 1440 × 900 projector and check 1280 px. Below 1100 px the sidebar can collapse
+to a 56 px icon rail. At phone widths, use an accessible navigation drawer and keep Stop all
+reachable from the visible app header. Sheets fit the viewport and traces can scroll horizontally.
 
-- **Nodes:** 12 px radius, 208 × 60, `--paper` with 1 px `--line`. Icon (lucide, 16 px) + name
-  (mono for tools, sans for inputs and the agent) + one meta line ("40 rows · 0.3 s").
-- **Edges:** 1.5 px `--line`. While live, the newest edge carries a short `--ink-3` dash moving along it.
-- **Blocked node:** `--alarm-wash` fill, 1 px `--alarm` border, a lucide `ShieldX` icon and
-  "Blocked: destination not allowed" as the meta line. No badge.
-- **Malicious input:** same treatment once the cause is known.
-- **Mirage path:** after a detonation, the path the agent *would have* taken continues past the
-  blocked node, dashed, in `--mirage` on a `--mirage-wash` band, with the heat shimmer.
-  Production stops; Mirage continues. This image is the pitch.
-- **Bisection:** each input node gets a meta line: "Removed → clean" or "Removed → still compromised".
-- Click a node → side sheet: arguments, result, timing, rule hit, policies (OWASP / MITRE IDs here).
-  Raw JSON in a collapsed section at the bottom.
-- **Compact trace** in Fleet rows: tool names in mono separated by `→`, newest last, older ones fade to
-  `--ink-3`, the blocked one in `--alarm`. Plain text and flexbox, no React Flow.
-- **Full trace** on run and incident pages: `@xyflow/react`, read-only, our own node components,
-  layout computed by us (`x = index * 248`), pan on, zoom limited, minimap and controls off.
+## 7. Login
 
-## 11. Components
+Match the actual Opereit auth source and the existing Mirage implementation:
 
-shadcn/ui primitives restyled with these tokens.
+- Background `#F4F4F4`, neutral dots `#D4D4D4`, 5 px grid spacing.
+- Original blue cursor brush, with spring motion and a slowly drying trail.
+  Active dot color mixes the source blue-400 and blue-500 values; glow uses `#DBE8FF`.
+- Centred panel, maximum width 384 px, minimum height 404 px, 12 px radius.
+  Padding: 56 px top, 32 px sides, 36 px bottom.
+- Translucent white gradient, original subtle shadows, 22 px backdrop blur and 1.3 saturation.
+- White 52 px logo holder with an 11 px radius and subtle outline; 28 px Mirage mark inside.
+- Inter heading, 20 / 28 px, medium, with a 20 px gap below the logo.
+- 36 px white fields with 8 px radius, quiet outline, blue focus border and soft focus ring.
+- Password visibility control, right-aligned recovery link, and 36 px full-width dark gradient button.
+- Match at the same browser zoom. Screenshot pixels are not the source's CSS dimensions.
 
-- **Button:** primary (ink fill, one per screen), secondary (1 px `--line`), ghost (text),
-  destructive (text in `--alarm`, wash on hover). 32 px tall, 13/500. Shortcut shown in its tooltip.
-- **Agent row:** avatar · name + one-line state sentence · compact trace · relative time.
-  Frozen row: the sentence turns `--alarm` and an "Open incident" secondary button appears. Nothing else changes.
-- **Reason dialog:** the title states the effect ("Unfreeze Meeting assistant? It will send the
-  email it was holding."), 2–3 reason choices as a radio list, free text, confirm button named by the verb.
-- **Toast** (Sonner): bottom right, one line, Undo when possible.
-- **⌘K** (`cmdk`): jump to any agent, run, incident; run any action. Every action exists here.
-- **Empty state:** the avatars in a row, one sentence, one action. "Nothing to look at. Your agents are behaving."
-- **Mirage mark:** the word "Mirage" in `--mirage` with the shimmer, used as the label of simulated content.
+Reuse `web/src/components/login-background/` for the effect. Preserve its WebGL cleanup,
+resize handling, reduced-motion support and static CSS dot fallback.
 
-## 12. Voice
+Current fake login: `liamszefner@gmail.com` / `demo123`, prefilled. Incorrect credentials
+show an inline error. Values are neither sent nor stored; refreshing returns to login.
+The recovery control displays the demo credentials. Real authentication is separate product work.
 
-- A calm colleague. Short sentences, active voice, numbers over adjectives.
-- Incident headline: **who** + **what they tried** + **outcome**.
-  "Meeting assistant tried to email 40 contacts to attacker@evil-corp.com. Blocked."
-- Explain each security idea once, in a tooltip: "Mirage is a copy of production where nothing real
-  happens. We let the agent continue there to see what it would have done."
-- Relative times ("12 s ago"), exact time on hover.
+## 8. Chat composition reference
 
-## 13. Keyboard
+Use the supplied Opereit dashboard screenshot and its `agent-home.tsx` for composition.
+The initial screen centres a narrow, left-aligned task group within the white workspace:
 
-`⌘K` command menu · `G F` Fleet · `G I` Incidents · `J/K` move · `Enter` open · `Esc` close ·
-`U` unfreeze (selected run) · `⇧⌘.` Stop all (still asks for a reason).
+1. A Mirage agent avatar or mark, up to 80 px, with a short welcome question below it.
+2. A wide, white multiline composer, 12 px radius, subtle outline and small bottom shadow.
+3. A compact neutral context strip immediately below the composer when there is something
+   actionable to show. Use one sentence, real counts and a blue text action.
+4. Up to three contextual suggestion rows beneath it, with a small icon and plain text.
 
-## 14. References
+The group is 672 px wide at most, with 24 px horizontal clearance. The welcome question is
+20 / 28 px, medium. Leave about 32 px between the composer group and suggestions.
+Suggestions are text rows with a quiet hover, rather than tiles or pill chips.
 
-Linear (sidebar, density, ⌘K, motion), Vercel (calm status, ink buttons, deployment flow),
-n8n (workflow trace), Raycast (instant keyboard actions), Sonner (toasts).
-Skills: `impeccable` (craft floor, anti-patterns, detector hook), `emil-design-eng` (motion).
+For Mirage, suitable examples are “Which run needs my attention?”, “Show the proof for this
+incident” and “What did Mirage prevent?” Populate suggestions and context from current run
+and incident data. Keep synthetic examples visibly identified when real data is unavailable.
 
-## 15. Login reference
+The composer uses a real textarea. Clicking its empty interior focuses it. Place a compact
+arrow-up send button at the lower right; disable it when empty or submitting. Enter sends,
+Shift+Enter adds a line, and IME composition is respected. Preserve a draft when sending fails.
+Focus uses the same blue border and restrained ring as the login fields.
 
-The login surface follows Liam's Opereit reference (2026-10-10): its layout and cursor effect
-are reused from `/Users/liamszefner/Opereit/obsydian/apps/dashboard/src/app/auth/`.
-This surface is an explicit exception to the no-grid/no-glass rules above: light neutral paper,
-5 px dot grid, blue cursor brush with a fading trail, translucent 384 × 404 px panel,
-self-hosted Inter, and the dark gradient submit button. The existing Mirage mark replaces the
-Opereit mark. Keep these details when iterating the login; other surfaces keep their current system.
+During a conversation, keep a stable reading column, readable answer text, quiet user messages,
+and a composer at the bottom. Link claims about an incident to its run or evidence detail.
+Scroll to new content only when the reader is already at the bottom. Human actions use the
+existing control plane, reasons and engine authorization. This pattern defines presentation;
+chat providers, tools and endpoints belong to a separate agreed product implementation.
 
-Login is a demo entry screen: `liamszefner@gmail.com` / `demo123` opens Fleet. These values
-are prefilled; other credentials show an inline error. Credentials are neither sent nor saved.
-Refreshing returns to the login. Password visibility works; the recovery button shows the demo login.
-The background retains Opereit's reduced-motion handling and CSS dot fallback when WebGL is unavailable.
+## 9. Fleet and incident presentation
+
+Fleet remains one row per run: avatar, agent/task, one-line state sentence, compact trace,
+relative time. A frozen run exposes **Open incident**, changes its sentence and stops its trace.
+Keep the rest of the fleet readable and moving.
+
+The incident is one story column:
+
+- **What happened:** the input, agent and attempted call. Show the gateway rule and blocked outcome.
+- **What would have happened:** a clearly labelled Mirage area with the actual replay result and effects.
+- **Why:** each removed input and its result, with the proven cause highlighted.
+- **Fix:** handoff, PR and verification evidence when those exist.
+
+Use neutral surfaces and clear type hierarchy. A replay result can use `--mirage-wash` with
+readable aqua text. The blocked node can use `--alarm-wash` and a thin red outline. Stronger
+color belongs to these specific facts, rather than whole-page alert styling.
+
+The primary action follows `incident.next_action`: Detonate → Find the cause → Send fix → Open PR.
+Keep Unfreeze and Kill secondary, and respect the engine's allowed state transitions.
+The full log opens in a side sheet. Verification shows the deterministic result; clean restart
+requires human approval, and a human merges the PR.
+
+## 10. Trace and agent avatars
+
+A trace shows the production path stopping at a blocked call, then the simulated path continuing.
+Nodes use white surfaces, 12 px radius, a subtle outline, an icon, the name and one meta line.
+A useful starting size is 208 × 60 px, with 40 px between nodes. Edges use a thin neutral stroke.
+The simulated continuation is dashed and aqua, labelled “Mirage”.
+
+Clicking a node opens its arguments, results, timing and rule in the detail sheet. Bisection
+adds “Removed → clean” or “Removed → still compromised” to the input. Raw JSON is collapsed.
+Compact Fleet traces remain text and flexbox. Reuse existing React, CSS and SVG for a linear
+trace; consider a graph library only when the actual interaction needs it.
+
+Keep the existing SVG agent characters: owl, octopus, bee, paper plane, fox, and the hashed
+fallback. Their shapes and colors provide identity within the neutral workspace.
+Sizes: 20 px in navigation and rows, 32–64 px in headers and incident context, up to 80 px
+on a chat welcome surface. A state word accompanies each meaningful avatar change.
+
+| State | Presentation |
+|---|---|
+| Working | Eyes open, subtle occasional blink; “Working · read_calendar” |
+| Done | Still avatar; “Done 2 min ago” |
+| Waiting | Raised hand; “Waiting for your approval” |
+| Frozen | Existing ice treatment; “Frozen after reading an invite” |
+| Killed | Desaturated avatar; “Stopped by Liam” |
+| In Mirage | Aqua treatment; “Replaying in Mirage · 2 of 3” |
+
+## 11. Shared controls
+
+- **Primary button:** dark neutral gradient, thin dark outline, inset highlight, 8 px radius,
+  13 px medium label. 32 px normally, 36 px in forms. Preserve press feedback and clear disabled state.
+- **Secondary button:** white, thin neutral outline and tiny downward shadow.
+- **Ghost action:** neutral text, quiet grey hover. Links use interaction blue.
+- **Destructive action:** readable red label; neutral or subtle red hover. The label names the effect.
+- **Field:** white, 8 px radius, neutral outline, blue border/ring on focus.
+  An error adds a readable red message associated with the field.
+- **Reason dialog:** state what happens, present 2–3 reason choices plus free text, and name
+  the confirmation by its verb. Preserve keyboard focus and escape behavior.
+- **Menu/sheet:** white surface, restrained depth, compact rows. Avoid wrapping every subsection in a card.
+- **Toast:** Sonner, bottom right, short sentence and an available recovery action.
+- **Command menu:** existing `cmdk`, instant keyboard navigation and access to the same human actions.
+- **Empty state:** one avatar/mark, a plain sentence, one useful action. Borrow the chat welcome's
+  spacing when it helps the user start a task.
+
+Use Mirage's installed React, Radix, Motion, Lucide, Sonner and `cmdk` before adding dependencies.
+Opereit's Base UI components are styling and behavior references; adapt them to the installed primitives.
+
+## 12. Motion and interaction
+
+The login's blue cursor trail is the expressive moment. In the workspace, keep motion short
+and tied to interaction or state. Preserve the original spring effect rather than rebuilding it.
+
+| Moment | Treatment |
+|---|---|
+| Press | `scale(0.97)`, 100–120 ms; reduced motion can stay static |
+| Hover | Color/background, 100–150 ms; mouse hover media query |
+| Focus | Border and ring, up to 150 ms |
+| Sidebar group | Height and opacity, 150 ms enter / 100 ms exit |
+| Menu/tooltip | Small opacity/scale change, 160 ms; adjacent tooltips appear immediately |
+| Detail sheet | Slide, up to 320 ms enter / 200 ms exit |
+| New trace step | Short fade/translation, 220 ms |
+| Freeze | Existing avatar ice transition, about 240 ms; blocked node and sentence change together |
+| Replay progress | Update the actual progress text and simulated edges as results arrive |
+| Cause found | Thin outline and label change, about 220 ms |
+
+Navigation, keyboard selection and command-menu opening are immediate. Submitting a chat message
+must not wait for decorative effects. Honor reduced motion, stop idle rendering when settled,
+and release animation frames/listeners when a surface unmounts. Keep the app free of recurring
+page glows, particle effects and mandatory number-counting animations.
+
+## 13. Copy, accessibility and restraint
+
+Use short, active sentences. An incident headline states who, what they tried and the outcome:
+“Meeting assistant tried to email 40 contacts to an external address. Blocked.” Show the exact
+destination in the evidence. Explain Mirage once: a copy of production where actions are simulated.
+Relative times are useful; exact time remains available in an accessible detail or tooltip.
+
+All controls need a name, visible keyboard focus and useful hover/disabled/error states. A compact
+icon button still needs a usable hit target. Keep loading skeletons, actionable empty states and
+errors with a recovery step. Status updates are announced politely; errors use an alert.
+
+Avoid gradient text, metric-tile grids, repeated nested cards, colored stripes beside every row,
+security jargon as headings, and ornamental graphs. Use mono for code, IDs and the compact
+sidebar captions described above. Use the pinned login effect and surface treatment intentionally.
+
+## 14. Keyboard
+
+Keep `⌘K` command menu, `G F` Fleet, `G I` Incidents, `J/K` selection, Enter to open,
+Esc to close, `U` to request unfreeze and `⇧⌘.` to request Stop all. Every action preserves
+its reason and authority checks. Shortcuts stay inactive while typing in a field or textarea.
+
+## 15. Source references
+
+The reference checkout is `/Users/liamszefner/Opereit/obsydian/apps/dashboard/src/`.
+Start with these source files when adapting the next surface:
+
+| Pattern | Opereit source |
+|---|---|
+| Global type, neutral/brand tokens | `index.css` |
+| Login layout and panel | `app/auth/components/auth-layout.tsx` |
+| Original cursor effect | `app/auth/hooks/use-dot-grid-background.ts`, `dot-grid-motion.ts`, `dot-grid-renderer.ts` |
+| Fields, password toggle, submit | `app/auth/components/auth-text-field.tsx`, `auth-password-toggle.tsx`, `auth-submit-button.tsx` |
+| Workspace | `ui/layout/layout.tsx`, `ui/layout/page-layout.tsx` |
+| Sidebar, nesting and active rows | `ui/layout/sidebar/sidebar.tsx`, `sidebar-section.tsx` |
+| Account footer | `ui/layout/sidebar/user-menu.tsx` |
+| Screenshot's composer, context and suggestions | `app/agent/components/agent-home.tsx` |
+| Conversation presentation | `app/agent/components/chat-container.tsx`, `message-bubble.tsx` |
+| Tactile buttons and fields | `ui/components/button-v2.tsx`, `input.tsx` |
+
+Use the supplied screenshots to judge visual fidelity and these files to recover exact styling.
+Reuse Mirage's domain, avatars and API contracts when adapting the reference. The screenshots'
+logistics navigation, counts and copy are replaced by the relevant Mirage content.
