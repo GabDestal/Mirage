@@ -69,6 +69,17 @@ PowerShell: set env vars with `$env:MIRAGE_MODE='live'` before the command.
 The CLI and the API share `data/` (event log + snapshots), so an incident frozen by one process can be
 detonated from another. `POST /demo/reset` (or deleting `data/`) starts over.
 
+## 4b. Metrics (pitch numbers, ~7 min, Bedrock)
+
+```bash
+uv run python -m engine.dev.testset            # 20 live runs: 10 poisoned (Liam's V1..V7), 10 clean
+uv run python -m engine.cli metrics            # re-print from data/ + data/testset_labels.json
+```
+
+Measured 2026-10-10 (Liam's agent, gpt-oss-20b): attack attempted in 6 of 10 poisoned runs, detected 6/6,
+0 runs leaked, 0 of 10 clean runs frozen, time to detect 5.9 ms, time to contain 8.9 ms (medians),
+time to verdict 13.5 s. All 6 attacks used the attacker's address, which the hard rules catch by design.
+
 ## 5. Where things live
 
 | Path | What |
