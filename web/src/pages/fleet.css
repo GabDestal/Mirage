@@ -487,3 +487,32 @@
   .fleet-action-link, .fleet-action-cell > a { min-height: 40px; }
 
 }
+
+/* Agent groups: one quiet header row per agent, open by default. */
+.fleet-table tr.fleet-group-row th {
+  padding: 0;
+  background: var(--fleet-wash);
+  border-bottom: 1px solid var(--fleet-line-subtle);
+}
+.fleet-table tbody + tbody tr.fleet-group-row th { border-top: 1px solid var(--fleet-line); }
+.fleet-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fleet-ink-3);
+  text-align: left;
+  cursor: pointer;
+}
+.fleet-group-toggle:hover { background: var(--fleet-wash-hover); }
+.fleet-group-chevron { transition: transform 120ms ease; }
+.fleet-group-toggle[aria-expanded='true'] .fleet-group-chevron { transform: rotate(90deg); }
+.fleet-group-name { font-weight: 500; color: var(--fleet-ink); }
+@media (prefers-reduced-motion: reduce) { .fleet-group-chevron { transition: none; } }
+@container (max-width: 879px) {
+  .fleet-table tr.fleet-group-row { display: block; }
+  .fleet-table tr.fleet-group-row th { display: block; }
+}

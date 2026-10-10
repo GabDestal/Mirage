@@ -8,6 +8,7 @@ import { ChatActivity, ChatApprovalCard, ChatComposer, ChatToolCard } from '@/co
 import { HandoffDrawer } from '@/components/handoff-drawer'
 import { Miragio } from '@/components/miragio'
 import { Button } from '@/components/ui/button'
+import { agentCount } from './fleet-presentation'
 import './chat.css'
 
 const suggestions = [
@@ -34,6 +35,7 @@ export function Chat() {
   const reduce = useReducedMotion()
   const conversation = chat.turns.length > 0
   const frozen = runs.data?.filter((run) => run.status === 'frozen').length ?? 0
+  const agents = agentCount(runs.data ?? [])
   const latest = chat.turns.at(-1)
   const lastError = latest?.status === 'error' ? latest.error : undefined
 
@@ -124,7 +126,7 @@ export function Chat() {
             onStop={stopReply} placeholder={conversation ? 'Ask a follow-up…' : 'Ask which agents are frozen, and what happened…'} error={lastError ? 'Your draft is saved. Review any actions before sending again.' : undefined} />
           {!conversation ? <div className="chat-context">
             <Info size={14} aria-hidden="true" />
-            {runs.isPending ? <span>Checking your agents…</span> : runs.isError ? <span>Can’t reach the Mirage engine. <button type="button" onClick={() => void runs.refetch()}>Try again</button></span> : frozen ? <span>{frozen} {frozen === 1 ? 'agent needs' : 'agents need'} your attention. <button type="button" onClick={() => prefill(suggestions[0].text)}>Summarize incidents</button></span> : <span>{runs.data?.length ? `${runs.data.length} agents in your fleet.` : 'No agents connected yet.'} <Link to="/fleet">View fleet</Link></span>}
+            {runs.isPending ? <span>Checking your agents…</span> : runs.isError ? <span>Can’t reach the Mirage engine. <button type="button" onClick={() => void runs.refetch()}>Try again</button></span> : frozen ? <span>{frozen} {frozen === 1 ? 'agent needs' : 'agents need'} your attention. <button type="button" onClick={() => prefill(suggestions[0].text)}>Summarize incidents</button></span> : <span>{agents ? `${agents} ${agents === 1 ? 'agent' : 'agents'} in your fleet.` : 'No agents connected yet.'} <Link to="/fleet">View fleet</Link></span>}
           </div> : null}
         </div>
         {!online ? <p className="chat-offline" role="alert"><Unplug size={15} aria-hidden="true" />You’re offline. Your conversation and draft stay here; reconnect to continue.</p> : null}

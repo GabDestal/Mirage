@@ -2,14 +2,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
-import { ArrowRight, Bot, CheckCircle2, Play, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Bot, CheckCircle2, ChevronRight, Play, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { api, useEvents, useIncidents, useRuns, type Incident, type MirageEvent, type Run } from '@/api/client'
 import { resetStream, useNow } from '@/api/stream'
 import { ResumeButton, useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
-import { avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
-import { fleetActivity, fleetStatus, healthyAgents, sandboxStatus } from './fleet-presentation'
+import { agentName, avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
+import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, sandboxStatus } from './fleet-presentation'
 import './fleet.css'
 
 export function Fleet() {
@@ -24,6 +24,7 @@ export function Fleet() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selected, setSelected] = useState(-1)
   const [startingDemo, setStartingDemo] = useState(false)
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
 
   const filteredRuns = useMemo(() => {
     return runs.filter((r) => {
@@ -38,17 +39,25 @@ export function Fleet() {
       return true
     }).sort((a, b) => b.started_at.localeCompare(a.started_at) || b.id.localeCompare(a.id, undefined, { numeric: true })) // newest first; filter already copied
   }, [runs, filterTab, searchQuery])
+  const groups = useMemo(() => groupByAgent(filteredRuns), [filteredRuns])
+  // J/K and the highlight follow the rows on screen: collapsed groups are skipped.
+  const visibleRuns = useMemo(() => groups.flatMap((g) => collapsed.has(g.agent) ? [] : g.runs), [groups, collapsed])
+  const toggle = (agent: string) => setCollapsed((prev) => {
+    const next = new Set(prev)
+    if (!next.delete(agent)) next.add(agent)
+    return next
+  })
 
   // Keyboard navigation: J/K move, Enter opens, ⌘U unfreezes, ⌘⌫/⌘X kills (U/X fallbacks).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!filteredRuns.length || e.defaultPrevented || e.altKey || document.querySelector('[role=dialog]')) return
+      if (!visibleRuns.length || e.defaultPrevented || e.altKey || document.querySelector('[role=dialog]')) return
       if (e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return
       const command = e.metaKey || e.ctrlKey
       const key = e.key.toLowerCase()
       if (command && (e.shiftKey || !['u', 'x', 'backspace'].includes(key))) return
-      const run = filteredRuns[selected]
-      if (e.key === 'j') setSelected((i) => Math.min(i + 1, filteredRuns.length - 1))
+      const run = visibleRuns[selected]
+      if (e.key === 'j') setSelected((i) => Math.min(i + 1, visibleRuns.length - 1))
       else if (e.key === 'k') setSelected((i) => Math.max(i - 1, 0))
       else if (e.key === 'Enter' && run) navigate(`/runs/${run.id}`)
       else if (key === 'u' && run?.status === 'frozen') {
@@ -61,10 +70,10 @@ export function Fleet() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [filteredRuns, selected, navigate, ask])
+  }, [visibleRuns, selected, navigate, ask])
 
   const stats = useMemo(() => {
-    const active = runs.filter((r) => r.status === 'running').length
+    const active = agentCount(runs.filter((r) => r.status === 'running'))
     const frozen = runs.filter((r) => r.status === 'frozen').length
     const healthy = healthyAgents(runs)
     const toolCalls = runs.reduce((acc, r) => acc + (r.tool_calls || 0), 0)
@@ -236,19 +245,34 @@ export function Fleet() {
                     <th className="fleet-time-cell">Time</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {filteredRuns.map((run, i) => (
-                    <AgentTableRow
-                      key={run.id}
-                      run={run}
-                      runs={runs}
-                      events={events}
-                      incident={incidents.find((incident) => incident.id === run.incident_id)}
-                      now={now}
-                      selected={i === selected}
-                    />
-                  ))}
-                </tbody>
+                {groups.map(({ agent, runs: agentRuns }) => {
+                  const open = !collapsed.has(agent)
+                  return (
+                    <tbody key={agent}>
+                      <tr className="fleet-group-row">
+                        <th colSpan={5} scope="rowgroup">
+                          <button type="button" className="fleet-group-toggle" aria-expanded={open} onClick={() => toggle(agent)}>
+                            <ChevronRight size={14} className="fleet-group-chevron" aria-hidden="true" />
+                            <AgentAvatar agent={agent} state={avatarState(agentRuns[0])} size={24} />
+                            <span className="fleet-group-name">{agentName(agent)}</span>
+                            <span className="fleet-group-count">{agentRuns.length} {agentRuns.length === 1 ? 'run' : 'runs'}</span>
+                          </button>
+                        </th>
+                      </tr>
+                      {open && agentRuns.map((run) => (
+                        <AgentTableRow
+                          key={run.id}
+                          run={run}
+                          runs={runs}
+                          events={events}
+                          incident={incidents.find((incident) => incident.id === run.incident_id)}
+                          now={now}
+                          selected={run === visibleRuns[selected]}
+                        />
+                      ))}
+                    </tbody>
+                  )
+                })}
               </table>
             </div>
           )}

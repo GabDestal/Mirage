@@ -1,9 +1,9 @@
 /// <reference types="node" />
 // Run: node --experimental-strip-types src/pages/fleet-presentation.selfcheck.ts
 import assert from 'node:assert/strict'
-import { fleetActivity, fleetStatus, healthyAgents, sandboxStatus } from './fleet-presentation.ts'
+import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, sandboxStatus } from './fleet-presentation.ts'
 import type { Incident, MirageEvent, Run } from '../api/client'
-const run = (status: Run['status'], env: Run['env'] = 'prod') => ({ status, env } as Run)
+const run = (status: Run['status'], env: Run['env'] = 'prod') => ({ status, env, agent: status } as Run)
 assert.equal(fleetStatus(run('completed')), 'Healthy')
 assert.equal(fleetStatus(run('running')), 'Working')
 assert.equal(fleetStatus(run('killed')), 'Stopped')
@@ -11,6 +11,12 @@ assert.equal(fleetStatus(run('halted')), 'Stopped')
 assert.equal(fleetStatus(run('queued')), 'Queued')
 assert.equal(fleetStatus(run('frozen')), 'Frozen')
 assert.equal(healthyAgents([run('completed'), run('running'), run('frozen'), run('queued'), run('halted'), run('completed', 'mirage')]), 2)
+const fleet = ['a', 'b', 'c', 'd', 'a', 'b', 'c', 'd'].map((agent, i) => ({ id: `run_${8 - i}`, agent, env: 'prod', status: 'completed' } as Run))
+assert.equal(agentCount(fleet), 4)
+assert.equal(agentCount([...fleet, { agent: 'e', env: 'mirage' } as Run]), 4)
+assert.equal(healthyAgents(fleet), 4)
+assert.deepEqual(groupByAgent(fleet).map((g) => [g.agent, g.runs.map((r) => r.id)]),
+  [['a', ['run_8', 'run_4']], ['b', ['run_7', 'run_3']], ['c', ['run_6', 'run_2']], ['d', ['run_5', 'run_1']]])
 const incident: Incident = { id: 'inc_test', run_id: 'run_test', status: 'open', verdict: null,
   opened_at: '2026-10-10T12:00:00Z', snapshot_id: 'snap_test', inputs: [], bisection: [], next_action: 'detonate',
   trigger: { call_id: 'held', tool: 'send_email', args: { to: 'attacker@evil-corp-demo.com' }, decision: 'freeze', layer: 'hard_rule', explanation: 'Destination not allowed' } }
