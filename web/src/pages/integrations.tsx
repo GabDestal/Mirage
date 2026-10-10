@@ -86,7 +86,6 @@ export function Integrations() {
         <div className="integrations-container">
           <header className="integrations-header">
             <h1>API keys</h1>
-            <p>Demo keys — authentication is not enabled yet.</p>
           </header>
           {created ? <section className="integrations-reveal" aria-label="New API key">
             <label htmlFor="created-api-key">{created.key.name}</label>
