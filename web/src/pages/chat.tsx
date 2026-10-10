@@ -44,7 +44,6 @@ export function Chat() {
         queryClient.fetchQuery({ queryKey: ['runs'], queryFn: () => api<Run[]>('/runs'), staleTime: 0 }),
         queryClient.fetchQuery({ queryKey: ['incidents'], queryFn: () => api<Incident[]>('/incidents'), staleTime: 0 }),
       ])
-      follow.current = true
       setExchanges((previous) => [...previous, { question, runs: currentRuns, incidents: currentIncidents, at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }])
       setDraft('')
     } catch (cause) {
@@ -67,7 +66,7 @@ export function Chat() {
       {conversation ? (
         <>
           <div className="chat-thread-toolbar">
-            <button type="button" onClick={() => { setExchanges([]); setError(''); input.current?.focus() }} disabled={sending}>
+            <button type="button" onClick={() => { follow.current = true; setExchanges([]); setError(''); input.current?.focus() }} disabled={sending}>
               <MessageSquarePlus size={16} aria-hidden="true" /> New chat
             </button>
             <Link to="/fleet">View fleet</Link>

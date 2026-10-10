@@ -8,9 +8,9 @@ visual direction. `PRODUCT.md` and `CONTRACTS.md` define product behavior and da
 `docs/UX.md` defines the incident story. On look and feel, this file wins over earlier drafts.
 Builders: load `ponytail`, `impeccable` and `emil-design-eng`.
 
-Implementation status: the login follows this reference. The existing Fleet, sidebar and shared
-controls still use v2 styling; the specifications below guide their next UI iterations.
-The chat section captures a composition to reuse when an operator chat surface is built.
+Implementation status: the login and Ask Mirage chat home follow this reference. The existing
+Fleet, sidebar and shared controls still use v2 styling; their specifications guide the next UI
+iterations. Section 8 records the implemented chat surface and its current read-only scope.
 
 ## 1. North star
 
@@ -172,35 +172,32 @@ Current fake login: `liamszefner@gmail.com` / `demo123`, prefilled. Incorrect cr
 show an inline error. Values are neither sent nor stored; refreshing returns to login.
 The recovery control displays the demo credentials. Real authentication is separate product work.
 
-## 8. Chat composition reference
+## 8. Ask Mirage chat home
 
-Use the supplied Opereit dashboard screenshot and its `agent-home.tsx` for composition.
-The initial screen centres a narrow, left-aligned task group within the white workspace:
+`/` opens Ask Mirage; `/fleet` keeps the existing Fleet as a secondary view. The home uses the
+supplied Opereit dashboard screenshot and `agent-home.tsx` composition: a centred, left-aligned
+column (672 px maximum, 24 px horizontal clearance) on a white workspace.
 
-1. A Mirage agent avatar or mark, up to 80 px, with a short welcome question below it.
-2. A wide, white multiline composer, 12 px radius, subtle outline and small bottom shadow.
-3. A compact neutral context strip immediately below the composer when there is something
-   actionable to show. Use one sentence, real counts and a blue text action.
-4. Up to three contextual suggestion rows beneath it, with a small icon and plain text.
+1. An 80 px Mirage mark above “What needs your attention today?” (20 / 28 px, medium).
+2. A white multiline composer with a 12 px radius, subtle outline and small bottom shadow.
+3. A neutral context strip with current fleet state, frozen-run count and a relevant text action.
+4. Three plain suggestion rows with small icons, 32 px below the composer group. Clicking a
+   suggestion fills the draft and focuses the textarea.
 
-The group is 672 px wide at most, with 24 px horizontal clearance. The welcome question is
-20 / 28 px, medium. Leave about 32 px between the composer group and suggestions.
-Suggestions are text rows with a quiet hover, rather than tiles or pill chips.
+The composer uses a real textarea. Clicking its empty interior focuses it. A compact arrow-up
+send button sits at the lower right and is disabled when empty or submitting. Enter sends,
+Shift+Enter adds a line, and IME composition is respected. Focus uses a blue border and restrained
+ring. A failed request shows an inline error and preserves the draft; context-loading errors
+provide a retry action.
 
-For Mirage, suitable examples are “Which run needs my attention?”, “Show the proof for this
-incident” and “What did Mirage prevent?” Populate suggestions and context from current run
-and incident data. Keep synthetic examples visibly identified when real data is unavailable.
+Sending fetches fresh run and incident data and displays a read-only summary with links to the
+Fleet, run and incident views. Each answer carries a “Fleet snapshot at” timestamp. This is a
+summary interface, with no natural-language model or chat backend yet; sending has no control
+effects. Investigation and human actions remain in the existing incident and control views.
 
-The composer uses a real textarea. Clicking its empty interior focuses it. Place a compact
-arrow-up send button at the lower right; disable it when empty or submitting. Enter sends,
-Shift+Enter adds a line, and IME composition is respected. Preserve a draft when sending fails.
-Focus uses the same blue border and restrained ring as the login fields.
-
-During a conversation, keep a stable reading column, readable answer text, quiet user messages,
-and a composer at the bottom. Link claims about an incident to its run or evidence detail.
-Scroll to new content only when the reader is already at the bottom. Human actions use the
-existing control plane, reasons and engine authorization. This pattern defines presentation;
-chat providers, tools and endpoints belong to a separate agreed product implementation.
+The conversation keeps a stable reading column, quiet user messages and a composer at the bottom.
+New answers scroll into view only when the reader is already near the bottom; reading earlier
+answers preserves scroll position. New chat clears the displayed conversation.
 
 ## 9. Fleet and incident presentation
 
