@@ -126,7 +126,7 @@ def test_detonate_route_runs_the_sandbox(api):
     assert snap.model_calls[0].model_id == "openai.gpt-oss-20b-1:0"
     assert [r.tool for r in snap.tool_results] == ["read_calendar", "export_contacts"]
 
-    # mirage_sdk does not exist yet: run the entrypoint itself, as a dev agent would
+    # the test agent is not wrapped by mirage.protect: run the entrypoint itself, as a dev agent would
     path = snapshot.SNAP_DIR / f"{incident_id}.json"
     path.write_text(snap.model_copy(update={"runner": None}).model_dump_json(), encoding="utf-8")
     assert api.post(f"/incidents/{incident_id}/detonate?runs=1").json()["detonation_id"]

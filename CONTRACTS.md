@@ -348,7 +348,7 @@ contracts/           # shared (A + B agree)
   models.py          # Pydantic models, source of truth
   fixtures/          # recorded demo events and state
 sdk/                 # Liam: `mirage-sdk`, the package customer agents install
-  mirage_sdk/
+  mirage/
     core.py          # data plane client: check, hold, record (all decisions in the engine)
     protect.py       # mirage.protect(agent): detects the framework, picks an adapter
     sandbox.py       # run(snapshot, call_tool): the detonation runner for SDK agents
@@ -450,7 +450,7 @@ the engine.** It has three parts:
 1. **Adapters** find, inside the agent: run start (task), every tool call, every model call, run end.
 2. **Core** is the data plane client below: register, start run, record model calls, check each tool call
    (run it on allow, wait while frozen, raise on kill), record its result, complete.
-3. **Sandbox runner** (`mirage_sdk.sandbox:run`): rebuilds the agent and routes its tools to the engine's
+3. **Sandbox runner** (`mirage.sandbox:run`): rebuilds the agent and routes its tools to the engine's
    `call_tool` (see "Snapshot and replay"). The SDK never reads tool answers from the snapshot itself.
 
 ### Where each adapter plugs in
@@ -498,7 +498,7 @@ Human-action POSTs from web and MCP (§5) send `HumanRequest` `{actor, reason}`.
 - A tool result can hold several inputs (example: `read_calendar` returns 4 events). Each one is an `Input`.
 - Detonation: the engine starts a jailed child process (no third-party keys, network only to Bedrock).
   The child calls `runner(snapshot, call_tool)` (`runner` defaults to `entrypoint`). For SDK agents the runner is
-  `mirage_sdk.sandbox:run`: it rebuilds the agent from `entrypoint`, replays the recorded model replies up to
+  `mirage.sandbox:run`: it rebuilds the agent from `entrypoint`, replays the recorded model replies up to
   the frozen call, then runs live from there. Every tool call goes to `call_tool(tool, args)`, owned by the
   engine: a read returns its recorded result, anything else is captured as an effect and answered `{"status": "ok"}`.
 - Bisection: remove one `Input` from the snapshot (example: the invite from `read_calendar`'s result) and run
@@ -510,14 +510,14 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
 
 - **At freeze** the gate writes `data/snapshots/<incident_id>.json`, validated as `Snapshot` (`models.py`),
   including `model_calls` (from `POST /runs/{id}/model-calls`). Agents registered with `POST /agents` get
-  `runner = "mirage_sdk.sandbox:run"`; engine dev agents get `runner = null`.
+  `runner = "mirage.sandbox:run"`; engine dev agents get `runner = null`.
 - **Each detonation run** is a new `python -I` child in a temp folder. Its environment holds only
   `AWS_BEARER_TOKEN_BEDROCK`, `AWS_REGION`, OS basics, `MIRAGE_SNAPSHOT` (path) and `MIRAGE_EFFECTS` (path).
 - **Jail** (audit hooks): DNS and connections only to `bedrock-runtime.<region>.amazonaws.com`; no new
   processes; no reads of `.env` or `secrets/`. Each blocked attempt is logged as an effect `sandbox.<kind>`.
 - **Runner**: the child calls `(runner or entrypoint)(snapshot: dict, call_tool)` where
   `call_tool(tool, args) -> result`. Every tool call must go through `call_tool`. Today the engine's dev agent
-  is called directly (`engine.dev.assistant:mirage_entry`); SDK agents go through `mirage_sdk.sandbox:run`.
+  is called directly (`engine.dev.assistant:mirage_entry`); SDK agents go through `mirage.sandbox:run`.
   `call_tool` returns the recorded result for a read (same args first, else same tool) and captures anything
   else as an effect, answering `{"status": "ok"}`.
 - **Verdict** is code: the gate's own hard rules run over each effect. Any hit = compromised run.

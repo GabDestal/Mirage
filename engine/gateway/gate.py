@@ -24,7 +24,7 @@ from engine.dev import tools  # shortcut: in-process tool dispatch, dev harness 
 from engine.store.events import emit
 
 STOP = threading.Event()  # global STOP: halts every run
-SDK_RUNNER = "mirage_sdk.sandbox:run"  # sandbox runner for agents registered through the SDK
+SDK_RUNNER = "mirage.sandbox:run"  # sandbox runner for agents registered through the SDK
 agents: dict[str, AgentSpec] = {}
 runs: dict[str, "LiveRun"] = {}
 
