@@ -76,8 +76,8 @@ Repo layout and ownership are in `CONTRACTS.md` section 8.
   MCP server and HTTP access with a per-incident token.
 - `replay/` — bisection over snapshot inputs.
 - `remediation/` — handoff prompt, incident report, PyGithub PR.
-- `api/` — real FastAPI server. `mock/` — fake server that replays fixtures for UI work.
-- `ui/` — operator view. Reads `MIRAGE_API=mock|real`. Stack still open (Streamlit or React).
+- `api/` — FastAPI server. `MIRAGE_MODE=replay` plays fixtures for UI work; `live` runs the engine.
+- `ui/` — operator view. Vite + React + TypeScript. Tech stack: `CONTRACTS.md` section 10.
 
 ## Verdict: deterministic first
 - **`confirmed` is decided by code, not by a model.** Check the effects ledger of each
