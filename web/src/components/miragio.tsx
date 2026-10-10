@@ -27,11 +27,11 @@ function AnimatedMiragio({ className, readingProgress = null }: Omit<Props, 'ani
   const eyes = useAnimationControls()
   const lookX = useSpring(0, spring)
   const lookY = useSpring(0, spring)
-  const headX = useTransform(lookX, (x) => x * 7)
-  const headY = useTransform(lookY, (y) => y * 4)
-  const headRotate = useTransform(lookX, (x) => x * 1.2)
-  const eyeX = useTransform(lookX, (x) => x * 13)
-  const eyeY = useTransform(lookY, (y) => y * 10)
+  const headX = useTransform(lookX, (x) => x * 8.75)
+  const headY = useTransform(lookY, (y) => y * 5)
+  const headRotate = useTransform(lookX, (x) => x * 1.5)
+  const eyeX = useTransform(lookX, (x) => x * 16.25)
+  const eyeY = useTransform(lookY, (y) => y * 12.5)
   const active = !reduce && visible
 
   useEffect(() => {
@@ -61,7 +61,7 @@ function AnimatedMiragio({ className, readingProgress = null }: Omit<Props, 'ani
         lookX.set((Math.random() - 0.5) * 1.1)
         lookY.set((Math.random() - 0.5) * 0.5)
       }
-      glanceTimer = setTimeout(glance, 3500 + Math.random() * 3000)
+      glanceTimer = setTimeout(glance, 2500 + Math.random() * 2000)
     }
     const clamp = (v: number) => Math.max(-1, Math.min(1, v))
     const pointer = (event: PointerEvent) => {
@@ -73,7 +73,7 @@ function AnimatedMiragio({ className, readingProgress = null }: Omit<Props, 'ani
     }
     const centre = () => { if (!reading.current) { lookX.set(0); lookY.set(0) } }
     blinkTimer = setTimeout(blink, 2500 + Math.random() * 4000)
-    glanceTimer = setTimeout(glance, 3500)
+    glanceTimer = setTimeout(glance, 2500)
     window.addEventListener('pointermove', pointer, { passive: true })
     document.documentElement.addEventListener('pointerleave', centre)
     return () => {
@@ -128,8 +128,8 @@ function Portrait({ className, svgRef, active = false, eyes, headStyle, eyeStyle
           </motion.g>
         </motion.g>
       </motion.g>
-      <motion.path data-miragio="ribbon" d="M97 774C132 708 209 692 282 716C391 749 484 797 592 796C683 796 737 750 790 743C847 733 888 774 904 812C913 837 869 861 829 872C718 906 615 871 508 849C384 824 271 794 179 835C153 846 139 866 115 856C86 846 87 800 97 774Z" fill={url('ribbon')} animate={{ x: active ? [0, 5, 0, -5, 0] : 0 }} transition={{ duration: active ? 9 : 0, repeat: active ? Infinity : 0, ease: 'easeInOut' }} />
-      <motion.path data-miragio="ribbon" d="M258 901C277 857 345 847 402 853C498 860 539 911 641 925C671 930 697 928 701 938C710 957 666 980 623 980C572 980 549 959 495 958C416 958 322 971 280 947C263 938 252 921 258 901Z" fill={url('ribbon')} animate={{ x: active ? [0, -4, 0, 4, 0] : 0 }} transition={{ duration: active ? 11 : 0, repeat: active ? Infinity : 0, ease: 'easeInOut' }} />
+      <motion.path data-miragio="ribbon" d="M97 774C132 708 209 692 282 716C391 749 484 797 592 796C683 796 737 750 790 743C847 733 888 774 904 812C913 837 869 861 829 872C718 906 615 871 508 849C384 824 271 794 179 835C153 846 139 866 115 856C86 846 87 800 97 774Z" fill={url('ribbon')} animate={{ x: active ? [0, 6.25, 0, -6.25, 0] : 0 }} transition={{ duration: active ? 9 : 0, repeat: active ? Infinity : 0, ease: 'easeInOut' }} />
+      <motion.path data-miragio="ribbon" d="M258 901C277 857 345 847 402 853C498 860 539 911 641 925C671 930 697 928 701 938C710 957 666 980 623 980C572 980 549 959 495 958C416 958 322 971 280 947C263 938 252 921 258 901Z" fill={url('ribbon')} animate={{ x: active ? [0, -5, 0, 5, 0] : 0 }} transition={{ duration: active ? 11 : 0, repeat: active ? Infinity : 0, ease: 'easeInOut' }} />
     </g>
   </svg>
 }

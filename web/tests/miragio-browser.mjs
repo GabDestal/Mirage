@@ -38,7 +38,7 @@ try {
       const welcome = page.locator('.chat-miragio')
       await welcome.waitFor()
       await page.evaluate(() => document.fonts.ready)
-      const input = page.getByRole('textbox', { name: 'Message Mirage' })
+      const input = page.getByRole('textbox', { name: 'Message Miragio', exact: true })
       await input.blur()
       await page.waitForTimeout(500)
       assert.equal(await welcome.evaluate((el) => el.getBoundingClientRect().width), device === 'desktop' ? 80 : 64)
