@@ -15,8 +15,9 @@
   font-display: swap;
 }
 
-/* Tokens: DESIGN.md §4 (color), §6 (shape), §9 (motion). Light is the default. */
-:root {
+/* Tokens: DESIGN.md §4 (color), §6 (shape), §9 (motion). Light is the default.
+   .theme-light pins light tokens on a subtree (portals from the always-light chat page). */
+:root, .theme-light {
   --paper: #fcfcfa;
   --paper-2: #f4f4f1;
   --paper-3: #eaeae6;

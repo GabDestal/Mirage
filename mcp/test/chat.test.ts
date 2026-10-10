@@ -170,7 +170,7 @@ test("all eight tools execute via MCP, retain progress/fences/audit labels and i
   // The click confirms; the human actor and the tool's own reason are logged.
   expect(app.posts[2].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Customer approved" });
   expect(app.posts[3].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Contain" });
-  expect(app.posts[4].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Send fix to coding agent" });
+  expect(app.posts[4].body).toEqual({ actor: "liam via Mirage Chat (MCP)", reason: "Hand off to coding agent" });
   const continuation = JSON.stringify(p.requests[1].messages);
   expect(continuation).toContain("&lt;untrusted_input");
   expect(continuation).not.toContain("synthetic-capability-001");
