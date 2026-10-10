@@ -1,12 +1,13 @@
 // Mirage MCP server (CONTRACTS.md §12): a front end like web/. It calls the engine HTTP API only.
 // Level 0 tools read or touch the sandbox only. Level 1 tools need a typed human confirmation via
-// MCP elicitation and fail closed. Level 2 (lift Stop all, batch resume, merge) is dashboard-only.
+// MCP elicitation and fail closed. Level 2 (merge, approve restart) is not exposed.
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 // Hand-typed subset of contracts/models.py.
-type Run = { id: string; agent: string; task: string; status: string; incident_id: string | null; tool_calls: number };
+type Run = { id: string; agent: string; task: string; status: string; incident_id: string | null; tool_calls: number;
+  restarted_from?: string | null };
 export type Event = { seq: number; type: string; run_id: string | null; incident_id: string | null; payload: any };
 type Input = { id: string; kind: string; label: string; source_tool: string | null; preview: string };
 type Incident = {
@@ -320,15 +321,7 @@ export function createServer(opts: Options = {}) {
       if (!allowed.includes(run.status)) return refuse(`${run_id} is ${run.status}; cannot ${action} it.`);
       const ok = await confirm(MESSAGE[action](run), `${action} ${run_id}`, reason);
       if (!ok) return refuse(NOT_CONFIRMED);
-      let after: Run;
-      try {
-        after = await call<Run>("POST", `/runs/${run_id}/${action}`, { actor: actor(), reason: ok });
-      } catch (e) {
-        // Only the dashboard can lift Stop all; the engine refuses a resume while it is on.
-        if (action === "resume" && /→ 409: .*stop/i.test((e as Error).message))
-          return refuse("Stop all is still on. Lift it in the dashboard, then I can resume agents one at a time.");
-        throw e;
-      }
+      const after = await call<Run>("POST", `/runs/${run_id}/${action}`, { actor: actor(), reason: ok });
       return text(action === "resume"
         ? `Done: ${agentName(run.agent)} restarts as ${after.id} (${after.status}). ${run_id} stays halted. Logged as "${actor()}", reason "${ok}".`
         : `Done: ${run_id} is now ${after.status}. Logged as "${actor()}", reason "${ok}".`, { run: after });
@@ -353,10 +346,36 @@ export function createServer(opts: Options = {}) {
   server.registerTool("resume", {
     title: "Resume halted run",
     description: "Restart one run halted by Stop all: a new run starts the task from the beginning, and every " +
-      "action goes through the gate. Needs human confirmation. Refused while Stop all is on (only the dashboard " +
-      "lifts it) or if detonation confirmed the compromise.",
+      "action goes through the gate. Lifts Stop all if it is on. Needs human confirmation. Refused if detonation " +
+      "confirmed the compromise.",
     inputSchema: runArgs, annotations: act,
   }, runAct("resume", ["halted"]));
+
+  server.registerTool("resume_all", {
+    title: "Resume all agents",
+    description: "Lift Stop all and restart every halted run from the beginning; every action goes through the gate. " +
+      "Runs detonation confirmed compromised (or still detonating) stay halted. Needs human confirmation.",
+    inputSchema: { reason: runArgs.reason }, annotations: act,
+  }, safe<{ reason: string }>(async ({ reason }) => {
+    const [runs, incidents] = await Promise.all([call<Run[]>("GET", "/runs"), call<Incident[]>("GET", "/incidents")]);
+    // Same rule as the engine: halted, no restart yet; compromised or detonating runs are skipped.
+    const halted = runs.filter((r) => r.status === "halted" && !runs.some((n) => n.restarted_from === r.id));
+    const blocked = (r: Run) => incidents.some((i) => i.id === r.incident_id &&
+      (i.status === "detonating" || CONFIRMED.includes(i.status) || i.verdict?.confirmed));
+    const names = (rs: Run[]) => rs.map((r) => `${runLabel(r, runs)} (${r.id})`).join(", ");
+    const resume = halted.filter((r) => !blocked(r)), skip = halted.filter(blocked);
+    const ok = await confirm(`Resume all agents. Stop all is lifted. ` +
+      (resume.length ? `Restarts from the beginning: ${names(resume)}. ` : "No halted agent to restart. ") +
+      (skip.length ? `Stays stopped (compromised or detonating): ${names(skip)}. ` : "") +
+      "Every action goes through the gate.", "resume all", reason);
+    if (!ok) return refuse(NOT_CONFIRMED);
+    const r = await call<{ resumed: Run[]; skipped: { run_id: string; reason: string }[] }>("POST", "/resume-all",
+      { actor: actor(), reason: ok });
+    return text(`Done: Stop all is lifted. ${r.resumed.length} resumed` +
+      (r.resumed.length ? ` (${r.resumed.map((n) => `${n.restarted_from} restarts as ${n.id}`).join(", ")})` : "") +
+      `, ${r.skipped.length} skipped${r.skipped.length ? ` (${r.skipped.map((k) => `${k.run_id}: ${k.reason}`).join("; ")})` : ""}. ` +
+      `Logged as "${actor()}", reason "${ok}".`, r);
+  }));
 
   server.registerTool("send_fix", {
     title: "Hand off to coding agent",

@@ -266,6 +266,18 @@ class ToolResult(Model):
     error: str | None = None
 
 
+class ResumeSkip(Model):
+    run_id: str
+    reason: str
+
+
+class ResumeAll(Model):
+    """POST /resume-all. `resumed`: the new queued runs. `skipped`: halted runs that cannot resume."""
+
+    resumed: list[Run]
+    skipped: list[ResumeSkip]
+
+
 class WaitResult(Model):
     """GET /runs/{id}/wait. Long poll while frozen. `frozen`: still frozen, poll again."""
 

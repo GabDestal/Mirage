@@ -8,6 +8,7 @@ export type Incident = S['Incident']
 export type MirageEvent = S['Event']
 export type GateDecision = S['GateDecision']
 export type HumanRequest = S['HumanRequest']
+export type ResumeAll = S['ResumeAll']
 
 const BASE = '/api'
 

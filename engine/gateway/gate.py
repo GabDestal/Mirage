@@ -166,7 +166,7 @@ def _global_stop(actor, reason):
 
 
 def lift_stop(actor, reason):
-    """Halted runs stay halted: a human resumes each one (POST /runs/{id}/resume)."""
+    """Halted runs stay halted: resume relaunches them (POST /runs/{id}/resume, /resume-all)."""
     with jobs.lock:
         STOP.clear()
         _human(actor, "lift_stop", "all", reason)

@@ -26,8 +26,8 @@ const DB: Record<string, unknown> = {
   "GET /runs/run_004": run("run_004", "halted", "inc_004"),
   "GET /incidents/inc_004": incident("inc_004", "run_004", "open"),
   "POST /runs/run_004/resume": { ...run("run_005", "queued", "inc_004"), restarted_from: "run_004" },
-  "GET /runs/run_006": run("run_006", "halted", "inc_004"),
-  "POST /runs/run_006/resume": { status: 409, detail: "Lift Stop all first" },
+  "POST /resume-all": { resumed: [{ ...run("run_005", "queued", "inc_004"), restarted_from: "run_004" }],
+    skipped: [{ run_id: "run_002", reason: "Detonation confirmed this run is compromised." }] },
   "POST /incidents/inc_001/handoff": { prompt: "Fix inc_001", claude_code_url: "https://claude.ai/code" },
 };
 
@@ -59,7 +59,7 @@ test("same tool set for every client, with the right annotations", async () => {
   const claude = await names("claude-code");
   expect(claude).toEqual(await names("codex-mcp-client"));
   expect(claude).toEqual([["list_runs", false], ["get_incident", false], ["get_audit", false], ["detonate", false],
-    ["find_cause", false], ["unfreeze", true], ["kill", true], ["resume", true], ["send_fix", true]]);
+    ["find_cause", false], ["unfreeze", true], ["kill", true], ["resume", true], ["resume_all", true], ["send_fix", true]]);
 });
 
 test("unfreeze fails closed without the elicitation capability", async () => {
@@ -182,11 +182,29 @@ test("resume asks for the typed phrase, then restarts the halted run as a new ru
   expect(r.text).toMatch(/^Done: Meeting assistant restarts as run_005 \(queued\)\. run_004 stays halted\./);
 });
 
-test("resume while Stop all is on points to the dashboard", async () => {
-  const { callText } = await connect({ elicit: () => ({ action: "accept", content: { confirm: "resume run_006", reason: "r" } }) });
-  const r = await callText("resume", { run_id: "run_006", reason: "r" });
-  expect(r.isError).toBe(true);
-  expect(r.text).toBe("Not done: Stop all is still on. Lift it in the dashboard, then I can resume agents one at a time.");
+test("resume_all lists who resumes and who stays stopped, asks for the phrase, then calls /resume-all", async () => {
+  const halted = [run("run_002", "halted", "inc_001"), run("run_004", "halted", "inc_004"),
+    run("run_007", "halted", "inc_004"), { ...run("run_008", "queued", "inc_004"), restarted_from: "run_007" }];
+  const before = { runs: DB["GET /runs"], incidents: DB["GET /incidents"] };
+  DB["GET /runs"] = halted;
+  DB["GET /incidents"] = [incident("inc_001", "run_002", "confirmed"), incident("inc_004", "run_004", "open")];
+  let message = "";
+  const { posts, callText } = await connect({ elicit: (m) => {
+    message = m;
+    return { action: "accept", content: { confirm: "resume all", reason: "Drill over" } };
+  } });
+  const r = await callText("resume_all", { reason: "draft" });
+  expect(message).toBe("Resume all agents. Stop all is lifted. Restarts from the beginning: Meeting assistant, run 4 (run_004). " +
+    "Stays stopped (compromised or detonating): Meeting assistant, run 2 (run_002). Every action goes through the gate.");
+  expect(posts).toEqual([{ path: "/resume-all", body: { actor: "liam via Claude Code (MCP)", reason: "Drill over" } }]);
+  Object.assign(DB, { "GET /runs": before.runs, "GET /incidents": before.incidents });
+  expect(r.text).toMatch(/^Done: Stop all is lifted\. 1 resumed \(run_004 restarts as run_005\), 1 skipped \(run_002: /);
+});
+
+test("resume_all fails closed without the typed phrase", async () => {
+  const { posts, callText } = await connect({ elicit: () => ({ action: "accept", content: { confirm: "resume", reason: "r" } }) });
+  expect((await callText("resume_all", { reason: "r" })).isError).toBe(true);
+  expect(posts).toEqual([]);
 });
 
 test("resume refuses a run that is not halted or is confirmed compromised, without asking", async () => {

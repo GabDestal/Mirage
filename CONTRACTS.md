@@ -41,7 +41,7 @@ queued → running → completed
             │                  │
             │                  └─(human: kill)→ killed ─(human: approve restart)→ new run (restarted_from = old id)
             │
-            └─(global STOP)→ halted ─(lift STOP, then human: resume)→ new run (restarted_from = old id),
+            └─(global STOP)→ halted ─(human: resume or resume all; lifts STOP)→ new run (restarted_from = old id),
                                          relaunched by the engine; the task starts over
 ```
 
@@ -253,7 +253,7 @@ So the UI and MCP always agree on the next step.
 
 `POST /incidents/{id}/detonate`, `/bisect` and `/verify` take an optional `HumanRequest` body `{actor, reason}` and log it
 as a `human.action` (`detonate`, `find_cause`, `verify`). Without a body the actor is logged as `unknown`.
-After an engine restart, a global STOP stays on (it comes back from the log) until `POST /stop/lift` or `/demo/reset`.
+After an engine restart, a global STOP stays on (it comes back from the log) until `POST /stop/lift`, a resume (`/runs/{id}/resume`, `/resume-all`) or `/demo/reset`.
 
 ### ServiceView (Gmail, Calendar, CRM panels)
 
@@ -291,7 +291,7 @@ All POST bodies with a human action carry `{actor, reason}`.
 | Method | Path | Does |
 |---|---|---|
 | POST | `/stop` | Global STOP. All runs halted, all tokens revoked, agents relaunched by resume terminated. |
-| POST | `/stop/lift` | Lift the global STOP (204). Logged as `lift_stop`, emits `global.stop_lifted`. Halted runs stay halted. Dashboard only (no MCP tool). |
+| POST | `/stop/lift` | Lift the global STOP (204). Logged as `lift_stop`, emits `global.stop_lifted`. Halted runs stay halted. Kept for scripts; the dashboard and MCP use `/resume-all`. |
 | POST | `/runs/{id}/freeze` | Freeze one run. |
 | POST | `/runs/{id}/unfreeze` | Resume a frozen run. 409 if its incident is `detonating` or confirmed (only `open` / `false_positive` allowed). |
 | POST | `/runs/{id}/kill` | End a frozen run. |
@@ -299,7 +299,8 @@ All POST bodies with a human action carry `{actor, reason}`.
 | POST | `/approvals/{call_id}/approve` | Body `{actor, reason}`. The held call runs (like unfreeze); logged as `approve`. Returns the `Run`. |
 | POST | `/approvals/{call_id}/reject` | Body `{actor, reason}`. The held call never runs and the run ends (like kill); logged as `reject`. |
 | POST | `/runs/{id}/restart` | Approve a clean restart of a `killed` or `halted` run (else 409). Returns the new `Run`, `queued`, with `restarted_from`. The engine does not launch the agent: its next `POST /runs` takes over the queued run. |
-| POST | `/runs/{id}/resume` | Resume a `halted` run: a clean restart the engine launches. 409 unless `halted`, 409 `Lift Stop all first` while STOP is on, 409 if its incident is confirmed compromised (same rule as unfreeze). Logged as `resume`. Returns the new `queued` `Run` (`restarted_from` = old id) and relaunches the agent from its registered `entrypoint` (`factory().invoke` with the same task, `MIRAGE_URL` = this engine); that start takes over the queued run. Without an entrypoint the run stays queued for its owner to start (`run.started` carries a `note`). |
+| POST | `/runs/{id}/resume` | Resume a `halted` run: a clean restart the engine launches. 409 unless `halted`, 409 if its incident is confirmed compromised or detonating (same rule as unfreeze). If STOP is on it is lifted first (logged `lift_stop`, `global.stop_lifted`). Logged as `resume`. Returns the new `queued` `Run` (`restarted_from` = old id) and relaunches the agent from its registered `entrypoint` (`factory().invoke` with the same task, `MIRAGE_URL` = this engine); that start takes over the queued run. Without an entrypoint the run stays queued for its owner to start (`run.started` carries a `note`). |
+| POST | `/resume-all` | Lifts STOP if it is on (one `lift_stop`), then resumes every `halted` run with no restart yet (no run has `restarted_from` = its id), like `/runs/{id}/resume` (one `resume` each). Returns `ResumeAll {resumed: Run[], skipped: [{run_id, reason}]}`; `skipped` holds halted runs refused as compromised or detonating. A second call resumes nothing new. Replay: advances the recording, returns empty lists. |
 | POST | `/incidents/{id}/detonate` | Explicit retry or operator replay (initial gate-incident replay is automatic). Returns `{detonation_id}`. Results come as events. |
 | POST | `/incidents/{id}/bisect` | Start bisection. Results come as events. |
 | POST | `/incidents/{id}/handoff` | Optional body `{actor, reason}`. Needs a confirmed verdict (409). Returns `{prompt, claude_code_url, codex_url, mirage_token, report}`: the prompt for a coding agent (facts, fenced untrusted input, where the code is, the check command), the report (markdown), a token for this incident only (never logged). Incident → `fix_pending`. |
@@ -603,7 +604,8 @@ A second front end, like `web/`. It calls the control plane API. It never import
 | `find_cause` | act | Start bisection. |
 | `unfreeze` | act | Resume a frozen run. |
 | `kill` | act | End a frozen run. |
-| `resume` | act | Resume a halted run (`POST /runs/{id}/resume`). Cannot lift STOP: while it is on, points the human to the dashboard. |
+| `resume` | act | Resume a halted run (`POST /runs/{id}/resume`); lifts STOP if it is on. |
+| `resume_all` | act | Lift STOP and resume every halted agent (`POST /resume-all`). Lists which runs resume and which are skipped before asking for the phrase `resume all`. |
 | `send_fix` | act | Create the handoff for a coding agent. |
 
 Rules:
@@ -622,7 +624,7 @@ short-term `AWS_BEARER_TOKEN_BEDROCK` key. Root `.env` loads before client const
 There is no synthetic model fallback. Startup: `cd mcp && npm ci && npm run build && npm run chat`.
 
 The existing `createServer` is connected to an MCP SDK `Client` with paired in-memory
-transports. `listTools` supplies the nine-tool catalogue; `callTool` executes the
+transports. `listTools` supplies the ten-tool catalogue; `callTool` executes the
 existing handlers. Elicitation is presented to the human as one plain-language sentence
 with Decline and Approve; the click is the confirmation. On Approve the service answers the
 MCP form itself with the phrase and reason the tool put in the request's `_meta["mirage/confirm"]`

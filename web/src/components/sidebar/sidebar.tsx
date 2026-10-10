@@ -2,11 +2,11 @@
 import { Collapsible } from '@base-ui/react/collapsible'
 import { LayoutList, OctagonAlert, Play } from 'lucide-react'
 import { NavLink, useLocation, useMatches } from 'react-router'
-import { useEvents, useRuns } from '@/api/client'
+import { useEvents, useIncidents, useRuns } from '@/api/client'
 import { useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Kbd, Tooltip } from '@/components/ui/tooltip'
-import { agentName, avatarState, mostUrgent, stopOn } from '@/lib/runs'
+import { agentName, avatarState, mostUrgent, resumeAllOn } from '@/lib/runs'
 import { cn } from '@/lib/utils'
 import { MascotAskIcon } from './icons/mascot-ask'
 import { ChevronRightMediumIcon } from './icons/chevron-right-medium'
@@ -17,7 +17,9 @@ import { SidebarSection } from './sidebar-section'
 export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
   const ask = useAsk()
   const { data: events = [] } = useEvents()
-  const stopped = stopOn(events)
+  const { data: runs = [] } = useRuns()
+  const { data: incidents = [] } = useIncidents()
+  const resumable = resumeAllOn(runs, incidents, events)
 
   return (
     <aside aria-label="Main" className="mirage-sidebar flex h-full w-(--sidebar-width) flex-col overflow-hidden border-r border-r-neutral-200 bg-neutral-50 antialiased">
@@ -53,11 +55,11 @@ export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
             </button>
           </li>
           <li>
-            {stopped ? (
-              <Tooltip content="Lets you resume halted agents one at a time">
-                <button type="button" title="Lift stop" onClick={() => ask('lift')} className={cn(NAV_LINK_CLASS_NAME, 'w-full')}>
+            {resumable ? (
+              <Tooltip content="Lifts Stop all and restarts every halted agent">
+                <button type="button" title="Resume all" onClick={() => ask('resumeAll')} className={cn(NAV_LINK_CLASS_NAME, 'w-full')}>
                   <Play className="size-4 shrink-0" aria-hidden />
-                  <span className="sidebar-label min-w-0 truncate text-sm leading-5">Lift stop</span>
+                  <span className="sidebar-label min-w-0 truncate text-sm leading-5">Resume all</span>
                 </button>
               </Tooltip>
             ) : <Tooltip content={<>Halts every run and revokes all tokens <Kbd>⇧⌘.</Kbd></>}>

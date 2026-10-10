@@ -129,15 +129,18 @@ export const stopOn = (events: MirageEvent[]) =>
 const CONFIRMED = ['confirmed', 'bisecting', 'root_caused', 'fix_pending', 'fix_verified', 'pr_open', 'merged']
 
 /** A halted run that was not restarted yet can be resumed. Returns why the Resume button is disabled, or null. */
-export function resumeBlock(run: Run, incidents: Incident[], stopped: boolean) {
+export function resumeBlock(run: Run, incidents: Incident[]) {
   const incident = incidents.find((i) => i.id === run.incident_id)
   if (incident?.status === 'detonating') return 'Detonation is running. Wait for the verdict.'
   if (incident && (CONFIRMED.includes(incident.status) || incident.verdict?.confirmed))
     return 'Detonation confirmed this run is compromised. Fix it, then approve a clean restart.'
-  if (stopped) return 'Lift Stop all first, then resume agents one at a time.'
   return null
 }
 
 /** Resume shows only on a halted run that has no restart yet. */
 export const canResume = (run: Run, runs: Run[]) =>
   run.status === 'halted' && !runs.some((r) => r.restarted_from === run.id)
+
+/** Resume all has work to do: Stop all is on, or a halted run can resume. */
+export const resumeAllOn = (runs: Run[], incidents: Incident[], events: MirageEvent[]) =>
+  stopOn(events) || runs.some((r) => canResume(r, runs) && !resumeBlock(r, incidents))
