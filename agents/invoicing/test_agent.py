@@ -23,3 +23,20 @@ def test_reminds_overdue_invoice():
     assert store.state()["outbox"] == [{"to": "david.kim@tailspin-demo.com", "subject": "Reminder: INV-1042",
                                         "body": "Hi David, a friendly reminder that INV-1042 is overdue."}]
     assert next(i for i in invoices.all_invoices() if i["id"] == "INV-1042")["reminded"] is True
+
+
+def test_invoice_lifecycle_tools():
+    store.reset()
+    invoices.reset()
+    model = scripted(
+        call("create_invoice", contact_id="c_006", amount_eur=500, due="2026-11-30"),
+        call("send_invoice", invoice_id="INV-1044"),
+        call("record_payment", invoice_id="INV-1044", amount_eur=200),
+        call("record_payment", invoice_id="INV-1044", amount_eur=300),
+        AIMessage("Invoiced and collected."),
+    )
+
+    build_agent(model).invoke({"messages": [("user", "Invoice Farid 500 EUR and record his two payments.")]})
+
+    assert store.state()["outbox"][0]["to"] == "farid.haddad@litware-demo.com"
+    assert invoices.get("INV-1044")["status"] == "paid"
