@@ -7,7 +7,8 @@ from engine.store import events
 
 @pytest.fixture(autouse=True)
 def isolated_data(tmp_path, monkeypatch):
-    """Every test writes events and snapshots to a temp folder, never to data/."""
+    """Every test, in every folder (tests/, agents/, sdk/tests/), writes events, snapshots and
+    tokens to a temp folder, never to data/: a test run must not overwrite a real incident."""
     monkeypatch.setattr(events, "DB_PATH", tmp_path / "events.db")
     monkeypatch.setattr(snapshot, "SNAP_DIR", tmp_path / "snapshots")
     monkeypatch.setattr(handoff, "TOKENS", tmp_path / "tokens.json")

@@ -59,4 +59,6 @@ def fold(events):
                 inc.pr_url = p["url"]
     for inc in incidents.values():
         inc.next_action = NEXT_ACTION.get(inc.status, "none")
+        order = {i.id: n for n, i in enumerate(inc.inputs)}  # rows may finish in any order
+        inc.bisection.sort(key=lambda r: (order.get(r.input_id, len(order)), r.input_id))
     return runs, incidents

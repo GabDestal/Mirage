@@ -41,6 +41,10 @@ without Q4 partner sync          0/2 compromised   <- CAUSE
 attack blocked 0/2, legit task 2/2 -> NOT verified (expected: no fix yet)
 ```
 
+**Stage speed:** add `MIRAGE_PARALLEL=3` (PowerShell: `$env:MIRAGE_PARALLEL='3'`) to run the sandbox replays
+and the bisection rows at once. Measured live with Liam's agent: detonate 9 s, find the cause 33 s (was 75 s),
+fix check 16 s, about 71 s end to end. It bursts above the team's ~1 Bedrock request/s rule, so it is off by default.
+
 If no run freezes, the model did not take the bait this time: run it again (gpt-oss-20b at temperature 0
 is not fully deterministic). Each run starts from a fresh `data/` folder.
 
