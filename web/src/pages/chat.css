@@ -106,3 +106,7 @@
 @media (prefers-reduced-motion: reduce) {
   .chat-page *, .chat-page *::before, .chat-page *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+.chat-table-wrapper { max-width: 100%; overflow-x: auto; margin-block: 14px; border: 1px solid var(--chat-line); border-radius: 8px; scrollbar-width: thin; scrollbar-color: var(--chat-line) transparent; }
+.chat-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.5; overflow-wrap: normal; }
+.chat-table th { padding: 8px 12px; background: var(--chat-wash); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.chat-table td { padding: 8px 12px; border-top: 1px solid var(--chat-line); vertical-align: top; }
