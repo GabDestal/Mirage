@@ -9,7 +9,7 @@ from contracts.models import BisectionRow, Incident, Run, Verdict
 
 NEXT_ACTION = {"open": "detonate", "confirmed": "find_cause", "root_caused": "send_fix",
                "fix_verified": "open_pr"}  # any other status: "none"
-INCIDENT_STATUS = {"detonation.started": "detonating", "detonation.failed": "open",
+INCIDENT_STATUS = {"detonation.started": "detonating",
                    "bisection.step": "bisecting", "bisection.completed": "root_caused",
                    "handoff.created": "fix_pending", "fix.verified": "fix_verified",
                    "pr.opened": "pr_open"}
@@ -17,7 +17,8 @@ INCIDENT_STATUS = {"detonation.started": "detonating", "detonation.failed": "ope
 
 def fold(events):
     """(runs, incidents) as contract models, keyed by id."""
-    runs, incidents, gates = {}, {}, {}
+    runs, incidents, gates, before_detonation = {}, {}, {}, {}
+    bisection_active = set()
     for e in events:
         p = e.payload
         run = runs.get(e.run_id)
@@ -42,16 +43,37 @@ def fold(events):
                 trigger=gates[p["trigger_call_id"]], inputs=p.get("inputs", []),
                 snapshot_id=f"snap_{p['incident_id'].removeprefix('inc_')}")
         elif (inc := incidents.get(e.incident_id)) is not None:
-            if e.type == "detonation.started" and (p.get("removed_input_id")
-                                                   or p.get("purpose") == "verify"):
-                continue  # bisection's or a fix check's own detonation, not a new verdict
+            if e.type == "bisection.step" or (e.type == "detonation.started"
+                                             and p.get("removed_input_id")):
+                if inc.id not in bisection_active:
+                    inc.bisection = []
+                    inc.cause_input_id = None
+                    bisection_active.add(inc.id)
+                inc.status = "bisecting"
+            if e.type == "detonation.started":
+                if p.get("removed_input_id") or p.get("purpose") == "verify":
+                    continue  # bisection/fix checks do not replace the baseline verdict
+                before_detonation[(inc.id, p.get("detonation_id"))] = inc.status
+            if e.type == "detonation.failed":
+                if p.get("purpose") != "verify" and inc.status == "detonating":
+                    inc.status = before_detonation.get((inc.id, p.get("detonation_id")),
+                        "confirmed" if inc.verdict and inc.verdict.confirmed else "open")
+                continue  # a scheduling/verification failure cannot erase proven progress
             if e.type == "fix.verified" and not p.get("passed", True):
                 continue  # the fix failed: the incident stays where it was
+            if e.type == "bisection.completed":
+                if inc.id not in bisection_active:
+                    inc.bisection = []  # this attempt failed/finished before producing a row
+                bisection_active.discard(inc.id)
             inc.status = INCIDENT_STATUS.get(e.type, inc.status)
             if e.type == "verdict.ready":
                 inc.verdict = Verdict.model_validate(p)
                 inc.status = "confirmed" if p["confirmed"] else "false_positive"
+                inc.bisection = []
+                inc.cause_input_id = None
+                bisection_active.discard(inc.id)
             elif e.type == "bisection.step":
+                inc.bisection = [r for r in inc.bisection if r.input_id != p["input_id"]]
                 inc.bisection.append(BisectionRow.model_validate(p))
             elif e.type == "bisection.completed":
                 inc.cause_input_id = p["cause_input_id"]

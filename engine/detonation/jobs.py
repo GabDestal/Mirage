@@ -32,7 +32,8 @@ def running(incident_id):
 
 
 def _failed(incident_id, detonation_id, purpose, error):
-    payload = {"incident_id": incident_id, "error": f"{type(error).__name__}: {error}"}
+    payload = {"incident_id": incident_id, "purpose": purpose,
+               "error": f"{type(error).__name__}: {error}"}
     if purpose == "bisect":
         payload["cause_input_id"] = None
         kind = "bisection.completed"
