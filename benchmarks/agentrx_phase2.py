@@ -413,6 +413,7 @@ def run(native: Path, lease_path: Path, env: Path):
             try:
                 row['native_scores'] = base.score(native, row, final, OUTPUT / 'native_scores' / (stem + '.json'))
                 row['status'] = 'completed'
+                row['validation_method'] = 'released_native_label_loader_and_analysis; scorer_only'
                 row['metric_unknown_reasons'] = {k: 'missing_prediction_or_native_label' for k in ('critical_step_correct', 'root_cause_correct') if row['native_scores'][k] is None}
             except Exception as error:
                 row.update(status='unknown', unknown_reason='native_scoring_failure:' + type(error).__name__, scoring_error=str(error))
@@ -430,14 +431,14 @@ def report():
     groups = defaultdict(list)
     for row in rows:
         for metric in ('critical_step_correct', 'root_cause_correct'):
-            groups[(row['model_id'], row['arm'], metric)].append(row.get('native_scores', {}).get(metric))
+            groups[(row['model_id'], row['arm'], metric)].append(reporting.metric(row, metric))
     tables = [{'model_id': m, 'arm': a, 'metric': k, **reporting.bounds(v)} for (m, a, k), v in groups.items()]
     paired = []
     for model in sorted({r['model_id'] for r in rows}):
         for metric in ('critical_step_correct', 'root_cause_correct'):
             counts = dict(wins=0, losses=0, ties=0, unknown=0)
             for case in sorted({r['case_id'] for r in rows}):
-                pair = {r['arm']: r.get('native_scores', {}).get(metric) for r in rows if r['model_id'] == model and r['case_id'] == case}
+                pair = {r['arm']: reporting.metric(r, metric) for r in rows if r['model_id'] == model and r['case_id'] == case}
                 simple, assisted = pair.get('simple_diagnosis'), pair.get('evidence_assisted_diagnosis')
                 which = 'unknown' if simple is None or assisted is None else 'wins' if assisted > simple else 'losses' if assisted < simple else 'ties'
                 counts[which] += 1
@@ -479,6 +480,10 @@ def self_check():
     rejects(diagnosis, '{"critical_failure_step":1,"failure_category":1}', 2)
     rejects(verify_hashes, {str(Path(__file__)): 'invalid pin'})
     assert reporting.bounds([True, None, False])['bounds'] == [1/3, 2/3]
+    scored = {'status': 'completed', 'native_scores': {'critical_step_correct': True},
+              'validation_method': 'released_native_label_loader_and_analysis; scorer_only', 'evidence_refs': ['synthetic']}
+    assert reporting.metric(scored, 'critical_step_correct') == 1
+    assert reporting.metric({**scored, 'validation_method': None}, 'critical_step_correct') is None
     expected = {'benchmark': 'AgentRx', 'case_id': 'synthetic', 'arm': 'simple_diagnosis'}
     reconciled, issues = reporting.reconcile([expected], [])
     assert len(reconciled) == 1 and reconciled[0]['status'] == 'unknown' and not issues
