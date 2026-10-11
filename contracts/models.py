@@ -36,6 +36,7 @@ HumanActionType = Literal[
     "approve", "reject", "handoff", "merge", "detonate", "find_cause", "verify",
     "repair",
     "activate_rule",
+    "assess_exposure",
 ]
 
 
@@ -293,6 +294,50 @@ class RepairCommandEvidence(Model):
     exit_code: int = Field(strict=True)
     result: DetonateResult
     replay_errors: int = Field(ge=0, strict=True)
+
+
+class ExposureObservation(Model):
+    compromised_runs: Literal["0/1", "1/1"]
+    attack_blocked: Literal["0/1", "1/1"]
+    legit_task_completed: Literal["0/1", "1/1"]
+    completed: bool
+    error: Literal["replay_failed", "tool_error"] | None = None
+    effects: list[Effect] = []
+
+
+class ExposureResult(Model):
+    agent_name: str
+    status: Literal["vulnerable", "blocked", "not_applicable", "could_not_evaluate"]
+    reason: str
+    snapshot_id: str | None = None
+    snapshot_revision: str | None = None
+    attack_snapshot_revision: str | None = None
+    clean_snapshot_revision: str | None = None
+    code_revision: str | None = None
+    policy_revision: str | None = None
+    replay_kind: Literal["scripted", "model_backed", "unknown"] = "unknown"
+    attack: ExposureObservation | None = None
+    clean: ExposureObservation | None = None
+
+
+class ExposureCandidate(Model):
+    agent_name: str
+    role: str
+    status: Literal["unassessed", "not_applicable", "could_not_evaluate"]
+    reason: str
+
+
+class CreateExposureJob(HumanRequest):
+    agent_names: list[str] = Field(min_length=1, max_length=8)
+
+
+class ExposureJob(Model):
+    id: str
+    incident_id: str
+    agent_names: list[str]
+    status: Literal["queued", "running", "completed", "failed"]
+    results: list[ExposureResult] = []
+    error: Literal["execution_failed", "stopped", "interrupted"] | None = None
 
 
 # --- Data plane: SDK -> engine (CONTRACTS.md §11) ----------------------------------------

@@ -30,9 +30,10 @@ class AlreadyRunning(Busy):
     """The automatic/manual race already has one winner."""
 
 
-def running(incident_id):
+def running(incident_id, job_id=None):
     with lock:
-        return incident_id in _pending
+        job = _pending.get(incident_id)
+        return job is not None and (job_id is None or job["metadata"].id == job_id)
 
 
 def _changed(incident_id, job, status, epoch, error=None):
@@ -76,7 +77,7 @@ def discard_stale(epoch):
 
 
 def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queued=None,
-           finished=None):
+           finished=None, on_status=None):
     """Reserve before auditing/starting; work(det_id) runs asynchronously, never in the gate."""
     global _pool
     from engine.gateway import gate
@@ -91,6 +92,25 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
         det_id = f"det_{incident_id.removeprefix('inc_')}_{uuid4().hex[:12]}"
         metadata = SandboxJob(id=det_id, purpose=purpose, status="queued", n_runs=n_runs)
         job = {"future": None, "metadata": metadata, "epoch": epoch}
+
+        def changed(status, error=None):
+            if on_status:
+                metadata.status, metadata.error = status, error
+                on_status(det_id, status, error)
+            else:
+                _changed(incident_id, metadata, status, epoch, error)
+
+        def failed(error, category="execution_failed"):
+            if on_status:
+                try:
+                    changed("failed", "stopped" if isinstance(error, Busy) else category)
+                except events.StaleEpoch:
+                    pass  # shutdown cannot write old exposure metadata into a reset namespace
+            else:
+                _failed(incident_id, det_id, purpose, error, n_runs=n_runs,
+                        category=category, epoch=epoch)
+
+        job["failed"] = failed
         _pending[incident_id] = job
 
         def run():
@@ -103,14 +123,14 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
                 if gate.STOP.is_set():
                     raise Busy("Global STOP cancelled queued sandbox work")
                 with events.mirage_writes(epoch, incident_id):
-                    _changed(incident_id, metadata, "running", epoch)
-                    if purpose != "bisect":
+                    changed("running")
+                    if purpose != "bisect" and on_status is None:
                         events.emit("detonation.started", {"incident_id": incident_id,
                                     "detonation_id": det_id, "n_runs": n_runs,
                                     "removed_input_id": None, "purpose": purpose},
                                     incident_id=incident_id, env="mirage", expected_epoch=epoch)
                     result = work(det_id)
-                    _changed(incident_id, metadata, "completed", epoch)
+                    changed("completed")
                 if finished:
                     finished(result, det_id, job)
             except events.StaleEpoch:
@@ -121,7 +141,7 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
                         finished(None, det_id, job)
                     except Exception:  # noqa: BLE001, S110 - evidence failure cannot release
                         pass
-                _failed(incident_id, det_id, purpose, error, n_runs=n_runs, epoch=epoch)
+                failed(error)
             finally:
                 with lock:
                     if _pending.get(incident_id) is job:
@@ -130,7 +150,7 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
                         _active = None
 
         try:
-            _changed(incident_id, metadata, "queued", epoch)
+            changed("queued")
             if audit:
                 audit()
             if _pool is None:
@@ -141,8 +161,7 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
         except Exception as error:
             if _pending.get(incident_id) is job:
                 _pending.pop(incident_id)
-            _failed(incident_id, det_id, purpose, error, n_runs=n_runs,
-                    category="scheduling_failed", epoch=epoch)
+            failed(error, category="scheduling_failed")
             raise
         return det_id
 
@@ -342,9 +361,7 @@ def shutdown():
             if job is not _active:
                 if job["future"]:
                     job["future"].cancel()
-                metadata = job["metadata"]
-                _failed(incident_id, metadata.id, metadata.purpose, None,
-                        n_runs=metadata.n_runs, category="interrupted", epoch=job["epoch"])
+                job["failed"](None, category="interrupted")
                 _pending.pop(incident_id)
     if pool:
         pool.shutdown(wait=True, cancel_futures=True)
