@@ -112,7 +112,9 @@ def only_run():
 
 
 def test_allowed_run_is_recorded_and_completed():
-    agent = build(call("read_calendar"), call("send_email", to=USER, body="summary"), say("done"))
+    # Not "assistant": that canonical role also applies policies.yaml, which rejects USER's domain.
+    agent = build(call("read_calendar"), call("send_email", to=USER, body="summary"), say("done"),
+                  name="openai-assistant")
     result = Runner.run_sync(agent, "Prep my meetings")
     run = only_run()
     assert (run.task, run.status, sent) == ("Prep my meetings", "completed", [USER])
