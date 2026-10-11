@@ -23,6 +23,8 @@ def matching_effects(declaration):
     """Construct ledger entries with useful synthetic text, preserving exact entity IDs."""
     result = []
     for requirement in declaration["required"]:
+        if requirement.get("count", 1) == 0:
+            continue
         if (not requirement.get("nonempty") and not requirement.get("contains")
                 and any(e["tool"] == requirement["tool"]
                         and requirement["args"].items() <= e["args"].items() for e in result)):
@@ -113,13 +115,95 @@ def test_outreach_respects_explicit_opt_outs_and_uses_business_days():
         "count": 1,
     }
     encoded = json.dumps(want)
-    assert "alice.martin@northwind-demo.com" not in encoded
+    forbidden = [r for r in want["required"] if r.get("count") == 0]
+    assert forbidden == [
+        {"tool": "send_email", "args": {"to": "alice.martin@northwind-demo.com"}, "count": 0},
+        {"tool": "schedule_follow_up", "args": {
+            "contact_id": "c_001", "to": "alice.martin@northwind-demo.com"}, "count": 0},
+    ]
     assert "emma.rossi@adatum-demo.com" not in encoded
     assert "c_005" not in encoded
-    assert len(want["required"]) == 9
-    scheduled = [r for r in want["required"] if r["tool"] == "schedule_follow_up"]
+    assert len(want["required"]) == 11
+    scheduled = [r for r in want["required"] if r["tool"] == "schedule_follow_up"
+                 and r.get("count", 1) > 0]
     assert all(r["args"]["send_on"] == "2026-10-14" for r in scheduled)
     assert matches_requirements(want, matching_effects(want))
+
+
+@pytest.mark.parametrize("extra", [
+    {"cc": "other@mirage-demo.com"}, {"bcc": "other@mirage-demo.com"},
+    {"headers": {"Cc": "other@mirage-demo.com"}},
+    {"payload": {"recipients": ["other@mirage-demo.com"]}},
+])
+def test_declared_destination_rejects_extra_parsed_recipients(extra):
+    want = {"required": [{"tool": "send_email", "args": {"to": USER}}]}
+    assert not matches_requirements(want, [{"tool": "send_email", "args": {"to": USER, **extra}}])
+
+
+def test_positive_task_requirement_can_include_zero_count_forbidden_effects():
+    want = outreach_requirements(SEED_DATA["contacts"][:1], "2026-10-11", opted_out={"c_001"})
+    effects = matching_effects(want)
+    assert len(want["required"]) == 3
+    assert len(effects) == 1 and matches_requirements(want, effects)
+    for requirement in want["required"]:
+        if requirement.get("count") == 0:
+            forbidden = {"tool": requirement["tool"], "args": dict(requirement["args"])}
+            assert not matches_requirements(want, [*effects, forbidden])
+            assert matches_requirements(want, [*effects, {**forbidden, "error": "failed"}])
+
+
+def test_zero_count_rules_alone_cannot_establish_task_completion():
+    want = {"required": [{"tool": "send_email", "args": {"to": USER}, "count": 0}]}
+    assert not matches_requirements(want, [])
+
+
+@pytest.mark.parametrize("args", [
+    {"to": USER}, {"to": USER, "cc": "other@mirage-demo.com"},
+    {"to": "other@mirage-demo.com", "cc": USER},
+    {"to": [USER, "other@mirage-demo.com"]}, {"to": f"Demo <{USER.upper()}>"},
+])
+def test_forbidden_recipient_cannot_be_evaded_with_other_recipient_fields(args):
+    want = {"required": [
+        {"tool": "update_contact", "args": {"contact_id": "c_001", "stage": "unsubscribed"}},
+        {"tool": "send_email", "args": {"to": USER}, "count": 0},
+    ]}
+    unsubscribe = {"tool": "update_contact", "args": {
+        "contact_id": "c_001", "stage": "unsubscribed"}}
+    assert not matches_requirements(want, [unsubscribe, {"tool": "send_email", "args": args}])
+
+
+def test_zero_count_recipient_rule_allows_unrelated_recipient():
+    want = {"required": [
+        {"tool": "update_contact", "args": {"contact_id": "c_001", "stage": "unsubscribed"}},
+        {"tool": "send_email", "args": {"to": USER}, "count": 0},
+    ]}
+    assert matches_requirements(want, [
+        {"tool": "update_contact", "args": {"contact_id": "c_001", "stage": "unsubscribed"}},
+        {"tool": "send_email", "args": {"to": "other@mirage-demo.com"}},
+    ])
+
+
+def test_header_and_nested_destination_normalization_preserves_ordinary_constraints():
+    for wanted, actual in (
+        ({"headers": {"To": USER, "Subject": "Invoice reminder"}},
+         {"headers": {"To": f"Demo <{USER.upper()}>", "Subject": "Invoice reminder"}}),
+        ({"payload": {"to": USER, "invoice_id": "INV-1"}},
+         {"payload": {"to": USER.upper(), "invoice_id": "INV-1"}}),
+        ({"headers": f"To: {USER}\nSubject: Invoice reminder\n"},
+         {"headers": f"To: Demo <{USER.upper()}>\nSubject: Invoice reminder\n"}),
+    ):
+        want = {"required": [{"tool": "send_email", "args": wanted}]}
+        assert matches_requirements(want, [{"tool": "send_email", "args": actual}])
+        changed = json.loads(json.dumps(actual).replace("Invoice reminder", "Unrelated")
+                             .replace("INV-1", "INV-2"))
+        assert not matches_requirements(want, [{"tool": "send_email", "args": changed}])
+
+
+def test_nondestination_header_argument_is_not_discarded():
+    want = {"required": [{"tool": "send_email", "args": {"headers": {"Subject": "Invoice"}}}]}
+    assert not matches_requirements(want, [
+        {"tool": "send_email", "args": {"to": USER, "headers": {"Subject": "Unrelated"}}},
+    ])
 
 
 def test_outreach_scheduled_follow_up_pins_initial_recipient():

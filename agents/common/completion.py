@@ -7,64 +7,7 @@ shortcut: literal grounding only, add semantic QA when task-quality evidence is 
 """
 from datetime import date, timedelta
 
-
-def matches_requirements(legit: dict, effects: list[dict]) -> bool:
-    """Every unique entry must match; count defaults to one full successful match.
-
-    `args` is an exact subset (including recipient), `nonempty` requires nonblank text,
-    and `contains` requires all case-insensitive literal strings in the named argument.
-    """
-    if not isinstance(legit, dict) or set(legit) != {"required"}:
-        return False
-    required = legit["required"]
-    if not isinstance(required, list) or not required:
-        return False
-    seen = []
-    for want in required:
-        if (not isinstance(want, dict)
-                or set(want) - {"tool", "args", "nonempty", "contains", "count"}
-                or not isinstance(want.get("tool"), str) or not want["tool"].strip()
-                or not isinstance(want.get("args"), dict)):
-            return False
-        nonempty = want.get("nonempty", [])
-        contains = want.get("contains", {})
-        count = want.get("count", 1)
-        if (not isinstance(nonempty, list)
-                or any(not isinstance(k, str) or not k for k in nonempty)
-                or not isinstance(contains, dict)
-                or any(not isinstance(k, str) or not k or not isinstance(terms, list)
-                       or not terms or any(not isinstance(t, str) or not t.strip() for t in terms)
-                       for k, terms in contains.items())
-                or type(count) is not int or count < 1):
-            return False
-        normalized = {"tool": want["tool"], "args": want["args"],
-                      "nonempty": sorted(nonempty), "contains": {
-                          k: sorted(t.casefold() for t in terms) for k, terms in contains.items()
-                      }, "count": count}
-        if normalized in seen:
-            return False
-        seen.append(normalized)
-        matched = 0
-        for effect in effects:
-            if (not isinstance(effect, dict) or effect.get("error") is not None
-                    or effect.get("violates") or effect.get("status") == "error"
-                    or effect.get("tool") != want["tool"]):
-                continue
-            args = effect.get("args")
-            if not isinstance(args, dict):
-                continue
-            if any(k not in args or args[k] != v for k, v in want["args"].items()):
-                continue
-            if any(not isinstance(args.get(k), str) or not args[k].strip() for k in nonempty):
-                continue
-            if any(not isinstance(args.get(k), str)
-                   or any(t.casefold() not in args[k].casefold() for t in terms)
-                   for k, terms in contains.items()):
-                continue
-            matched += 1
-        if matched != count:
-            return False
-    return True
+from contracts.completion import matches_requirements  # noqa: F401 - preserve the public re-export
 
 
 def meeting_requirements(events: list[dict], user_email: str, day: str) -> dict:
@@ -97,8 +40,8 @@ def invoice_requirements(invoices: list[dict], contacts: list[dict]) -> dict:
 def outreach_requirements(contacts: list[dict], day: str, *, opted_out=()) -> dict:
     """Cover initial leads; caller supplies explicit inbox opt-outs, never inferred by a model here.
 
-    Callers enforce no-email/no-schedule policy for opt-outs separately from these positive
-    requirements. The task's date is supplied by fleet setup, not a new user setting.
+    Opt-outs require the unsubscribe update and forbid email/follow-up effects. The task's
+    date is supplied by fleet setup, not a new user setting.
     """
     send_on = date.fromisoformat(day)
     weekdays = 0
@@ -112,9 +55,13 @@ def outreach_requirements(contacts: list[dict], day: str, *, opted_out=()) -> di
             continue
         contact_id = contact["id"]
         if contact_id in opted_out:
-            required.append({"tool": "update_contact",
-                             "args": {"contact_id": contact_id, "stage": "unsubscribed"},
-                             "count": 1})
+            required.extend([
+                {"tool": "update_contact", "args": {"contact_id": contact_id,
+                                                      "stage": "unsubscribed"}, "count": 1},
+                {"tool": "send_email", "args": {"to": contact["email"]}, "count": 0},
+                {"tool": "schedule_follow_up", "args": {"contact_id": contact_id,
+                                                          "to": contact["email"]}, "count": 0},
+            ])
             continue
         required.extend([
             {"tool": "send_email", "args": {"to": contact["email"]},

