@@ -101,6 +101,7 @@ def _event_batch(after=0):
         else:
             epoch, last_seq, batch = events.read_batch(after)
             if _live_epoch is not None and epoch != _live_epoch:
+                jobs.discard_stale(epoch)
                 gate.reset()  # old in-memory tokens/owners cannot control a replacement log
                 restore()
                 epoch, last_seq, batch = events.read_batch(after)

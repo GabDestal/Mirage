@@ -404,6 +404,14 @@ Graceful shutdown cancels queued work and drains active sandbox work before exit
 Reservations are process-local: stop standalone dev/CLI processes before resetting shared
 data, and use the SDK/API fleet for the dashboard demo. Replay mode retains fixture stepping.
 
+Detected external file replacement restores registrations and STOP from the replacement log,
+revokes old in-memory owners, and fences proof-job emissions to their reserved store epoch.
+Old active work may drain, but its verdict/effects/lifecycle cannot enter the replacement log;
+new same-ID reservations survive old-job cleanup and execute on the existing single-worker queue.
+This also covers nested sandbox worker threads. Epoch visibility does not establish distributed
+production-control authority: standalone processes must still be stopped before shared resets,
+and cross-process live STOP append synchronization is outside this prototype's control guarantee.
+
 ## 6. Coding agent contract (`mirage detonate`)
 
 Same output for CLI, MCP and HTTP.

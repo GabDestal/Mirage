@@ -9,6 +9,7 @@ import re
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -22,6 +23,25 @@ _lock = threading.Lock()
 _conn = None
 _identity = None
 _epoch = None
+_mirage_guard = None
+
+
+class StaleEpoch(RuntimeError):
+    """Sandbox work belongs to a replaced event stream."""
+
+
+@contextmanager
+def mirage_writes(epoch, incident_id):
+    """The one active sandbox job also fences emissions from its nested worker threads."""
+    global _mirage_guard
+    with _lock:
+        previous = _mirage_guard
+        _mirage_guard = (epoch, incident_id)
+    try:
+        yield
+    finally:
+        with _lock:
+            _mirage_guard = previous
 
 
 def _db():
@@ -69,9 +89,16 @@ def reset():
             Path(f"{DB_PATH}{suffix}").unlink(missing_ok=True)
 
 
-def emit(type, payload=None, *, env="prod", run_id=None, incident_id=None) -> Event:
+def emit(type, payload=None, *, env="prod", run_id=None, incident_id=None,
+         expected_epoch=None) -> Event:
     with _lock:
         db = _db()
+        if expected_epoch is None and env == "mirage" and _mirage_guard:
+            epoch, guarded_incident = _mirage_guard
+            if incident_id == guarded_incident:
+                expected_epoch = epoch
+        if expected_epoch is not None and expected_epoch != _epoch:
+            raise StaleEpoch("Sandbox work belongs to a replaced event stream")
         # The write lock is taken before reading the last seq, so two processes (API, CLI,
         # agents) can never give two events the same seq.
         db.execute("BEGIN IMMEDIATE")

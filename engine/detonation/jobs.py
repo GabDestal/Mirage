@@ -32,15 +32,17 @@ def running(incident_id):
         return incident_id in _pending
 
 
-def _changed(incident_id, job, status, error=None):
+def _changed(incident_id, job, status, epoch, error=None):
     job.status, job.error = status, error
     events.emit("agent.message", {"role": "system",
                 "text": f"Sandbox {job.purpose} {status}.",
-                "sandbox_job": job.model_dump()}, incident_id=incident_id, env="mirage")
+                "sandbox_job": job.model_dump()}, incident_id=incident_id, env="mirage",
+                expected_epoch=epoch)
 
 
 def _failed(incident_id, detonation_id, purpose, error, *, n_runs=3,
-            category="execution_failed"):
+            category="execution_failed", epoch=None):
+    epoch = epoch or events.read_batch()[0]
     if isinstance(error, Busy):
         category = "stopped"
     detonation_id = detonation_id or f"det_{incident_id.removeprefix('inc_')}_{uuid4().hex[:12]}"
@@ -54,7 +56,20 @@ def _failed(incident_id, detonation_id, purpose, error, *, n_runs=3,
     else:
         payload["detonation_id"] = detonation_id
         kind = "detonation.failed"
-    events.emit(kind, payload, incident_id=incident_id, env="mirage")
+    try:
+        events.emit(kind, payload, incident_id=incident_id, env="mirage", expected_epoch=epoch)
+    except events.StaleEpoch:
+        pass  # failure from an old snapshot cannot mutate its replacement namespace
+
+
+def discard_stale(epoch):
+    """Release old reservations, retaining physical active work until its fenced exit."""
+    with lock:
+        for incident_id, job in list(_pending.items()):
+            if job["epoch"] != epoch:
+                if job["future"]:
+                    job["future"].cancel()
+                _pending.pop(incident_id)
 
 
 def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queued=None):
@@ -63,13 +78,15 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
     from engine.gateway import gate
 
     with lock:
+        epoch = events.read_batch()[0]
+        discard_stale(epoch)
         if not _accepting or gate.STOP.is_set():
             raise Busy("Sandbox scheduling is stopped; retry explicitly after demo reset")
         if incident_id in _pending:
             raise AlreadyRunning("A detonation or bisection is already running for this incident")
         det_id = f"det_{incident_id.removeprefix('inc_')}_{uuid4().hex[:12]}"
         metadata = SandboxJob(id=det_id, purpose=purpose, status="queued", n_runs=n_runs)
-        job = {"future": None, "metadata": metadata}
+        job = {"future": None, "metadata": metadata, "epoch": epoch}
         _pending[incident_id] = job
 
         def run():
@@ -81,23 +98,28 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
             try:
                 if gate.STOP.is_set():
                     raise Busy("Global STOP cancelled queued sandbox work")
-                _changed(incident_id, metadata, "running")
-                if purpose != "bisect":
-                    events.emit("detonation.started", {"incident_id": incident_id,
-                                "detonation_id": det_id, "n_runs": n_runs,
-                                "removed_input_id": None, "purpose": purpose},
-                                incident_id=incident_id, env="mirage")
-                work(det_id)
-                _changed(incident_id, metadata, "completed")
+                with events.mirage_writes(epoch, incident_id):
+                    _changed(incident_id, metadata, "running", epoch)
+                    if purpose != "bisect":
+                        events.emit("detonation.started", {"incident_id": incident_id,
+                                    "detonation_id": det_id, "n_runs": n_runs,
+                                    "removed_input_id": None, "purpose": purpose},
+                                    incident_id=incident_id, env="mirage", expected_epoch=epoch)
+                    work(det_id)
+                    _changed(incident_id, metadata, "completed", epoch)
+            except events.StaleEpoch:
+                pass  # the replacement log owns all subsequent proof, even when ids repeat
             except Exception as error:  # noqa: BLE001 - preserve freeze; explicit retry only
-                _failed(incident_id, det_id, purpose, error, n_runs=n_runs)
+                _failed(incident_id, det_id, purpose, error, n_runs=n_runs, epoch=epoch)
             finally:
                 with lock:
-                    _pending.pop(incident_id, None)
-                    _active = None
+                    if _pending.get(incident_id) is job:
+                        _pending.pop(incident_id)
+                    if _active is job:
+                        _active = None
 
         try:
-            _changed(incident_id, metadata, "queued")
+            _changed(incident_id, metadata, "queued", epoch)
             if audit:
                 audit()
             if _pool is None:
@@ -106,9 +128,10 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
             if queued:
                 queued()
         except Exception as error:
-            _pending.pop(incident_id, None)
+            if _pending.get(incident_id) is job:
+                _pending.pop(incident_id)
             _failed(incident_id, det_id, purpose, error, n_runs=n_runs,
-                    category="scheduling_failed")
+                    category="scheduling_failed", epoch=epoch)
             raise
         return det_id
 
@@ -175,7 +198,7 @@ def shutdown():
                     job["future"].cancel()
                 metadata = job["metadata"]
                 _failed(incident_id, metadata.id, metadata.purpose, None,
-                        n_runs=metadata.n_runs, category="interrupted")
+                        n_runs=metadata.n_runs, category="interrupted", epoch=job["epoch"])
                 _pending.pop(incident_id)
     if pool:
         pool.shutdown(wait=True, cancel_futures=True)

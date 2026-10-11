@@ -7,7 +7,7 @@ import sqlite3
 import subprocess
 import sys
 import threading
-from concurrent.futures import Future
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
@@ -119,6 +119,24 @@ def stream_frames(last_event_id, count):
 
 def first_frame(last_event_id):
     return stream_frames(last_event_id, 1)[0]
+
+
+def save_log(tmp_path):
+    saved = tmp_path / "restored.db"
+    with closing(sqlite3.connect(saved)) as backup:
+        events._db().backup(backup)
+    return saved
+
+
+def replace_log(saved, tmp_path):
+    child(f'''
+import json
+import shutil
+from engine.store import events
+events.reset()
+shutil.copyfile({str(saved)!r}, events.DB_PATH)
+print(json.dumps({{"restored": True}}))
+''', tmp_path)
 
 
 def test_runtime_reports_current_owners_separately_from_external_history(api):
@@ -316,24 +334,99 @@ def test_external_restore_interrupts_old_queued_jobs_without_replaying(api, defe
     _, incident_id = freeze(api)
     jobs.submit(incident_id, lambda _: pytest.fail("Restored work must never execute"))
     before = runtime(api)
-    restored_db = tmp_path / "restored.db"
-    with closing(sqlite3.connect(restored_db)) as backup:
-        events._db().backup(backup)
+    restored_db = save_log(tmp_path)
     jobs.shutdown()  # no live executor remains; the saved history still contains its queue
-    child(f'''
-import json
-import shutil
-from engine.store import events
-events.reset()
-shutil.copyfile({str(restored_db)!r}, events.DB_PATH)
-print(json.dumps({{"restored": True}}))
-''', tmp_path)
+    replace_log(restored_db, tmp_path)
     after = runtime(api)
     assert after["stream_epoch"] != before["stream_epoch"]
     assert after["owned_run_ids"] == []
     job = public_job(api, incident_id)
     assert job["status"] == "failed" and job["error"] == "interrupted"
     assert not jobs.running(incident_id)
+
+
+def test_external_restore_recovers_stop_and_registration_without_historical_owners(api, tmp_path):
+    old_run, auth = start(api)
+    assert api.post("/agents", json={**AGENT, "name": "restored_agent"}).status_code == 200
+    assert api.post("/stop", json=HUMAN).status_code == 200
+    saved = save_log(tmp_path)
+    assert api.post("/stop/lift", json=HUMAN).status_code == 204
+    assert api.post("/agents", json={**AGENT, "name": "current_only"}).status_code == 200
+    before = runtime(api)
+    replace_log(saved, tmp_path)
+    after = runtime(api)
+    assert after["stream_epoch"] != before["stream_epoch"] and after["owned_run_ids"] == []
+    assert gate.STOP.is_set()
+    assert set(gate.agents) == {AGENT["name"], "restored_agent"}
+    assert api.post("/runs", json={"agent": "restored_agent", "task": "Synthetic"}).status_code == 409
+    assert api.get(f"/runs/{old_run}/wait", headers=auth).status_code == 404
+
+
+@pytest.mark.parametrize("reuse_reservation", [False, True])
+@pytest.mark.parametrize("nested_thread", [False, True])
+def test_external_reset_fences_active_job_and_preserves_reused_incident_reservation(
+        api, tmp_path, reuse_reservation, nested_thread):
+    old_run, old_auth = start(api)
+    assert check(api, old_run, old_auth, "send_email", to=ATTACKER).json()["decision"] == "freeze"
+    incident_id = gate.runs[old_run].incident_id
+    entered, release, new_entered, new_release = (threading.Event() for _ in range(4))
+
+    def verdict(confirmed, summary):
+        events.emit("verdict.ready", {"incident_id": incident_id, "confirmed": confirmed,
+                    "compromised_runs": "3/3" if confirmed else "0/3", "policies_violated": [],
+                    "blast_radius": {"records": 0, "recipients": [], "secrets": [],
+                                     "summary": summary}}, incident_id=incident_id, env="mirage")
+
+    def old_work(_):
+        entered.set()
+        assert release.wait(5)
+        if nested_thread:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                pool.submit(verdict, True, PRIVATE_MARKER).result(timeout=2)
+        else:
+            verdict(True, PRIVATE_MARKER)
+
+    def new_work(_):
+        new_entered.set()
+        assert new_release.wait(5)
+        verdict(False, "Fresh generation proof")
+
+    old_job = jobs.submit(incident_id, old_work)
+    try:
+        assert entered.wait(2)
+        before = runtime(api)
+        child('''
+import json
+from engine.store import events
+events.reset()
+print(json.dumps({"reset": True}))
+''', tmp_path)
+        assert runtime(api)["stream_epoch"] != before["stream_epoch"]
+        assert api.post("/agents", json=AGENT).status_code == 200
+        _, new_incident = freeze(api)
+        assert new_incident == incident_id
+        assert api.get(f"/runs/{old_run}/wait", headers=old_auth).status_code == 401
+        if reuse_reservation:
+            new_job = jobs.submit(incident_id, new_work)
+            assert public_job(api, incident_id)["id"] == new_job
+        release.set()
+        if reuse_reservation:
+            assert new_entered.wait(2)
+            assert jobs.running(incident_id), "Old job cleanup cannot delete the new reservation"
+            assert public_job(api, incident_id)["id"] == new_job
+            new_release.set()
+        jobs._pool.submit(lambda: None).result(timeout=5)
+        public = api.get("/events").text
+        assert PRIVATE_MARKER not in public and old_job not in public
+        if reuse_reservation:
+            body = api.get(f"/incidents/{incident_id}").json()
+            assert body["verdict"]["confirmed"] is False
+            assert body["sandbox_job"]["id"] == new_job
+            assert body["sandbox_job"]["status"] == "completed"
+    finally:
+        release.set()
+        new_release.set()
+        jobs.shutdown()
 
 
 def test_sse_first_frame_is_named_runtime_even_when_business_events_exist(api):
