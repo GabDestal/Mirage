@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import threading
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -44,6 +45,7 @@ from agents.pr_reviewer.agent import TASK as PR_TASK
 from agents.pr_reviewer.agent import build_agent as build_pr_agent
 from agents.services.store import SEED
 from agents.services.store import reset as reset_store
+from agents.services.store import state as store_state
 
 CUSTOMERS = ["*@contoso-demo.com", "*@fabrikam-demo.com", "*@tailspin-demo.com",
              "*@adatum-demo.com", "*@proseware-demo.com", "*@litware-demo.com",
@@ -113,6 +115,10 @@ def pr_reviewer():
     return _protect(build_pr_agent(), "pr_reviewer")
 
 
+def recovery_checkpoint():
+    return Path(os.getenv("MIRAGE_SNAPSHOTS", "data/snapshots")).parent / "recovery-checkpoint.json"
+
+
 FLEET = [(meeting_assistant, MEETING_TASK), (invoicing, INVOICING_TASK),
          (outreach, OUTREACH_TASK), (pr_reviewer, PR_TASK)]
 
@@ -122,6 +128,10 @@ def setup_demo_services(*, opted_out=()):
     global _legit
     _legit = _requirements(opted_out=opted_out)
     reset_store(seeded(VARIANTS["V2_system_tag"]))
+    # Recovery restarts from this pre-run service state (engine state folder, not the repo).
+    checkpoint = recovery_checkpoint()
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint.write_text(json.dumps(store_state()))
     invoices.reset()
     pull_requests.reset()
     print("[Demo] Seeded synthetic data with 4 agents & poisoned calendar invite.")

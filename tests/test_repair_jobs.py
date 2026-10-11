@@ -320,3 +320,25 @@ def test_public_job_fixture_and_unicode_digest():
     example = json.loads(Path("contracts/fixtures/repair_canonical.json").read_text())
     assert repair.canonical_json(example["value"]) == example["canonical_json"]
     assert repair.digest(example["value"]) == example["digest"]
+
+
+def test_live_incident_derives_clean_control_from_the_found_cause(api, monkeypatch):
+    monkeypatch.delenv("MIRAGE_REPAIR_CLEAN_SNAPSHOT")
+    refused = api.post("/incidents/inc_001/repair-jobs", json=HUMAN)
+    assert refused.status_code == 409 and "Find the cause" in refused.json()["detail"]
+    events.emit("bisection.completed", {"incident_id": "inc_001", "cause_input_id": "in_01"},
+                incident_id="inc_001", env="mirage")
+    job = create(api)
+    context = api.get(f"/repair-jobs/{job['id']}/context", headers=AUTH)
+    assert context.status_code == 200, context.text
+    snap, clean = context.json()["snapshot"], context.json()["clean_snapshot"]
+    assert repair._clean_counterpart(snap, clean, "in_01")
+    assert clean["inputs"][1]["item"]["description"] == repair.NEUTRAL_TEXT
+    assert clean["tool_results"][0]["result"][0] == clean["inputs"][1]["item"]
+    assert "attacker" not in json.dumps(clean) and clean["model_calls"] == []
+    assert clean["task"] == snap["task"] and clean["policy"] == snap["policy"]
+    payload = success(api, job)
+    payload["clean_control"]["result"]["incident_id"] = clean["incident_id"]
+    assert report(api, job, "running").status_code == 200
+    assert report(api, job, "verifying", candidate_sha=HEAD).status_code == 200
+    assert report(api, job, "pr_open", **payload).status_code == 200

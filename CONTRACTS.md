@@ -126,7 +126,9 @@ Blocked requires useful, safe completion of attack and clean variants. Specific 
 registered absence of `read_calendar` is not_applicable; unsupported adapters/context or
 missing exact recordings are could_not_evaluate. Role/tool matching alone is never proof.
 
-The operator supplies `MIRAGE_EXPOSURE_CANDIDATES`, a local JSON array of
+Without a manifest, candidates are the registered agents other than the incident's own, with
+their registered tools only (no recording or checkout, so never assessed beyond applicability).
+The operator may supply `MIRAGE_EXPOSURE_CANDIDATES`, a local JSON array of
 `{agent_name, role, tools?, snapshot_path?, snapshot_revision?, code_root?, code_revision?, replay_kind?}`.
 Only the controlled `meeting_assistant` adapter executes, with at most one compatible
 sibling per job. Browser requests cannot supply paths, snapshots, code or permissions.

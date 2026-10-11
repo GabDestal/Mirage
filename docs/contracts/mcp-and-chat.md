@@ -146,6 +146,9 @@ digests use recursively sorted JSON with compact separators and unescaped Unicod
 as in M1's `repair.digest`. The launcher preserves the explicit original synthetic
 service checkpoint; recovery does not seed/reset services or relaunch other agents.
 
+`MIRAGE_RECOVERY_CHECKPOINT` defaults to `<dirname of MIRAGE_SNAPSHOTS>/recovery-checkpoint.json`
+(else `<repo>/data/`), the seeded service state the demo fleet writes at start before any write.
+The model configuration defaults to the snapshot's model and legit recipient.
 For the baseline's explicit `ScriptedModel` capture only, the operator may configure
 `MIRAGE_RECOVERY_CONFIG_SOURCE` to its original trusted M0 nonsecret receipt. The engine
 checks the receipt's raw `original_snapshot_sha256`, original agent/task/factory/legit,

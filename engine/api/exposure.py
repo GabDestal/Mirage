@@ -50,7 +50,8 @@ def create_router(get_incident, *, replay=False):
         if replay:
             return []  # recordings never expose live candidate paths or capabilities
         try:
-            return exposure.candidate_views(exposure.candidates())
+            agent = snapshot.load(incident_id)["agent"]
+            return exposure.candidate_views(exposure.candidates(agent))
         except (OSError, ValueError):
             raise HTTPException(503, "Exposure candidate configuration is unavailable") from None
 
@@ -63,7 +64,7 @@ def create_router(get_incident, *, replay=False):
             raise HTTPException(422, "Choose distinct nonempty agent names")
         try:
             source = snapshot.load(incident_id)
-            entries = {e["agent_name"]: e for e in exposure.candidates()}
+            entries = {e["agent_name"]: e for e in exposure.candidates(source["agent"])}
         except (OSError, ValueError):
             raise HTTPException(409, "Exposure needs a recorded source and configured candidates") from None
         if not incident.cause_input_id:

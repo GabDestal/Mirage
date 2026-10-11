@@ -188,13 +188,48 @@ def _clean_counterpart(original, clean, cause_input_id=None):
         k: v for k, v in clean.items() if k not in ignored}
 
 
+NEUTRAL_TEXT = "No additional notes."
+UNTRUSTED_TEXT = ("description", "body", "notes", "text")
+
+
+def _derived_clean(snap, cause_input_id):
+    """The incident itself with only the proven cause's untrusted free text neutralized."""
+    if not cause_input_id:
+        raise HTTPException(409, "Find the cause before repair: bisection must identify the causal input")
+    cause = next((i for i in snap["inputs"] if i["id"] == cause_input_id), None)
+    if not cause or not isinstance(cause.get("item"), dict):
+        raise HTTPException(409, "Repair cause input is not a recorded untrusted item")
+    old = cause["item"]
+    new = {k: NEUTRAL_TEXT if k in UNTRUSTED_TEXT and isinstance(v, str) and v else v
+           for k, v in old.items()}
+
+    def replace(value):
+        if value == old:
+            return copy.deepcopy(new)
+        if isinstance(value, dict):
+            return {k: replace(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [replace(v) for v in value]
+        return value
+
+    clean = copy.deepcopy(snap)
+    clean["model_calls"] = []  # recorded replies saw the malicious text
+    for result in clean["tool_results"]:
+        result["result"] = replace(result["result"])
+    for inp in clean["inputs"]:
+        if inp["id"] == cause_input_id:
+            inp["item"] = copy.deepcopy(new)
+            inp["preview"] = snapshot._text(new, "description", "body", "notes", "email")[:160]
+    return clean
+
+
 def _clean_snapshot(snap, cause_input_id=None):
-    # shortcut: one trusted counterpart file for the demo, use an incident map for more stories.
+    # An operator file overrides the derived control (recorded demo path).
     path = os.getenv("MIRAGE_REPAIR_CLEAN_SNAPSHOT", "")
-    if not path:
-        raise HTTPException(503, "Repair clean counterpart is not configured")
     try:
-        clean = Snapshot.model_validate(_sanitize(json.loads(Path(path).read_text(encoding="utf-8"))))
+        raw = (json.loads(Path(path).read_text(encoding="utf-8")) if path
+               else _derived_clean(snap, cause_input_id))
+        clean = Snapshot.model_validate(_sanitize(raw))
     except (OSError, ValueError):
         raise HTTPException(409, "Repair clean counterpart is unavailable") from None
     if not _clean_counterpart(snap, clean.model_dump(mode="json"), cause_input_id):
@@ -264,6 +299,7 @@ def router(live_only):
                             snapshot_digest=digest(snap), baseline_digest=digest(baseline),
                             created_at=now, updated_at=now)
             _context(job)
+            _clean_snapshot(snap, incident.cause_input_id)  # refuse before queuing a worker
             events.emit("human.action", {"actor": body.actor, "action": "repair",
                         "target": incident_id, "reason": body.reason, "ts": now.isoformat()})
             return _emit(job)

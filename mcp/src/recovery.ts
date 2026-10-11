@@ -1,7 +1,8 @@
 // Trusted merged-revision launcher. This module never merges a PR or approves a restart.
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { readFile, realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import { assertSanitized, digest, digestBytes, privateDirectory, privateJson, resolveOrcaRepository, runCommand, serializeEvidenceReport, verifyCurrentCode,
   type CommandResult, type CommandRunner, type RepairConfig, type RepairJob, type Verification } from "./repair-supervisor.js";
@@ -51,7 +52,11 @@ export type RecoveryController = { prepareRecovery(jobId: string): Promise<Recov
 type Prepared = { cwd: string; dir: string; request: Record<string, unknown>; report: RecoveryReport };
 
 export async function recoveryConfig(config: RepairConfig, env: NodeJS.ProcessEnv = process.env): Promise<RecoveryConfig | undefined> {
-  if (!env.MIRAGE_RECOVERY_CHECKPOINT) return undefined;
+  // Default: the pre-run service state the demo fleet writes next to the engine's snapshots.
+  const fleetCheckpoint = join(env.MIRAGE_SNAPSHOTS ? dirname(env.MIRAGE_SNAPSHOTS) : join(config.repoPath, "data"),
+    "recovery-checkpoint.json");
+  const checkpointPath = env.MIRAGE_RECOVERY_CHECKPOINT ?? (existsSync(fleetCheckpoint) ? fleetCheckpoint : undefined);
+  if (!checkpointPath) return undefined;
   const sourcePath = env.MIRAGE_RECOVERY_CONFIG_SOURCE ?? env.MIRAGE_RECOVERY_CONFIG;
   const source = sourcePath ? JSON.parse(await readFile(sourcePath, "utf8")) : undefined;
   if (source) assertSanitized(source);
@@ -59,7 +64,7 @@ export async function recoveryConfig(config: RepairConfig, env: NodeJS.ProcessEn
   const originalConfig = configSource ? { MEETING_ASSISTANT_MODEL_ID: configSource.effective_agent_model_id,
     DEMO_USER_EMAIL: configSource.recipient } : source ? z.record(z.string(), z.string()).parse(source) : undefined;
   if (originalConfig) assertSanitized(originalConfig);
-  return { ...config, checkpointPath: env.MIRAGE_RECOVERY_CHECKPOINT, originalConfig, configSource,
+  return { ...config, checkpointPath, originalConfig, configSource,
     ...(configSource && { configSourceDigest: digest(source), configSourceReceipt: source }) };
 }
 
