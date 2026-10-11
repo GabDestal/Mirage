@@ -18,6 +18,7 @@ type Incident = {
     blast_radius: { records: number; recipients: string[]; secrets: string[]; summary: string } };
   bisection: { input_id: string; label: string; compromised_runs: string; is_cause: boolean }[];
   cause_input_id: string | null; pr_url: string | null; next_action: string;
+  automatic_clearance?: { status: "checking" | "cleared" | "inconclusive"; reason: string } | null;
 };
 
 // Detonation proved the run compromised: unfreeze is refused from here on.
@@ -189,6 +190,11 @@ export function createServer(opts: Options = {}) {
         `\`${t.tool}\`${dest ? ` → ${untrusted("tool_args", dest)}` : ""}. Blocked by the gate ` +
         `(${t.rule_id ?? t.policy_id ?? "rule"}: ${t.explanation}). Run is ${run ? statusLabel(run.status).toLowerCase() : "frozen"}.`,
       `Attack chain: ${cause ? `${cause.kind} → ` : ""}${run ? agentName(run.agent) : "the run"} → ${t.tool}${dest ? " → external destination" : ""}`,
+      ...(inc.automatic_clearance ? [`Automatic clearance: ${inc.automatic_clearance.status}. ` +
+        (run?.status === "frozen" ? "Production remains frozen; human unfreeze is unavailable for this medium call."
+          : inc.automatic_clearance.status === "cleared" && ["running", "completed"].includes(run?.status ?? "")
+            ? "The original call was automatically resumed after the initial proof."
+            : "Historical evidence; check the current run status before recovery.")] : []),
       "",
       "## Inputs the run read",
       ...inc.inputs.map((i) => `- ${i.id} (${i.kind}${i.source_tool ? ` via ${i.source_tool}` : ""}): ` +
@@ -316,6 +322,8 @@ export function createServer(opts: Options = {}) {
       if (demo && action === "resume") return refuse("per-run resume is unsupported for the recording. Use resume_all to resume paused recording; no agent is launched.");
       const run = await call<Run>("GET", `/runs/${run_id}`);
       const inc = run.incident_id ? await call<Incident>("GET", `/incidents/${run.incident_id}`) : null;
+      if (action !== "kill" && inc?.automatic_clearance && inc.automatic_clearance.status !== "cleared")
+        return refuse("automatic clearance was not established. Kill the frozen run and approve a clean restart when ready.");
       if (action !== "kill" && inc?.status === "detonating") return refuse("detonation is running. Wait for the verdict.");
       if (action !== "kill" && inc && (CONFIRMED.includes(inc.status) || inc.verdict?.confirmed))
         return refuse(`detonation proved ${run_id} is compromised (incident ${inc.id}: ${inc.status}, ` +

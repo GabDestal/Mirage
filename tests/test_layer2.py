@@ -79,25 +79,22 @@ def test_a_bulk_export_effect_is_a_p4_violation_in_the_verdict():
     assert sandbox.violations(snap, effect, [snap["policy"]]) == ["P4"]
 
 
-def test_medium_risk_waits_for_a_human_then_approve_or_reject(api, monkeypatch):
+def test_medium_risk_opens_incident_and_cannot_use_legacy_human_approval(api, monkeypatch):
     from engine.store import events
     fake_model(monkeypatch, {"violates": True, "policy_id": "P5", "p": 0.55,
                              "reason": "A recipient the user did not name."})
     run_id, auth = start(api)
     d = check(api, run_id, auth, "send_email", to="ben@contoso-demo.com", subject="Hi", body="x").json()
-    assert (d["decision"], d["rule_id"], d["layer"], d["p"]) == ("freeze", "NEEDS_APPROVAL", "decision_model", 0.55)
+    assert (d["decision"], d["rule_id"], d["layer"], d["p"]) == ("freeze", "SANDBOX_REVIEW", "decision_model", 0.55)
     assert api.get(f"/runs/{run_id}").json()["status"] == "frozen"
-    assert api.get("/incidents").json() == []  # medium risk: a human decides, nothing to detonate
-    (held,) = api.get("/approvals").json()
-    assert (held["call_id"], held["run_id"], held["policy_id"]) == (d["call_id"], run_id, "P5")
-
-    assert api.post(f"/approvals/{d['call_id']}/approve",
-                    json={"actor": "gabi", "reason": "Ben is the customer"}).json()["status"] == "running"
+    (incident,) = api.get("/incidents").json()
+    assert incident["trigger"]["call_id"] == d["call_id"]
+    assert incident["automatic_clearance"]["status"] == "checking"
     assert api.get("/approvals").json() == []
     assert api.post(f"/approvals/{d['call_id']}/approve", json={"actor": "a", "reason": "b"}).status_code == 404
 
-    d2 = check(api, run_id, auth, "send_email", to="new@contoso-demo.com", subject="Hi", body="x").json()
-    assert api.post(f"/approvals/{d2['call_id']}/reject",
-                    json={"actor": "gabi", "reason": "unknown recipient"}).json()["status"] == "killed"
+    human = {"actor": "gabi", "reason": "unknown recipient"}
+    assert api.post(f"/runs/{run_id}/unfreeze", json=human).status_code == 409
+    assert api.post(f"/runs/{run_id}/kill", json=human).json()["status"] == "killed"
     actions = [e.payload["action"] for e in events.read() if e.type == "human.action"]
-    assert actions == ["approve", "reject"]
+    assert actions == ["kill"]

@@ -62,7 +62,7 @@ def assert_revoked_denial_finished(run_id, call_id, human_actions):
 
 
 
-def test_approval_releases_only_the_original_checked_call(api, monkeypatch):
+def test_high_unfreeze_releases_only_the_original_checked_call(api, monkeypatch):
     run_id, auth = start(api)
     safe_wait, unsafe_checked = threading.Event(), threading.Event()
     safe_effects, unsafe_effects = [], []
@@ -81,16 +81,16 @@ def test_approval_releases_only_the_original_checked_call(api, monkeypatch):
     monkeypatch.setattr(core, "_wait", observed_wait)
     monkeypatch.setattr(core, "_post", observed_post)
     monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
-        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
+        "review": False, "policy_id": "P5", "p": 0.9, "explanation": "Synthetic high suspicion"})
     with ThreadPoolExecutor(max_workers=2) as pool:
         safe = pool.submit(protected, handle(run_id, auth), USER, safe_effects)
         try:
             assert safe_wait.wait(2)
-            (approval,) = api.get("/approvals").json()
+            assert api.get("/approvals").json() == []
             unsafe = pool.submit(protected, handle(run_id, auth), ATTACKER, unsafe_effects)
             assert unsafe_checked.wait(2)
             assert safe_effects == unsafe_effects == []
-            assert api.post(f"/approvals/{approval['call_id']}/approve",
+            assert api.post(f"/runs/{run_id}/unfreeze",
                             json=HUMAN).status_code == 200
             assert safe.result(3) == {"status": "sent"}
             unsafe.result(3)
@@ -164,14 +164,14 @@ def test_original_admitted_result_can_arrive_after_manual_freeze(api):
 
 
 
-def test_approved_call_does_not_reappear_after_later_manual_freeze(api, monkeypatch):
+def test_unfrozen_high_call_does_not_reappear_after_later_manual_freeze(api, monkeypatch):
     run_id, auth = start(api)
     monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
-        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"}
+        "review": False, "policy_id": "P5", "p": 0.9, "explanation": "Synthetic high suspicion"}
         if args[2] == "send_email" else None)
     held = check(api, run_id, auth, "send_email", to=USER).json()
     path = f"/approvals/{held['call_id']}/approve"
-    assert api.post(path, json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run_id}/unfreeze", json=HUMAN).status_code == 200
     assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
     assert api.get("/approvals").json() == []
     assert api.post(path, json=HUMAN).status_code in (404, 409)
@@ -186,7 +186,7 @@ def test_reject_revokes_only_the_original_run_and_old_approval_stays_rejected(ap
         "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"}
         if args[2] == "send_email" else None)
     held = check(api, run_id, auth, "send_email", to=USER).json()
-    assert api.post(f"/approvals/{held['call_id']}/reject", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run_id}/kill", json=HUMAN).status_code == 200
     assert api.post(f"/approvals/{held['call_id']}/approve", json=HUMAN).status_code in (404, 409)
     assert gate.runs[healthy_id].status == "running"
     assert check(api, run_id, auth, "read_calendar").json()["decision"] == "block"
@@ -209,7 +209,7 @@ def test_already_frozen_checks_block_without_policy_evaluation(api, monkeypatch)
     assert len([e for e in events.read() if e.type == "incident.opened"]) == 1
 
 
-@pytest.mark.parametrize("release_action", ["approve", "unfreeze"])
+@pytest.mark.parametrize("release_action", ["unfreeze"])
 def test_delayed_original_sdk_wait_cannot_revive_after_later_control_epoch(
         api, monkeypatch, release_action):
     run_id, auth = start(api)
@@ -224,24 +224,24 @@ def test_delayed_original_sdk_wait_cannot_revive_after_later_control_epoch(
 
     monkeypatch.setattr(core, "_wait", delayed_wait)
     monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
-        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
+        "review": False, "policy_id": "P5", "p": 0.9, "explanation": "Synthetic high suspicion"})
     with ThreadPoolExecutor(max_workers=1) as pool:
         callback = pool.submit(protected, handle(run_id, auth), USER, effects)
         try:
             assert entered.wait(2)
-            (approval,) = api.get("/approvals").json()
-            path = (f"/approvals/{approval['call_id']}/approve" if release_action == "approve"
-                    else f"/runs/{run_id}/unfreeze")
+            held = next(e.payload for e in events.read() if e.type == "gate.decision")
+            path = f"/runs/{run_id}/unfreeze"
             assert api.post(path, json=HUMAN).status_code == 200
             assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
-            assert api.post(f"/runs/{run_id}/unfreeze", json=HUMAN).status_code == 200
+            # HTTP recovery is stricter for a closed incident; even direct control cannot revive the hold.
+            gate.unfreeze(run_id, HUMAN["actor"], HUMAN["reason"])
         finally:
             if gate.runs[run_id].status == "frozen":
                 api.post(f"/runs/{run_id}/kill", json=HUMAN)
             release.set()
         assert callback.result(3) == "blocked"
     assert effects == []
-    assert_revoked_denial_finished(run_id, approval["call_id"],
+    assert_revoked_denial_finished(run_id, held["call_id"],
                                   [release_action, "freeze", "unfreeze"])
 
 
@@ -399,12 +399,12 @@ def test_bound_wait_rejects_a_call_not_checked_for_its_run(api, other_run):
 def test_legacy_unbound_wait_cannot_claim_a_held_release(api, monkeypatch):
     run_id, auth = start(api)
     monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
-        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
+        "review": False, "policy_id": "P5", "p": 0.9, "explanation": "Synthetic high suspicion"})
     held = check(api, run_id, auth, "send_email", to=USER).json()
     params = {"timeout": 0, "call_id": held["call_id"]}
     path = f"/runs/{run_id}/wait"
     assert api.get(path, headers=auth, params=params).json() == {"status": "frozen"}
-    assert api.post(f"/approvals/{held['call_id']}/approve", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run_id}/unfreeze", json=HUMAN).status_code == 200
     assert api.get(path, headers=auth, params={"timeout": 0}).status_code == 409
     assert api.get(path, headers=auth, params=params).json() == {"status": "running"}
     assert api.post(f"/runs/{run_id}/tool-results", headers=auth, json={
@@ -416,11 +416,11 @@ def test_legacy_unbound_wait_cannot_claim_a_held_release(api, monkeypatch):
 def test_unbound_wait_cannot_revive_a_revoked_hold_after_manual_unfreeze(api, monkeypatch):
     run_id, auth = start(api)
     monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
-        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
+        "review": False, "policy_id": "P5", "p": 0.9, "explanation": "Synthetic high suspicion"})
     held = check(api, run_id, auth, "send_email", to=USER).json()
-    assert api.post(f"/approvals/{held['call_id']}/approve", json=HUMAN).status_code == 200
-    assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
     assert api.post(f"/runs/{run_id}/unfreeze", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
+    gate.unfreeze(run_id, HUMAN["actor"], HUMAN["reason"])
     path = f"/runs/{run_id}/wait"
     assert api.get(path, headers=auth, params={"timeout": 0}).status_code == 409
     assert api.get(path, headers=auth,
@@ -451,12 +451,12 @@ def test_pending_sdk_check_cannot_survive_manual_freeze_and_unfreeze(api, monkey
     assert_revoked_denial_finished(run_id, call_id, ["freeze", "unfreeze"])
 
 
-def test_approval_does_not_admit_a_result_before_the_bound_wait(api, monkeypatch):
+def test_high_unfreeze_does_not_admit_a_result_before_the_bound_wait(api, monkeypatch):
     run_id, auth = start(api)
     monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
-        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
+        "review": False, "policy_id": "P5", "p": 0.9, "explanation": "Synthetic high suspicion"})
     held = check(api, run_id, auth, "send_email", to=USER).json()
-    assert api.post(f"/approvals/{held['call_id']}/approve", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run_id}/unfreeze", json=HUMAN).status_code == 200
     response = api.post(f"/runs/{run_id}/tool-results", headers=auth, json={
         "call_id": held["call_id"], "tool": "send_email", "result": {"status": "sent"}})
     assert response.status_code == 409

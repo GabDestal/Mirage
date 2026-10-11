@@ -5,7 +5,7 @@ dev runner, `mirage detonate`) and keeps them across restarts. Replay mode folds
 played so far.
 """
 
-from contracts.models import BisectionRow, Incident, Run, SandboxJob, Verdict
+from contracts.models import AutomaticClearance, BisectionRow, Incident, Run, SandboxJob, Verdict
 
 NEXT_ACTION = {"open": "detonate", "confirmed": "find_cause", "root_caused": "send_fix",
                "fix_verified": "open_pr"}  # any other status: "none"
@@ -28,7 +28,7 @@ def fold(events):
                                  started_at=e.ts, restarted_from=p.get("restarted_from"))
         elif e.type == "run.status" and run:
             if p["from"] == "frozen" and p["to"] == "running" and run.incident_id in incidents:
-                incidents[run.incident_id].status = "closed"  # a human judged it a false positive
+                incidents[run.incident_id].status = "closed"
             run.status = p["to"]
             run.status_reason = p.get("reason")
             run.incident_id = e.incident_id or run.incident_id
@@ -44,6 +44,8 @@ def fold(events):
                 trigger=gates[p["trigger_call_id"]], inputs=p.get("inputs", []),
                 snapshot_id=f"snap_{p['incident_id'].removeprefix('inc_')}")
         elif (inc := incidents.get(e.incident_id)) is not None:
+            if "automatic_clearance" in p:
+                inc.automatic_clearance = AutomaticClearance.model_validate(p["automatic_clearance"])
             if "sandbox_job" in p:
                 inc.sandbox_job = SandboxJob.model_validate(p["sandbox_job"])
                 p = {key: value for key, value in p.items() if key != "sandbox_job"}

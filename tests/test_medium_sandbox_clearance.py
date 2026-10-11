@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from mirage import core
 
+from contracts.models import AgentSpec
 from engine.api import server
 from engine.detection import decision_model
 from engine.detonation import jobs, sandbox, snapshot
@@ -25,6 +26,8 @@ ARGS = {"to": USER, "subject": "Meeting brief", "body": "Renewal call at 09:00."
 LEGIT = {"required": [{"tool": "send_email", "args": {"to": USER},
                        "nonempty": ["subject", "body"],
                        "contains": {"body": ["Renewal call", "09:00"]}}]}
+SPEC = AgentSpec.model_validate({**AGENT, "legit": LEGIT,
+                                "entrypoint": "medium_clearance_agent:factory"}).model_dump(mode="json")
 
 
 @pytest.fixture
@@ -41,7 +44,8 @@ def model(monkeypatch):
             assert kwargs["modelId"] == "synthetic-stronger-judge"
             answer = {"violates": False, "policy_id": None, "p": 0,
                       "reason": "The exact held brief fits the admitted task."}
-        return {"output": {"message": {"content": [{"text": json.dumps(answer)}]}}}
+        return {"stopReason": "end_turn",
+                "output": {"message": {"content": [{"text": json.dumps(answer)}]}}}
 
     monkeypatch.setenv("MIRAGE_LAYER2", "1")
     monkeypatch.setenv("BEDROCK_GATE_MODEL_ID", "synthetic-gate")
@@ -51,7 +55,7 @@ def model(monkeypatch):
 
 
 @pytest.fixture
-def api(monkeypatch, model):
+def api(monkeypatch, model, tmp_path):
     monkeypatch.setattr(server, "REPLAY", None)
     monkeypatch.setattr(gate, "MODE", "live")
     monkeypatch.setattr(jobs, "automatic", AUTOMATIC)
@@ -59,12 +63,30 @@ def api(monkeypatch, model):
     monkeypatch.setattr(sandbox, "load_dotenv", lambda: None)
     monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
     monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    # A provider-free SDK factory in an ephemeral import path; production BOOT still pins this SDK.
+    (tmp_path / "medium_clearance_agent.py").write_text(
+        "from mirage import core\nfrom mirage.protect import registry\n"
+        f"SPEC = {SPEC!r}\nARGS = {ARGS!r}\n"
+        "def factory():\n"
+        "    core.register(SPEC['name'], SPEC['tools'], SPEC['allow'], SPEC['entrypoint'],\n"
+        "                  SPEC['owner'], legit=SPEC['legit'])\n"
+        "    registry[SPEC['name']] = lambda task: core.tool('send_email', ARGS,\n"
+        "        lambda: (_ for _ in ()).throw(AssertionError('real tool cannot run in replay')))\n")
+    monkeypatch.setattr(sandbox, "BOOT", f"import sys; sys.path.insert(0, {str(tmp_path)!r}); "
+                        + sandbox.BOOT)
     gate.reset()
     with TestClient(server.app, raise_server_exceptions=False) as client:
-        monkeypatch.setattr(core, "_http", client)
-        monkeypatch.setattr(core, "_sandbox", None)
-        assert client.post("/agents", json={**AGENT, "legit": LEGIT}).status_code == 200
-        yield client
+        def request(req):
+            response = client.request(req.method, str(req.url), content=req.content,
+                                      headers=dict(req.headers))
+            return httpx.Response(response.status_code, content=response.content)
+
+        with httpx.Client(base_url="http://synthetic-engine",
+                          transport=httpx.MockTransport(request)) as sdk_client:
+            monkeypatch.setattr(core, "_http", sdk_client)
+            monkeypatch.setattr(core, "_sandbox", None)
+            assert client.post("/agents", json=SPEC).status_code == 200
+            yield client
     gate.reset()
 
 
@@ -117,6 +139,12 @@ def raw_effect(args=None, *, error=None):
             "error": error}
 
 
+def replayed(snap, *, current_spec=None, effects=None, error=None):
+    if current_spec is not None:
+        current_spec.update(copy.deepcopy(SPEC))
+    return copy.deepcopy([raw_effect()] if effects is None else effects), error
+
+
 def semantic_response(monkeypatch, answer):
     original = decision_model._converse
 
@@ -127,7 +155,7 @@ def semantic_response(monkeypatch, answer):
         if isinstance(answer, Exception):
             raise answer
         text = answer if isinstance(answer, str) else json.dumps(answer)
-        return {"output": {"message": {"content": [{"text": text}]}}}
+        return {"stopReason": "end_turn", "output": {"message": {"content": [{"text": text}]}}}
 
     monkeypatch.setattr(decision_model, "_converse", converse)
 
@@ -174,6 +202,7 @@ def test_safe_medium_resumes_original_protected_effect_once_without_human(api, m
     entered, release, waiting = threading.Event(), threading.Event(), threading.Event()
     replays, effects = [], []
     original_wait = core._wait
+    original_replay = sandbox.run_once
 
     def observed_wait(*args, **kwargs):
         waiting.set()
@@ -183,7 +212,7 @@ def test_safe_medium_resumes_original_protected_effect_once_without_human(api, m
         replays.append(copy.deepcopy(snap))
         entered.set()
         assert release.wait(10)
-        return [{"step": 1, "tool": "send_email", "args": copy.deepcopy(ARGS)}], None
+        return original_replay(snap, **kwargs)
 
     monkeypatch.setattr(core, "_wait", observed_wait)
     monkeypatch.setattr(sandbox, "run_once", replay)
@@ -233,10 +262,13 @@ def test_semantically_harmful_or_unavailable_clean_baseline_stays_frozen(api, mo
                                                                        answer):
     semantic_response(monkeypatch, answer)
     monkeypatch.setenv("MIRAGE_PARALLEL", "3")
-    monkeypatch.setattr(sandbox, "run_once", lambda *a, **k: ([raw_effect()], None))
+    monkeypatch.setattr(sandbox, "run_once", replayed)
     with pending_effect(api, monkeypatch) as (run, _, pending, effects):
         idle(run.incident_id)
         incident = api.get(f"/incidents/{run.incident_id}").json()
+        assert incident["verdict"] is not None, json.dumps([
+            e["payload"] for e in api.get("/events").json()
+            if e["type"] in ("detonation.failed", "agent.message")])
         assert incident["verdict"]["confirmed"] is False  # still code-owned
         assert incident["automatic_clearance"]["status"] == "inconclusive"
         assert run.status == "frozen" and not run.resume.is_set()
@@ -256,22 +288,23 @@ def test_semantically_harmful_or_unavailable_clean_baseline_stays_frozen(api, mo
 def test_incomplete_or_harmful_baseline_cannot_release_protected_call(api, monkeypatch, case):
     count = 0
 
-    def replay(*args, **kwargs):
+    def replay(snap, **kwargs):
         nonlocal count
         count += 1
         if case == "harm":
-            return [raw_effect({**ARGS, "to": ATTACKER})], None
+            return replayed(snap, **kwargs, effects=[raw_effect({**ARGS, "to": ATTACKER})])
         if case == "missing_original" or (case == "missing_one_original" and count == 2):
-            return [raw_effect({**ARGS, "subject": "A different brief"})], None
+            return replayed(snap, **kwargs, effects=[raw_effect({**ARGS, "subject": "A different brief"})])
         if case == "tool_error":
-            return [raw_effect(error="ExecutionError")], None
+            return replayed(snap, **kwargs, effects=[raw_effect(error="ExecutionError")])
         if case == "child_error":
-            return [raw_effect()], "child exited with code 1"
+            return replayed(snap, **kwargs, error="child exited with code 1")
         if case == "partial_useful_completion" and count == 2:
-            return [], None
+            return replayed(snap, **kwargs, effects=[])
         if case == "extra_unknown_tool":
-            return [raw_effect(), {"step": 2, "tool": "unknown_publish", "args": {}}], None
-        return [raw_effect()], None
+            return replayed(snap, **kwargs, effects=[raw_effect(), {
+                "step": 2, "tool": "unknown_publish", "args": {}}])
+        return replayed(snap, **kwargs)
 
     monkeypatch.setattr(sandbox, "run_once", replay)
     with pending_effect(api, monkeypatch) as (run, _, pending, effects):
@@ -289,10 +322,10 @@ def test_incomplete_or_harmful_baseline_cannot_release_protected_call(api, monke
 def test_revocation_during_clean_baseline_prevents_release(api, monkeypatch, control):
     entered, release = threading.Event(), threading.Event()
 
-    def replay(*args, **kwargs):
+    def replay(snap, **kwargs):
         entered.set()
         assert release.wait(10)
-        return [raw_effect()], None
+        return replayed(snap, **kwargs)
 
     monkeypatch.setenv("MIRAGE_PARALLEL", "3")
     monkeypatch.setattr(sandbox, "run_once", replay)
@@ -301,7 +334,10 @@ def test_revocation_during_clean_baseline_prevents_release(api, monkeypatch, con
             assert entered.wait(2)
             path = "/stop" if control == "stop" else f"/runs/{run.id}/" + (
                 "freeze" if control == "refreeze" else "kill")
-            assert api.post(path, json=HUMAN).status_code == 200
+            if control == "refreeze":
+                gate.freeze(run.id, HUMAN["actor"], HUMAN["reason"])
+            else:
+                assert api.post(path, json=HUMAN).status_code == 200
             release.set()
             idle(run.incident_id)
             assert effects == []
@@ -325,7 +361,7 @@ def test_human_only_tiers_stay_frozen_after_clean_baselines(api, monkeypatch, ti
 
         monkeypatch.setattr(decision_model, "_converse", high)
     monkeypatch.setenv("MIRAGE_PARALLEL", "3")
-    monkeypatch.setattr(sandbox, "run_once", lambda *a, **k: ([raw_effect()], None))
+    monkeypatch.setattr(sandbox, "run_once", replayed)
     run_id, auth = start(api)
     if tier == "hard":
         decision = check(api, run_id, auth, "send_email", **{**ARGS, "to": ATTACKER}).json()
@@ -347,12 +383,12 @@ def test_human_only_tiers_stay_frozen_after_clean_baselines(api, monkeypatch, ti
 @pytest.mark.parametrize("action", ["detonate", "verify"])
 def test_manual_proof_retry_cannot_release_medium_call(api, monkeypatch, action):
     monkeypatch.setenv("MIRAGE_PARALLEL", "3")
-    monkeypatch.setattr(sandbox, "run_once", lambda *a, **k: (
-        [raw_effect({**ARGS, "subject": "Different initial call"})], None))
+    monkeypatch.setattr(sandbox, "run_once", lambda snap, **kwargs: replayed(
+        snap, **kwargs, effects=[raw_effect({**ARGS, "subject": "Different initial call"})]))
     with pending_effect(api, monkeypatch) as (run, _, pending, effects):
         idle(run.incident_id)
         assert run.status == "frozen" and effects == []
-        monkeypatch.setattr(sandbox, "run_once", lambda *a, **k: ([raw_effect()], None))
+        monkeypatch.setattr(sandbox, "run_once", replayed)
         response = api.post(f"/incidents/{run.incident_id}/{action}", json=HUMAN)
         assert response.status_code == 200
         idle(run.incident_id)
@@ -368,7 +404,7 @@ def test_insufficient_semantic_classification_material_cannot_clear(api, monkeyp
     else:
         monkeypatch.setitem(ARGS, "body", ARGS["body"] + "." * 7000)
     monkeypatch.setenv("MIRAGE_PARALLEL", "3")
-    monkeypatch.setattr(sandbox, "run_once", lambda *a, **k: ([raw_effect()], None))
+    monkeypatch.setattr(sandbox, "run_once", replayed)
     with pending_effect(api, monkeypatch) as (run, _, pending, effects):
         idle(run.incident_id)
         assert run.status == "frozen" and effects == [] and not pending.done()
@@ -404,10 +440,10 @@ def test_medium_setup_failure_keeps_original_effect_contained(api, monkeypatch, 
 def test_changed_clearance_authority_cannot_release_old_held_call(api, monkeypatch, mutation):
     entered, release = threading.Event(), threading.Event()
 
-    def replay(*args, **kwargs):
+    def replay(snap, **kwargs):
         entered.set()
         assert release.wait(10)
-        return [raw_effect()], None
+        return replayed(snap, **kwargs)
 
     monkeypatch.setenv("MIRAGE_PARALLEL", "3")
     monkeypatch.setattr(sandbox, "run_once", replay)
@@ -460,7 +496,7 @@ def test_three_real_jailed_baselines_preserve_exact_useful_call_and_snapshot(api
 
 def test_recovery_status_write_failure_cannot_grant_original_call(api, monkeypatch):
     monkeypatch.setenv("MIRAGE_PARALLEL", "3")
-    monkeypatch.setattr(sandbox, "run_once", lambda *a, **k: ([raw_effect()], None))
+    monkeypatch.setattr(sandbox, "run_once", replayed)
     original_emit = gate.emit
 
     def failed_emit(kind, payload, **kwargs):
@@ -479,10 +515,10 @@ def test_recovery_status_write_failure_cannot_grant_original_call(api, monkeypat
 def test_replaced_stream_old_job_cannot_release_same_id_new_run(api, monkeypatch):
     entered, release = threading.Event(), threading.Event()
 
-    def replay(*args, **kwargs):
+    def replay(snap, **kwargs):
         entered.set()
         assert release.wait(10)
-        return [raw_effect()], None
+        return replayed(snap, **kwargs)
 
     monkeypatch.setenv("MIRAGE_PARALLEL", "3")
     monkeypatch.setattr(sandbox, "run_once", replay)
@@ -491,7 +527,7 @@ def test_replaced_stream_old_job_cannot_release_same_id_new_run(api, monkeypatch
             assert entered.wait(2)
             events.reset()  # external store replacement; runtime read revokes the old owner
             api.get("/runtime")
-            assert api.post("/agents", json={**AGENT, "legit": LEGIT}).status_code == 200
+            assert api.post("/agents", json=SPEC).status_code == 200
             new_id, _ = start(api)
             assert new_id == old.id
             assert api.post(f"/runs/{new_id}/freeze", json=HUMAN).status_code == 200

@@ -329,6 +329,8 @@ def service_view(service: Literal["outbox", "calendar", "crm"],
 
 
 def _pending_approvals():
+    if not REPLAY:
+        return []  # medium suspicion has an incident; legacy dialogs cannot release it
     runs = _state()[0]
     pending = {}
     for e in list_events():
@@ -338,26 +340,13 @@ def _pending_approvals():
                                          agent=runs[e.run_id].agent if e.run_id in runs else "",
                                          tool=p["tool"], args=p["args"], policy_id=p.get("policy_id"),
                                          p=p.get("p"), explanation=p["explanation"], ts=e.ts)
-    if REPLAY:
-        return [a for r, a in pending.items()
-                if r in runs and runs[r].status == "frozen" and not runs[r].incident_id]
-    eligible = []
-    with jobs.lock:
-        for run_id, approval in pending.items():
-            run = gate.runs.get(run_id)
-            call = run.calls.get(approval.call_id) if run else None
-            if (run and run.status == "frozen" and not run.incident_id
-                    and not run.revoked_by_reset and not gate.STOP.is_set()
-                    and call and call["state"] == "held" and not call["released"]
-                    and call["generation"] == run.containment_generation
-                    and call["token"] == run.token):
-                eligible.append(approval)
-    return eligible
+    return [a for r, a in pending.items()
+            if r in runs and runs[r].status == "frozen" and not runs[r].incident_id]
 
 
 @app.get("/approvals")
 def approvals() -> list[Approval]:
-    """Calls layer 2 held for a human (medium risk). Oldest first."""
+    """Legacy recorded approvals. Live medium suspicion uses automatic sandbox clearance."""
     return sorted(_pending_approvals(), key=lambda a: a.ts)
 
 
@@ -490,6 +479,8 @@ def unfreeze(run_id: str, body: HumanRequest) -> Run:
         if not REPLAY or REPLAY.managed:
             runs, incidents = _state()
             inc = incidents.get(runs[run_id].incident_id) if run_id in runs else None
+            if inc and inc.automatic_clearance and inc.automatic_clearance.status != "cleared":
+                raise HTTPException(409, "Medium suspicion requires conclusive initial sandbox clearance.")
             if inc and (inc.status == "detonating" or (not REPLAY and jobs.running(inc.id))):
                 raise HTTPException(409, "Cannot unfreeze: detonation is running. Wait for the verdict.")
             if _compromised(inc):

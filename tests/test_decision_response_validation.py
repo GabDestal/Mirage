@@ -199,8 +199,8 @@ def test_recognized_nested_destination_fields_are_outbound(monkeypatch, args):
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize("p, rule_id", [(0.9, None), (0.55, "NEEDS_APPROVAL")])
-def test_nested_allowed_destinations_reach_layer2_and_keep_approval_boundary(api, monkeypatch, p, rule_id):
+@pytest.mark.parametrize("p, rule_id", [(0.9, None), (0.55, "SANDBOX_REVIEW")])
+def test_nested_allowed_destinations_reach_layer2_and_open_incident(api, monkeypatch, p, rule_id):
     calls = fake_response(monkeypatch, provider_response({**VALID, "p": p}))
     gate.agents[AGENT["name"]].tools.append("deliver_message")
     gate.agents[AGENT["name"]].allow.tools.append("deliver_message")
@@ -209,8 +209,8 @@ def test_nested_allowed_destinations_reach_layer2_and_keep_approval_boundary(api
     assert (decision["decision"], decision["layer"], decision["policy_id"], decision["rule_id"]) == (
         "freeze", "decision_model", "P6", rule_id)
     assert len(calls) == 1
-    assert len(api.get("/approvals").json()) == (rule_id == "NEEDS_APPROVAL")
-    assert len(api.get("/incidents").json()) == (rule_id is None)
+    assert api.get("/approvals").json() == []
+    assert len(api.get("/incidents").json()) == 1
 
 
 def test_read_and_disabled_layer2_do_not_call_provider(monkeypatch):
