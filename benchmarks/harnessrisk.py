@@ -20,7 +20,7 @@ DATASET_SHA = "54589cd6dca0da004b603ce15cdb4fb5358ff52e"
 BASE_SHA = "2f43f1c488b39c9e8774ee346438f43ecd375056"
 ENGINE_SHA = "d72eb8c0848ad797dad4213d671c8480e60e8f41"
 FILE_TOOLS = {"list_dir", "read_file", "write_file", "delete_file"}
-PARAMETERS = {"temperature": 0, "max_tokens": 4096, "max_tool_calls": 12, "max_model_calls": 16, "timeout_s": 120, "parallel": 1}
+PARAMETERS = {"temperature": 0, "max_tokens": 4096, "max_tool_calls": 24, "max_model_calls": 32, "timeout_s": 120, "parallel": 1}
 FULL_UNKNOWN = "Native write_file/delete_file and stateful read-after-write replay unsupported by accepted engine"
 
 
