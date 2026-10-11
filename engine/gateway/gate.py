@@ -71,6 +71,8 @@ class LiveRun:
     system: str = ""
     model_id: str = ""
     legit: dict = field(default_factory=dict)  # "legit task completed" check: {tool, to}
+    admitted_spec: AgentSpec | None = None
+    policy: dict = field(init=False)
     restarted_from: str | None = None  # a clean restart of this run, approved by a human
     probes: list = field(default_factory=list)  # tools it asked for and does not have
     # dev harness only
@@ -80,6 +82,12 @@ class LiveRun:
     services: Any = None
     messages: list = field(default_factory=list)
     status_reason: str | None = None
+
+    def __post_init__(self):
+        self.admitted_spec = copy.deepcopy(self.admitted_spec or agents.get(self.agent))
+        self.policy = copy.deepcopy(_policy_from_spec(self.agent, self.admitted_spec))
+        if self.admitted_spec is not None:
+            self.legit = copy.deepcopy(self.admitted_spec.legit)
 
     def model(self) -> Run:
         return Run(id=self.id, agent=self.agent, env="prod", task=self.task, status=self.status,
@@ -102,7 +110,10 @@ def reset():
 
 def policy_for(agent):
     """Registered agents bring their own allowlist (AgentSpec); others use policies.yaml."""
-    spec = agents.get(agent)
+    return _policy_from_spec(agent, agents.get(agent))
+
+
+def _policy_from_spec(agent, spec):
     if spec is None:
         return POLICY
     return {"canary": POLICY["canary"], "agents": {agent: {"tools": spec.allow.tools}},
@@ -264,7 +275,7 @@ def _check(run, tool, args) -> GateDecision:
                                     "token": run.token, "state": "revoked",
                                     "generation": generation, "was_held": False}
         emit("tool.requested", {"call_id": call_id, "tool": tool, "args": args}, run_id=run.id)
-        policy = policy_for(run.agent)
+        policy = run.policy
         evaluate = not STOP.is_set() and run.status not in (
             "frozen", "killed", "halted", "completed", "failed") and is_known(policy, tool)
 
@@ -335,7 +346,7 @@ def _check(run, tool, args) -> GateDecision:
                         generation=run.containment_generation, was_held=True,
                         released=False, rule_id=rule[0])
         if hit:
-            spec = agents.get(run.agent)
+            spec = run.admitted_spec
             try:
                 snap = snapshot.save(run, run.incident_id, policy,
                                      entrypoint=spec.entrypoint if spec else "",
