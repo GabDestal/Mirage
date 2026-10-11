@@ -246,6 +246,20 @@ def test_runtime_and_job_fixture_matches_the_generated_contract():
     assert "sandbox_job" in schema["Incident"]["properties"]
 
 
+def test_runtime_read_failure_never_returns_false_empty_control_truth(api, monkeypatch):
+    def failed_read(*args):
+        raise RuntimeError(PRIVATE_MARKER)
+
+    monkeypatch.setattr(events, "read_batch", failed_read)
+    unavailable = TestClient(server.app, raise_server_exceptions=False)
+    for path in ("/runtime", "/events"):
+        response = unavailable.get(path)
+        assert response.status_code == 500
+        assert PRIVATE_MARKER not in response.text
+        assert "X-Mirage-Stream-Epoch" not in response.headers
+    unavailable.close()
+
+
 def test_reset_is_excluded_while_active_and_changes_epoch_only_when_accepted(api):
     _, incident_id = freeze(api)
     entered, release = threading.Event(), threading.Event()
@@ -314,17 +328,26 @@ def test_sse_reconnect_starts_with_runtime_before_stale_cursor_filtering(api):
     assert body["stream_epoch"] != before["stream_epoch"]
 
 
-@pytest.mark.parametrize("status", ["queued", "running"])
+@pytest.mark.parametrize("status", ["queued", "running", "completed", "failed"])
 def test_new_process_restore_retains_history_without_owners_or_live_jobs(
         api, deferred, tmp_path, status):
     run_id, incident_id = freeze(api)
-    job_id = jobs.submit(incident_id, lambda _: pytest.fail("Restored work must never execute"))
+
+    def work(_):
+        if status == "failed":
+            raise RuntimeError(PRIVATE_MARKER)
+        assert status == "completed", "Restored work must never execute"
+
+    job_id = jobs.submit(incident_id, work)
     if status == "running":
         events.emit("detonation.started", {"incident_id": incident_id,
                     "detonation_id": job_id, "purpose": "detonate", "n_runs": 3,
                     "sandbox_job": {"id": job_id, "purpose": "detonate", "status": status,
                                     "n_runs": 3, "error": None}},
                     incident_id=incident_id, env="mirage")
+    elif status in ("completed", "failed"):
+        deferred.run_next()
+    old_job = public_job(api, incident_id)
     before = runtime(api)
     restored = child(f'''
 import json
@@ -350,7 +373,11 @@ with TestClient(server.app) as api:
     assert body["owned_run_ids"] == restored["owners"] == []
     assert restored["run"]["status"] == "frozen"
     job = restored["incident"]["sandbox_job"]
-    assert job["status"] == "failed" and job["error"] == "interrupted"
+    if status in ("queued", "running"):
+        assert job["status"] == "failed" and job["error"] == "interrupted"
+    else:
+        assert job == old_job
+    assert PRIVATE_MARKER not in json.dumps(restored)
     assert restored["control"] == 409
 
 
@@ -380,6 +407,14 @@ os.environ["MIRAGE_MODE"] = "replay" if MODE == "live" else "live"
 with TestClient(server.app) as api:
     response = api.get("/runtime")
     assert response.status_code == 200
+    if MODE == "replay":
+        before = response.json()
+        assert api.post("/demo/reset").status_code == 204
+        after = api.get("/runtime").json()
+        assert after["instance_id"] == before["instance_id"]
+        assert after["stream_epoch"] != before["stream_epoch"]
+        assert after["owned_run_ids"] == []
+        assert api.get("/events").headers["X-Mirage-Stream-Epoch"] == after["stream_epoch"]
     print(json.dumps({"runtime": api.get("/runtime").json(), "gate_mode": gate.MODE,
                       "replay": server.REPLAY is not None}))
 ''', tmp_path, mode=mode)
