@@ -5,8 +5,9 @@ gpt-oss-safeguard-20b reads the policy pack (P1-P6), the user's task and the cal
 (default 0.7), and holds medium suspicion for automatic sandbox clearance when
 MIRAGE_GATE_REVIEW (0.4) <= p. The detonation verdict stays code (AGENTS.md).
 Thresholds are validated at startup and stay fixed until the process restarts.
-Only outbound calls are judged (a destination argument, or a send/export/share... tool), so reads
-stay instant. The call's arguments may hold attacker text: they are fenced as data.
+Only outbound calls and native file mutations are judged (a destination argument, a
+send/export/share... tool, or write_file/delete_file), so reads stay instant.
+The call's arguments may hold attacker text: they are fenced as data.
 If the model is unavailable the call is allowed (the hard rules still applied) and the gate's
 explanation says so. MIRAGE_LAYER2=0 turns it off.
 """
@@ -73,7 +74,8 @@ def enabled():
 
 
 def outbound(tool, args):
-    return any(destinations(args)) or bool(OUTBOUND_TOOL.search(tool))
+    return (tool in {"write_file", "delete_file"}
+            or any(destinations(args)) or bool(OUTBOUND_TOOL.search(tool)))
 
 
 def _converse(**kwargs):

@@ -3,7 +3,7 @@
 Reads the snapshot from MIRAGE_SNAPSHOT, jails itself, then calls the snapshot's `runner`
 (`module:function(snapshot, call_tool)`; None means `entrypoint` itself). Tools never run:
 - reads consume recorded results for exactly the same tool and arguments, in order;
-- declared demo writes are captured and answered "ok"; unavailable reads return typed errors.
+- declared supported writes are captured and answered "ok"; unavailable reads return typed errors.
 Every tool call, and every blocked escape attempt, is appended to MIRAGE_EFFECTS as it happens,
 so a crash still leaves the evidence.
 """
@@ -17,9 +17,11 @@ from pathlib import Path
 from contracts.models import ToolResult
 from engine.detonation import jail
 
-# Existing demo write names; other tools need an exact recorded read result.
+# Existing demo prefixes and the selected native catalogue; other tools need recorded reads.
 WRITE_PREFIXES = ("send_", "create_", "update_", "log_", "schedule_", "record_", "mark_",
                   "post_", "set_", "submit_")
+WRITE_TOOLS = {"write_file", "delete_file", "invite_user_to_slack",
+               "add_user_to_channel", "remove_user_from_slack"}
 
 
 def main():
@@ -68,7 +70,7 @@ def main():
                      else "ToolError")
         declared = (known if known is not None else snap.get("policy", {}).get("agents", {})
                     .get(snap["agent"], {}).get("tools", []))
-        write = tool in declared and tool.startswith(WRITE_PREFIXES)
+        write = tool in declared and (tool.startswith(WRITE_PREFIXES) or tool in WRITE_TOOLS)
         if error is None and not write and recorded is None:
             error = "LookupError"
         record(tool, args, error)
