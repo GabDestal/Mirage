@@ -1,7 +1,7 @@
 """Recorded read fidelity in actual jailed children, with no provider or service calls."""
 
 import copy
-import importlib
+import importlib.util
 import json
 from types import SimpleNamespace
 
@@ -125,7 +125,11 @@ def test_snapshot_retains_recorded_failed_reads_for_replay():
 def test_current_catalogue_new_read_does_not_receive_a_write_ack():
     snap = save_snapshot(calls=[{"tool": "get_new_contact", "args": {"contact_id": "b"}}])
     snap["fidelity_tools"] = ["get_new_contact", "send_email"]
-    observed, effects = probe(snap)
+    current = {}
+    effects, crash = sandbox.run_once(snap, current_spec=current)
+    assert crash is None, crash
+    assert current["tools"] == snap["fidelity_tools"]
+    observed = json.loads(effects[-1]["args"]["body"])
     assert_unavailable(observed[0], effects[0])
 
 

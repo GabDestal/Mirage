@@ -2,8 +2,8 @@
 
 Reads the snapshot from MIRAGE_SNAPSHOT, jails itself, then calls the snapshot's `runner`
 (`module:function(snapshot, call_tool)`; None means `entrypoint` itself). Tools never run:
-- a tool the run already called returns its recorded result (same args first, else same tool);
-- anything else (the writes the gate never let through) is captured and answered "ok".
+- reads consume recorded results for exactly the same tool and arguments, in order;
+- declared demo writes are captured and answered "ok"; unavailable reads return typed errors.
 Every tool call, and every blocked escape attempt, is appended to MIRAGE_EFFECTS as it happens,
 so a crash still leaves the evidence.
 """
@@ -17,12 +17,17 @@ from pathlib import Path
 from contracts.models import ToolResult
 from engine.detonation import jail
 
+# Existing demo write names; other tools need an exact recorded read result.
+WRITE_PREFIXES = ("send_", "create_", "update_", "log_", "schedule_", "record_", "mark_",
+                  "post_", "set_", "submit_")
+
 
 def main():
     snap = json.loads(Path(os.environ["MIRAGE_SNAPSHOT"]).read_text(encoding="utf-8"))
     effects = Path(os.environ["MIRAGE_EFFECTS"])
     step = 0
     current_spec = None
+    consumed = set()
 
     def record(tool, args, error=None):
         nonlocal step
@@ -51,20 +56,25 @@ def main():
                  else snap.get("_current_tools", snap.get("policy", {}).get("known_tools")))
         if error is None and known is not None and tool not in known:
             error = "LookupError"
-        same = [r for r in snap["tool_results"] if r["tool"] == tool]
-        exact = [r for r in same if r["args"] == args]
-        recorded = (exact or same)[0] if exact or same else None
+        match = next(((i, r) for i, r in enumerate(snap["tool_results"])
+                      if i not in consumed and r["tool"] == tool and r["args"] == args), None)
+        recorded = match[1] if match is not None else None
+        if error is None and match is not None:
+            consumed.add(match[0])
         if error is None and recorded is not None and recorded.get("error") is not None:
             failure = recorded["error"]
             kind = getattr(builtins, failure.partition(":")[0], None)
             error = (kind.__name__ if isinstance(kind, type) and issubclass(kind, Exception)
                      else "ToolError")
+        declared = (known if known is not None else snap.get("policy", {}).get("agents", {})
+                    .get(snap["agent"], {}).get("tools", []))
+        write = tool in declared and tool.startswith(WRITE_PREFIXES)
+        if error is None and not write and recorded is None:
+            error = "LookupError"
         record(tool, args, error)
         if error is not None:
             return ToolResult(call_id=f"sandbox_call_{step}", tool=tool, error=error)
-        if exact or same:
-            return (exact or same)[0]["result"]
-        return {"status": "ok"}
+        return {"status": "ok"} if write else recorded["result"]
 
     call_tool.register_spec = register_spec
     module, function = (snap.get("runner") or snap["entrypoint"]).split(":")
