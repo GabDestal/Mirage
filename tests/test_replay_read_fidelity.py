@@ -1,11 +1,13 @@
 """Recorded read fidelity in actual jailed children, with no provider or service calls."""
 
 import copy
+import importlib
 import json
 from types import SimpleNamespace
 
 import pytest
 
+from contracts.models import ToolResult
 from engine.bisect import bisect
 from engine.detection.rules import POLICY
 from engine.detonation import sandbox, snapshot
@@ -229,3 +231,41 @@ def test_current_code_verification_cannot_invent_wrong_entity_exfiltration():
     assert read.error
     assert not any(e.args.get("to") == ATTACKER for e in result.effects)
     assert all(PRIVATE not in json.dumps(e.payload) for e in events.read())
+
+
+@pytest.mark.parametrize("answer,expected,status", [
+    (ToolResult(call_id="read", tool="read_calendar", error="LookupError"),
+     {"error": "LookupError"}, "error"),
+    (ToolResult(call_id="read", tool="read_calendar", result={"events": []}),
+     {"events": []}, "success"),
+    (ToolResult(call_id="read", tool="read_calendar", result={"error": "a data field"}),
+     {"error": "a data field"}, "success"),
+    ({"events": [], "status": "archived"}, {"events": [], "status": "archived"}, "success"),
+    ({"error": "legacy gateway failure"}, {"error": "legacy gateway failure"}, "error"),
+])
+def test_dev_converse_serializes_typed_results_without_provider_calls(
+        monkeypatch, answer, expected, status):
+    def converse(**kwargs):
+        if len(kwargs["messages"]) == 1:
+            return {"stopReason": "tool_use", "output": {"message": {
+                "role": "assistant", "content": [{"toolUse": {
+                    "toolUseId": "read", "name": "read_calendar", "input": {}}}]}}}
+        # The real provider requires the tool payload to be JSON serializable.
+        json.dumps(kwargs["messages"])
+        return {"stopReason": "end_turn", "output": {"message": {
+            "role": "assistant", "content": [{"text": "Done."}]}}}
+
+    # Importing the real Bedrock module would initialize a provider client.
+    import engine.dev
+
+    scripted_bedrock = SimpleNamespace(converse=converse)
+    monkeypatch.setattr(engine.dev, "bedrock", scripted_bedrock, raising=False)
+    spec = importlib.util.spec_from_file_location("replay_fidelity_dev_consumer",
+                                                 sandbox.REPO / "engine/dev/assistant.py")
+    assistant = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(assistant)
+    messages = assistant.converse_loop("Synthetic system", "Synthetic task",
+                                        lambda tool, args: answer, model_id="synthetic")
+    result = messages[2]["content"][0]["toolResult"]
+    assert result["content"] == [{"json": expected}]
+    assert result["status"] == status

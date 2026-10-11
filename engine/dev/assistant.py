@@ -9,6 +9,7 @@ import os
 import re
 from datetime import date
 
+from contracts.models import ToolResult
 from engine.dev import bedrock
 from engine.dev.seed import USERS
 from engine.dev.tools import TOOL_CONFIG
@@ -48,10 +49,14 @@ def converse_loop(system, task, call_tool, model_id=MODEL_ID, on_text=None, stop
             if "toolUse" in block:
                 use = block["toolUse"]
                 out = call_tool(use["name"], use["input"])
+                failed = (out.error is not None if isinstance(out, ToolResult)
+                          else isinstance(out, dict) and "error" in out)
+                if isinstance(out, ToolResult):
+                    out = {"error": out.error} if failed else out.result
                 out = out if isinstance(out, dict) else {"result": out}  # Converse wants a dict
                 results.append({"toolResult": {"toolUseId": use["toolUseId"],
                                                "content": [{"json": out}],
-                                               "status": "error" if "error" in out else "success"}})
+                                               "status": "error" if failed else "success"}})
         messages.append({"role": "user", "content": results})
         if stopped and stopped():
             break
