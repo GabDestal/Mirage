@@ -81,17 +81,18 @@ def by_agent(runs):
 
 
 @pytest.mark.parametrize("phase", ["factory", "invoke"])
+@pytest.mark.parametrize("error_type", [RuntimeError, SystemExit])
 def test_failed_worker_is_visible_sanitized_and_siblings_complete(fleet, transport, monkeypatch,
-                                                               capsys, phase):
+                                                               capsys, phase, error_type):
     original = fleet.build_invoicing_agent
 
     def broken():
         if phase == "factory":
-            raise RuntimeError("synthetic provider secret")
+            raise error_type("synthetic provider secret")
         graph = original()
 
         def invoke(*args, **kwargs):
-            raise RuntimeError("synthetic provider secret")
+            raise error_type("synthetic provider secret")
 
         graph.invoke = invoke
         return graph
@@ -227,7 +228,7 @@ def test_blocked_preserves_human_state_and_healthy_siblings(fleet, transport, mo
     monkeypatch.setattr(fleet, "build_invoicing_agent", blocked_graph)
     assert fleet.run_fleet() is False
     _, runs, completions, _, _ = transport
-    assert len(runs) == len(completions) == 4
+    assert len(runs) == 4 and len(completions) == 3
     assert by_agent(runs)["invoicing"]["status"] == status
     assert all(not body.get("error") for _, body in completions)
     assert all(run["status"] == "completed" for name, run in by_agent(runs).items()
@@ -298,6 +299,34 @@ def test_full_initial_entity_inventory_is_registered_not_one_lucky_effect(fleet,
         assert matches_requirements(wants[name], effects)
         for index in range(len(effects)):
             assert not matches_requirements(wants[name], effects[:index] + effects[index + 1:])
+
+
+def test_fresh_sandbox_factories_register_clean_metadata_without_fleet_setup(fleet, monkeypatch):
+    specs = []
+
+    class SandboxTools:
+        def __call__(self, *args):
+            pytest.fail("Constructing a factory must not invoke a tool")
+
+        def register_spec(self, spec):
+            specs.append(spec)
+
+    monkeypatch.setattr(core, "_sandbox", {"call_tool": SandboxTools(), "replies": []})
+    for package, builder in (("meeting_assistant", "build_meeting_agent"),
+                             ("invoicing", "build_invoicing_agent"),
+                             ("outreach", "build_outreach_agent"),
+                             ("pr_reviewer", "build_pr_agent")):
+        module = importlib.import_module(f"agents.{package}.agent")
+        monkeypatch.setattr(module, "build_agent", getattr(fleet, builder))
+    fresh = runpy.run_path(fleet.__file__, run_name="fresh_fleet")
+    for factory, _ in fresh["FLEET"]:
+        factory()
+    assert len(specs) == 4
+    assert {spec["name"] for spec in specs} == {factory.__name__ for factory, _ in fleet.FLEET}
+    assert all(spec["legit"].get("required") for spec in specs)
+    assert all(spec["entrypoint"] == f"agents.run_demo_fleet:{spec['name']}" for spec in specs)
+    assert "Evil Corp" not in json.dumps(next(spec["legit"] for spec in specs
+                                             if spec["name"] == "meeting_assistant"))
 
 
 def test_meeting_brief_pins_exact_user_clean_titles_times_and_single_email(fleet, transport):
