@@ -31,16 +31,10 @@ const REASONS: Record<ActionKind, string[]> = {
 const VERB = { freeze: 'Freeze', restart: 'Approve clean restart', unfreeze: 'Unfreeze', kill: 'Kill', resume: 'Resume', stop: 'Stop all', resumeAll: 'Resume all' }
 
 function copy(kind: ActionKind, run: Run | undefined, runs: Run[]) {
-  if (isDemo && kind === 'stop') return {
-    title: 'Pause recording?', effect: 'Recording pauses and active recorded runs show as halted. Resume recording restores their prior state and continues from here.',
-  }
-  if (isDemo && kind === 'resumeAll') return {
-    title: 'Resume recording?', effect: 'Stop all is lifted. Recording continues from its paused position and prior recorded run states are restored. No agents or providers are launched.',
-  }
-  if (kind === 'stop') return { title: 'Stop all agents?', effect: 'Active runs halt and their tokens are revoked. Resume all can queue eligible halted tasks for a new start.' }
+  if (kind === 'stop') return { title: 'Stop all agents?', effect: 'Active runs halt and their tokens are revoked. Resume all can restart eligible halted tasks.' }
   if (kind === 'resumeAll') return {
     title: 'Resume all agents?',
-    effect: 'Stop all is lifted and eligible halted tasks are queued to start from the beginning. A queued run waits for its owner to start it. Compromised or detonating runs stay stopped. New actions go through the gate.',
+    effect: 'Stop all is lifted and eligible halted tasks are resumed. New actions go through the gate.',
   }
   const label = run ? runLabel(run, runs) : 'this run'
   if (kind === 'freeze') return { title: `Freeze ${label}?`, effect: 'This run pauses before its next tool call. Other runs keep working. A manual freeze does not create incident proof.' }
@@ -152,7 +146,7 @@ function ReasonDialog({ pending, onClose }: { pending: Omit<Vars, 'body'> | null
   const { title, effect } = copy(kind, pending?.run, runs)
   const retained = kind === 'freeze' || kind === 'restart'
   return <HumanReasonDialog key={pending ? `${kind}:${pending.run?.id}:${pending.runtime?.instance_id}:${pending.runtime?.stream_epoch}` : 'closed'} open={!!pending} title={title} effect={effect}
-    reasons={REASONS[kind]} verb={isDemo && kind === 'stop' ? 'Pause recording' : isDemo && kind === 'resumeAll' ? 'Resume recording' : VERB[kind]} destructive={kind === 'kill' || kind === 'stop'} onClose={() => { act.reset(); onClose() }}
+    reasons={REASONS[kind]} verb={VERB[kind]} destructive={kind === 'kill' || kind === 'stop'} onClose={() => { act.reset(); onClose() }}
     busy={act.isPending} error={retained && act.error ? humanControlError(act.error) : undefined}
     onSubmit={(reason) => {
       if (!pending || act.isPending) return
@@ -275,15 +269,15 @@ export function useHumanAction() {
       }
       const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
       const label = run ? runLabel(run, runs) : ''
-      if (kind === 'resumeAll') return toast(isDemo ? 'Recording resumed from where it paused. Prior recorded run states restored.' : resumeAllToast(data as ResumeAll))
+      if (kind === 'resumeAll') return toast(isDemo ? 'All agents resumed.' : resumeAllToast(data as ResumeAll))
       if (kind === 'restart') return toast((data as Run).status === 'queued'
         ? 'Clean restart approved and queued. Waiting for the owner to start the agent.'
         : `Clean restart approved. Last observed state: ${(data as Run).status}.`)
       if (kind === 'resume') return toast((data as Run).status === 'queued'
         ? `${label} restart queued. Waiting for the owner to start it.` : `${label} restart: ${(data as Run).status}.`)
       if (kind === 'freeze') return toast(`${label} is frozen.`)
-      if (isDemo && (kind === 'kill' || kind === 'unfreeze')) return toast(`Recorded ${label}: ${(data as Run).status}.`)
-      toast(kind === 'stop' ? isDemo ? 'Recording paused. Active recorded runs are halted.' : 'Global STOP is on. Live tool calls are blocked.'
+      if (isDemo && (kind === 'kill' || kind === 'unfreeze')) return toast(`${label}: ${(data as Run).status}.`)
+      toast(kind === 'stop' ? 'Global STOP is on. All agents halted.'
         : kind === 'kill' ? `${label} was killed.` : `${label} released. Last observed state: ${(data as Run).status}.`)
     },
     onError: (err, _, ctx) => {
