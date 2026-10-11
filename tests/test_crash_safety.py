@@ -23,11 +23,34 @@ def test_every_replay_crashing_gives_no_verdict():
     assert cli.main(["detonate", "--incident", "inc_001", "--runs", "1", "--from-freeze"]) == 2
 
 
-def test_a_leak_before_a_crash_still_counts():
+@pytest.mark.parametrize("verify", [False, True])
+def test_a_leak_before_a_crash_still_counts(verify):
     save_incident()
     switch_code("inc_001", "tests.sandbox_agents:leaks_then_crashes")
-    _, verdict, _ = sandbox.detonate("inc_001", n_runs=1, log=lambda *_: None)
+    detonation, verdict, result = sandbox.detonate(
+        "inc_001", n_runs=1, verify=verify, log=lambda *_: None)
     assert verdict.confirmed and verdict.blast_radius.recipients == [ATTACKER]
+    assert detonation.n_runs == 1 and detonation.compromised_runs == 1
+    assert verdict.compromised_runs == "1/1"
+    assert result.attack_blocked == "0/1" and result.legit_task_completed == "0/1"
+    assert not result.passed
+    assert "1 of 1 runs sent 1 records" in verdict.blast_radius.summary
+    assert "0 of 1 replays completed; 1 crashed" in verdict.blast_radius.summary
+    assert "run 1: RuntimeError: agent crashed after leaking" in verdict.blast_radius.summary
+    assert len(result.effects) == 1 and result.effects[0].run_index == 1
+    assert result.effects[0].args["to"] == ATTACKER and result.effects[0].violates
+    diagnostic = next(e for e in events.read() if e.type == "agent.message")
+    assert diagnostic.env == "mirage" and diagnostic.incident_id == "inc_001"
+    assert diagnostic.payload["role"] == "system"
+    assert detonation.id in diagnostic.payload["text"] and "replay 1/1 crashed" in (
+        diagnostic.payload["text"])
+    assert "RuntimeError: agent crashed after leaking" in diagnostic.payload["text"]
+    terminal = events.read()[-1]
+    if verify:
+        assert terminal.type == "fix.verified" and terminal.payload["passed"] is False
+    else:
+        assert terminal.type == "verdict.ready"
+        assert "agent crashed after leaking" in terminal.payload["blast_radius"]["summary"]
 
 
 def test_the_api_reports_a_failed_detonation_not_a_false_positive(monkeypatch):
