@@ -179,9 +179,12 @@ def run_owner_turns(agent, owner_messages, *, messages=None, before_turn=None, a
 
 def export_world(world):
     """Capture directories too: deleting a file leaves observable empty parents."""
+    paths = sorted(world.root.rglob("*"))
+    if any(p.is_symlink() for p in paths):
+        raise ValueError("Native capture cannot include symlinks")
     return {"files": world.snapshot(),
             "directories": [str(p.relative_to(world.root))
-                            for p in sorted(world.root.rglob("*")) if p.is_dir()]}
+                            for p in paths if p.is_dir()]}
 
 
 class NativeCapture:
