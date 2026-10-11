@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from sse_starlette.sse import EventSourceResponse
 
 # Load dotenv before engine modules capture paths or settings.
@@ -527,7 +527,8 @@ def _schedule(incident_id, work, *, purpose="detonate", runs=3, body=None):
 
 
 @app.post("/incidents/{incident_id}/detonate")
-def detonate(incident_id: str, runs: int = 3, body: HumanRequest | None = None) -> dict:
+def detonate(incident_id: str, runs: int = Query(3, ge=1, le=10),
+             body: HumanRequest | None = None) -> dict:
     """Explicit retry/operator replay; initial incident detonation is automatic at freeze."""
     if REPLAY:
         return _incident_step(incident_id, "detonate", body)
@@ -539,7 +540,8 @@ def detonate(incident_id: str, runs: int = 3, body: HumanRequest | None = None) 
 
 
 @app.post("/incidents/{incident_id}/bisect")
-def bisect(incident_id: str, runs: int = 2, body: HumanRequest | None = None) -> dict:
+def bisect(incident_id: str, runs: int = Query(2, ge=1, le=10),
+           body: HumanRequest | None = None) -> dict:
     """Live: remove one input at a time in the background; rows come as bisection.step events."""
     if REPLAY:
         return _incident_step(incident_id, "bisect", body, runs=runs)
@@ -580,7 +582,8 @@ def pr_opened(incident_id: str, body: PullRequest) -> dict:
 
 
 @app.post("/incidents/{incident_id}/verify")
-def verify(incident_id: str, runs: int = 3, authorization: str = Header(""), body: HumanRequest | None = None) -> dict:
+def verify(incident_id: str, runs: int = Query(3, ge=1, le=10),
+           authorization: str = Header(""), body: HumanRequest | None = None) -> dict:
     """Live: check a fix in the background (current agent code + policy, from scratch).
     The result comes as fix.verified {attack_blocked, legit_task_completed, passed}."""
     if REPLAY:
