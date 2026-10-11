@@ -103,13 +103,20 @@ def replayed_reply():
     return None
 
 
-def _wait(run):
+def _wait(run, call_id=None):
+    params = {"timeout": 60}
+    if call_id is not None:
+        params["call_id"] = call_id
     while True:
-        r = _http.get(f"/runs/{run['id']}/wait", params={"timeout": 60},
+        r = _http.get(f"/runs/{run['id']}/wait", params=params,
                       headers={"Authorization": f"Bearer {run['token']}"})
+        if r.status_code == 409:
+            raise Blocked(f"The held call is no longer authorized for run {run['id']}.")
         r.raise_for_status()
         status = WaitResult.model_validate(r.json()).status
         if status == "running":
+            if call_id is None:
+                raise Blocked("A checked call_id is required to resume a held tool.")
             return
         if status != "frozen":
             raise Blocked(f"Run {run['id']} is {status}.")
@@ -124,7 +131,7 @@ def check(name, args, run):
     if gate.decision == "block":
         raise Blocked(gate.explanation)
     if gate.decision == "freeze":
-        _wait(run)  # only this run's thread waits; a human decides
+        _wait(run, gate.call_id)  # only this checked call waits; a human decides
     return gate.call_id
 
 
