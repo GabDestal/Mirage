@@ -64,7 +64,8 @@ clearance is automatic only with conclusive evidence; failure cannot release pro
   "ended_at": null,
   "incident_id": "inc_007",
   "restarted_from": null,
-  "tool_calls": 4
+  "tool_calls": 4,
+  "rule_revision": null
 }
 ```
 
@@ -72,6 +73,8 @@ clearance is automatic only with conclusive evidence; failure cannot release pro
 
 `status_reason` is optional and comes from the latest `run.status` event's `reason`.
 Execution failures expose only a sanitized category/type, never provider text, secrets or arguments.
+`rule_revision` is an optional immutable restriction digest, assigned by the engine at admission.
+It is also returned by `RunStarted` and stored inside `Snapshot.policy`. Legacy runs use `null`.
 
 ### Event (one stream for everything)
 
@@ -93,7 +96,7 @@ Event types and their `payload`:
 
 | `type` | `payload` |
 |---|---|
-| `run.started` | `{task, agent, restarted_from?, status?}` (`status: queued` for an approved restart not started yet) |
+| `run.started` | `{task, agent, restarted_from?, status?, rule_revision?}` (`status: queued` for an approved restart not started yet) |
 | `agent.message` | `{role, text}` |
 | `tool.requested` | `{call_id, tool, args}` |
 | `gate.decision` | `GateDecision` (below) |
@@ -110,11 +113,13 @@ Event types and their `payload`:
 | `bisection.step` | `BisectionRow` (below) |
 | `bisection.completed` | `{incident_id, cause_input_id}` (`null`: no single input proven; the incident goes back to `confirmed`) |
 | `handoff.created` | `{incident_id, prompt, claude_code_url, codex_url}` |
-| `fix.verified` | `{incident_id, attack_blocked, legit_task_completed, passed}` (incident → `fix_verified` only if `passed`) |
+| `fix.verified` | `{incident_id, attack_blocked, legit_task_completed, passed, policy_revisions?}` (incident → `fix_verified` only if `passed`) |
 | `pr.opened` | `{incident_id, url, number}` |
 | `repair.job.updated` | `RepairJob` public progress snapshot; no prompt, token, raw snapshot or effect arguments |
 | `human.action` | `HumanAction` (below) |
 | `agent.registered` | `AgentSpec` (each `POST /agents`; the engine restores registrations from these after a restart) |
+| `rule.drafted` | `{version, agent, allow}` (immutable normalized content, SHA256 digest) |
+| `rule.activated` | `{version, agent, actor, reason}` (explicit human activation, one active revision per agent) |
 
 ### GateDecision
 
