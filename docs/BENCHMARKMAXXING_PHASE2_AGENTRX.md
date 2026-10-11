@@ -1,6 +1,6 @@
 # AgentRx phase2: bounded native-derived NL development protocol
 
-Status: offline implementation, awaiting conceptual review and an explicit root provider lease. No inference is authorized by preparing this protocol. This work serves incident root-cause explanation; it changes no Mirage runtime or contracts.
+Status: offline protocol frozen and pushed, awaiting conceptual review and an explicit root provider lease. No provider calls have been made. This work serves incident root-cause explanation; it changes no Mirage runtime or contracts.
 
 The adapter is an **adaptation, not a complete native AgentRx reproduction**. It reuses released IR conversion, schema literals, generic NL rubric definitions and external native grading at source `7a18c79708e7671be15124460f4f7296107c2a55`. No Azure client, new dependency, generated Python execution, native source modification or service is needed.
 
@@ -56,5 +56,9 @@ python3 -m benchmarks.agentrx_phase2 report
 ```
 
 All new raw artifacts are under `/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx`: `selection-frozen.json`, `eligibility-ledger.json`, `phase1-immutable.json`, `manifest.json`, per-stage records, lease records, external native scores and `report.json`. Exact native function/schema/file and adapter/report/system hashes are frozen in the manifest. Phase1 original 215 selected / 75 attempted cells and their registry are preserved.
+
+The frozen ledger contains 88 considered records (29 Tau and 59 Magentic): 87 are structurally eligible, one is unsupported, and 15 Magentic records lack an annotation record. Both selected development cases have annotation record identifiers; no annotation metric values were opened during selection. Tau 2 has 32 messages and Tau 3 has 34. The original adapter, report, result documents and 94 existing phase1 artifact files match the frozen hashes. [The separate phase2 report](BENCHMARKMAXXING_PHASE2_AGENTRX.json) currently retains all eight cells with zero attempts, UNKNOWN metrics and bounds [0,1].
+
+Manifest SHA256: `ec2767dc2c5593c8487d6194c15a7c00de96ef0522993cdbd8e0d855a4f305a8`; implementation commit: `7f1d8e425b51142049b9a7d9a0d96991e21dffab`. Native parsing emits existing invalid-escape SyntaxWarnings; the focused checks pass without changing native source.
 
 Synthetic self-checks exercise JSON parsing, strict constraint fields, complete checker coverage, all three evidence statuses, missing/duplicate/0-based/out-of-range/boolean citations, native 1-based IR, model-boundary leakage stripping with legitimate tool data preserved, hash rejection and fixed-denominator bounds. Provider behavior remains untested until an explicit lease is granted. PR166 stays unmerged against `benchmaxing`.

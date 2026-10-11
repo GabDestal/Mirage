@@ -1,0 +1,562 @@
+{
+  "generated_at": "2026-10-11T06:19:48.340928+00:00",
+  "fixed_cells": 8,
+  "attempted_cells": 0,
+  "actual_calls": 0,
+  "maximum_calls": 20,
+  "orphaned_stages": [],
+  "stage_overhead": [],
+  "fresh_heldout_cases": 0,
+  "selection": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/eligibility-ledger.json",
+  "tables": [
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "simple_diagnosis",
+      "metric": "critical_step_correct",
+      "N": 2,
+      "scored": 0,
+      "U": 2,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "simple_diagnosis",
+      "metric": "root_cause_correct",
+      "N": 2,
+      "scored": 0,
+      "U": 2,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "metric": "critical_step_correct",
+      "N": 2,
+      "scored": 0,
+      "U": 2,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "metric": "root_cause_correct",
+      "N": 2,
+      "scored": 0,
+      "U": 2,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "metric": "critical_step_correct",
+      "N": 2,
+      "scored": 0,
+      "U": 2,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "metric": "root_cause_correct",
+      "N": 2,
+      "scored": 0,
+      "U": 2,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "metric": "critical_step_correct",
+      "N": 2,
+      "scored": 0,
+      "U": 2,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "metric": "root_cause_correct",
+      "N": 2,
+      "scored": 0,
+      "U": 2,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null
+      ]
+    }
+  ],
+  "paired": [
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "metric": "critical_step_correct",
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "unknown": 2
+    },
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "metric": "root_cause_correct",
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "unknown": 2
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "metric": "critical_step_correct",
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "unknown": 2
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "metric": "root_cause_correct",
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "unknown": 2
+    }
+  ],
+  "issues": [],
+  "rows": [
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:2",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "7f1d8e425b51142049b9a7d9a0d96991e21dffab",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {
+          "reasoning_effort": "low"
+        }
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "awaiting_explicit_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "native_id": "2",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "19d4b66e3bb8dcd264430ae37269fde739461e08294eb04b096c6f9c4ea5dd8d",
+      "payload_sha": "e129c3b3aa9d32cc6dc5b135c5a166bdd0bf6a0be90abce7ade33dfb1984fd85",
+      "trace_messages": 32,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED"
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:2",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "7f1d8e425b51142049b9a7d9a0d96991e21dffab",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {
+          "reasoning_effort": "low"
+        }
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "awaiting_explicit_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "native_id": "2",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "19d4b66e3bb8dcd264430ae37269fde739461e08294eb04b096c6f9c4ea5dd8d",
+      "payload_sha": "e129c3b3aa9d32cc6dc5b135c5a166bdd0bf6a0be90abce7ade33dfb1984fd85",
+      "trace_messages": 32,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED"
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:2",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "7f1d8e425b51142049b9a7d9a0d96991e21dffab",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "awaiting_explicit_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "native_id": "2",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "19d4b66e3bb8dcd264430ae37269fde739461e08294eb04b096c6f9c4ea5dd8d",
+      "payload_sha": "e129c3b3aa9d32cc6dc5b135c5a166bdd0bf6a0be90abce7ade33dfb1984fd85",
+      "trace_messages": 32,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED"
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:2",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "7f1d8e425b51142049b9a7d9a0d96991e21dffab",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "awaiting_explicit_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "native_id": "2",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "19d4b66e3bb8dcd264430ae37269fde739461e08294eb04b096c6f9c4ea5dd8d",
+      "payload_sha": "e129c3b3aa9d32cc6dc5b135c5a166bdd0bf6a0be90abce7ade33dfb1984fd85",
+      "trace_messages": 32,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED"
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:3",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "7f1d8e425b51142049b9a7d9a0d96991e21dffab",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {
+          "reasoning_effort": "low"
+        }
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "awaiting_explicit_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "native_id": "3",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "25670efe46b2a2f2fa7b26d7dcbe8bb71263c3a9ecc562b6d9ec471fa1fc56ee",
+      "payload_sha": "803817146790c06301a40815a0f43b9ef0350203363e0ae52b8b596fbf37d4ad",
+      "trace_messages": 34,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED"
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:3",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "7f1d8e425b51142049b9a7d9a0d96991e21dffab",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {
+          "reasoning_effort": "low"
+        }
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "awaiting_explicit_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "native_id": "3",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "25670efe46b2a2f2fa7b26d7dcbe8bb71263c3a9ecc562b6d9ec471fa1fc56ee",
+      "payload_sha": "803817146790c06301a40815a0f43b9ef0350203363e0ae52b8b596fbf37d4ad",
+      "trace_messages": 34,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED"
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:3",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "7f1d8e425b51142049b9a7d9a0d96991e21dffab",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "awaiting_explicit_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "native_id": "3",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "25670efe46b2a2f2fa7b26d7dcbe8bb71263c3a9ecc562b6d9ec471fa1fc56ee",
+      "payload_sha": "803817146790c06301a40815a0f43b9ef0350203363e0ae52b8b596fbf37d4ad",
+      "trace_messages": 34,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED"
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:3",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "7f1d8e425b51142049b9a7d9a0d96991e21dffab",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "awaiting_explicit_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "native_id": "3",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "25670efe46b2a2f2fa7b26d7dcbe8bb71263c3a9ecc562b6d9ec471fa1fc56ee",
+      "payload_sha": "803817146790c06301a40815a0f43b9ef0350203363e0ae52b8b596fbf37d4ad",
+      "trace_messages": 34,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED"
+    }
+  ],
+  "phase1_immutability": "verified",
+  "compute_comparison": "Same complete trace/instruction/policy/schema, final system/model/parameters. Assisted adds three calls; compute is not matched.",
+  "cost_status": "UNKNOWN:no_reliable_price_pinned",
+  "limitations": [
+    "development re-evaluation only",
+    "NL adaptation, not complete native reproduction",
+    "no executable replay/repair/recovery or frontier-equivalence claim"
+  ]
+}
