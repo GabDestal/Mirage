@@ -90,7 +90,7 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
         await writeFile(join(folder, "snapshot.json"), snapshotJson);
         await writeFile(join(folder, "clean.json"), cleanJson);
         await writeFile(join(folder, "manifest.json"), JSON.stringify({ incident_id: job.incident_id, base_sha: base, snapshot_digest: job.snapshot_digest,
-          baseline_digest: job.baseline_digest, policy_digest: context.policy_digest, untrusted_input_id: "in_attack", reproduction_command: "python -m engine.cli detonate", legit: snapshot.legit }));
+          baseline_digest: job.baseline_digest, policy_digest: context.policy_digest, untrusted_input_id: "in_attack", reproduction_command: "python -m engine.cli detonate", task: snapshot.task, legit: snapshot.legit }));
         value = { dispatch: { id: "coding_dispatch" } };
       }
       if (args[1] === "check") value = { messages: [{ type: "worker_done", payload: { dispatchId: "coding_dispatch", outcome: "succeeded" } }] };

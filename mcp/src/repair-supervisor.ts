@@ -13,16 +13,19 @@ export const runCommand: CommandRunner = (command, args, options) => new Promise
   const child = spawn(command, args, { cwd: options.cwd, env: options.env ?? process.env, shell: false,
     stdio: ["ignore", "pipe", "pipe"] });
   let stdout = "", stderr = "", tooLarge = false, timedOut = false;
+  let forceStop: ReturnType<typeof setTimeout> | undefined;
+  const stop = () => { child.kill(); forceStop ??= setTimeout(() => child.kill("SIGKILL"), 5000); };
   const collect = (chunk: Buffer, stream: "stdout" | "stderr") => {
+    if (tooLarge) return;
     if (stream === "stdout") stdout += chunk.toString(); else stderr += chunk.toString();
-    if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > 2_000_000) { tooLarge = true; child.kill(); }
+    if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > 2_000_000) { tooLarge = true; stop(); }
   };
   child.stdout.on("data", (chunk) => collect(chunk, "stdout"));
   child.stderr.on("data", (chunk) => collect(chunk, "stderr"));
-  const timer = setTimeout(() => { timedOut = true; child.kill(); }, options.timeoutMs ?? 60_000);
-  child.on("error", () => { clearTimeout(timer); reject(new Error("Required local command could not start.")); });
+  const timer = setTimeout(() => { timedOut = true; stop(); }, options.timeoutMs ?? 60_000);
+  child.on("error", () => { clearTimeout(timer); clearTimeout(forceStop); reject(new Error("Required local command could not start.")); });
   child.on("close", (code) => {
-    clearTimeout(timer);
+    clearTimeout(timer); clearTimeout(forceStop);
     if (timedOut || tooLarge || code === null) reject(new Error("Local command timed out or exceeded its output limit."));
     else resolve({ code, stdout, stderr });
   });
@@ -86,7 +89,8 @@ export async function inspectCandidate(run: CommandRunner, cwd: string, baseSha:
     throw new Error("Repair must change only demo agents and incident regression tests.");
   // Task permissions and evaluators are immutable even when declared inside an agent module.
   const diff = await git(["diff", "--unified=0", baseSha, head, "--", "agents"]);
-  if (diff.split("\n").some((line) => /^[+-](?![+-])/.test(line) && /\b(?:allow|allowlist|legit|AgentSpec|policy)\b/.test(line)))
+  if (diff.split("\n").some((line) => /^[+-](?![+-])/.test(line)
+    && /\b(?:allow|allowlist|legit|policy)\s*=|\bAgentSpec\s*\(/.test(line)))
     throw new Error("Repair changed permission or completion declarations.");
   return { head, branch, files };
 }
@@ -241,6 +245,7 @@ export class RepairSupervisor implements RepairController {
         throw new Error("Clean control must retain the original task, completion criteria and permissions.");
       dir = await privateDirectory();
       await privateJson(join(dir, "context.json"), context);
+      failure = "launch_failed";
       if (!this.operatorRun) {
         // This is called by an ordinary trusted operator terminal. Orca enforces Dispatch depth itself.
         const created = await this.orca(["orchestration", "run-create", "--objective", "Mirage local incident repair supervisor", "--json"]);
@@ -254,7 +259,6 @@ export class RepairSupervisor implements RepairController {
       const cwd = worktree.path as string;
       const initial = await this.command("git", ["rev-parse", "HEAD"], { cwd });
       if (initial !== job.base_sha) throw new Error("Repair checkout base differs from the pinned revision.");
-      await this.report(job, "running");
       failure = "verification_failed";
       const baseline = await verifyCurrentCode(this.config, cwd, dir, context.snapshot, "baseline", context.snapshot_json);
       await privateJson(join(dir, "baseline-receipt.json"), baseline);
@@ -265,6 +269,7 @@ export class RepairSupervisor implements RepairController {
         "--spec", prompt, "--worktree", `id:${worktree.id}`, "--agent", "codex", "--timeout-ms", "60000", "--json"]);
       const dispatchId = started.dispatch?.id ?? started.dispatchId;
       if (!dispatchId) throw new Error("Orca did not prove a repair worker Dispatch.");
+      await this.report(job, "running");
       failure = "worker_failed";
       await this.waitWorker(dispatchId);
       failure = "evidence_mismatch";
@@ -339,11 +344,13 @@ export class RepairSupervisor implements RepairController {
     const cleanJson = await readFile(join(folder, "clean.json"), "utf8");
     const original = JSON.parse(originalJson), clean = JSON.parse(cleanJson);
     const manifest = JSON.parse(await readFile(join(folder, "manifest.json"), "utf8"));
+    const changed = context.snapshot.inputs.filter((input: Record<string, unknown>, index: number) => digest(input) !== digest(context.clean_snapshot.inputs[index]));
     assertSanitized({ original, clean, manifest });
     if (digestBytes(originalJson) !== job.snapshot_digest || digestBytes(cleanJson) !== digestBytes(context.clean_snapshot_json)
       || manifest.incident_id !== job.incident_id || manifest.base_sha !== job.base_sha || manifest.snapshot_digest !== job.snapshot_digest
       || manifest.baseline_digest !== job.baseline_digest || manifest.policy_digest !== context.policy_digest
-      || !manifest.untrusted_input_id || !manifest.reproduction_command || digest(manifest.legit) !== digest(context.snapshot.legit))
+      || changed.length !== 1 || changed[0].kind === "user_task" || manifest.untrusted_input_id !== changed[0].id
+      || !manifest.reproduction_command || digest(manifest.task) !== digest(context.snapshot.task) || digest(manifest.legit) !== digest(context.snapshot.legit))
       throw new Error("Regression does not preserve the original evidence and trusted task criteria.");
   }
 }

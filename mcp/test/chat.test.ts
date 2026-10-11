@@ -5,6 +5,7 @@ import { createChatService, LIMITS } from "../src/chat.js";
 import type { ChatEvent } from "../src/chat.js";
 import { readFileSync } from "node:fs";
 import { request } from "node:http";
+import type { RepairController } from "../src/repair-supervisor.js";
 
 const cleanup: (() => Promise<void>)[] = [];
 afterEach(async () => { await Promise.all(cleanup.splice(0).map((fn) => fn())); vi.restoreAllMocks(); vi.unstubAllEnvs(); });
@@ -66,8 +67,8 @@ function engine(status = "false_positive") {
   return { fetch, posts };
 }
 
-async function start(model: ModelProvider, backend = engine()) {
-  const service = createChatService({ provider: model, mcp: { fetch: backend.fetch, pollMs: 1 } });
+async function start(model: ModelProvider, backend = engine(), repair?: RepairController) {
+  const service = createChatService({ provider: model, mcp: { fetch: backend.fetch, pollMs: 1, repair } });
   await new Promise<void>((resolve) => service.http.listen(0, "127.0.0.1", resolve));
   cleanup.push(service.close);
   const address = service.http.address();
@@ -105,6 +106,26 @@ test("streams actual HTTP deltas and supplies the MCP catalogue to Bedrock", asy
   expect(events[0]).toMatchObject({ session_id: expect.stringMatching(/^[a-f0-9-]{36}$/) });
   expect(p.requests[0].tools.map((t) => t.toolSpec?.name)).toEqual(["start_repair", "get_repair", "list_runs", "get_incident", "get_audit", "detonate", "find_cause", "unfreeze", "kill", "resume", "resume_all", "send_fix"]);
   expect(app.posts).toEqual([]);
+});
+
+test("operator repair route starts once with explicit reason and returns no private prompt", async () => {
+  const job = { id: "repair_1", incident_id: "inc_007", repository: "GabDestal/Mirage", base_branch: "special-improvements" as const,
+    base_sha: "a".repeat(40), snapshot_digest: "b".repeat(64), baseline_digest: "c".repeat(64), status: "queued" as const,
+    created_at: "now", updated_at: "now" };
+  const launch = vi.fn(async () => ({ ...job, prompt: "private runtime prompt", token: "private-runtime-token" }));
+  const app = await start(provider(plain()).model, engine("confirmed"), { start: launch, get: async () => job });
+  const response = await app.post("/chat/repairs", { incident_id: "inc_007", actor: "operator", reason: "Fix and prove it" });
+  expect(response.status).toBe(202); expect(await response.json()).toEqual(job);
+  expect(launch).toHaveBeenCalledExactlyOnceWith("inc_007", "operator", "Fix and prove it");
+  expect((await app.post("/chat/repairs", { incident_id: "inc_007", actor: "operator", reason: "Fix", prompt: "malicious" })).status).toBe(400);
+  expect((await app.post("/chat/repairs", { incident_id: "inc_007", actor: "operator", reason: "Fix" }, { headers: { origin: "https://evil.example" } })).status).toBe(403);
+  expect(launch).toHaveBeenCalledTimes(1);
+});
+
+test("unconfigured repair route fails visibly without an engine create", async () => {
+  const app = await start(provider(plain()).model);
+  const response = await app.post("/chat/repairs", { incident_id: "inc_007", actor: "operator", reason: "Fix" });
+  expect(response.status).toBe(503); expect(app.posts).toEqual([]);
 });
 
 test.each(["", "{}"])("argument stream %j reaches MCP for no-argument incident reads", async (raw) => {

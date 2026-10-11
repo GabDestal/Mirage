@@ -1,6 +1,7 @@
 import { createServer as createHttpServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -211,6 +212,8 @@ export function createChatService(opts: ChatOptions) {
           }
           const after = result.structuredContent?.after;
           if (LONG[call.name] && !result.isError && typeof after === "number") watchResult(session, call.name, String(call.input.incident_id), after);
+          if (call.name === "start_repair" && !result.isError && result.structuredContent?.repair_job)
+            watchRepair(session, publicRepairJob(result.structuredContent.repair_job));
           collectTokens(result, session.secrets);
           const modelResult = sanitize(result, session.secrets);
           let uiResult = modelResult;
@@ -275,6 +278,24 @@ export function createChatService(opts: ChatOptions) {
         `${report}. Do not start new actions.` });
       void drain(session);
     });
+  }
+
+  /** Follow public receipts only; neither the model nor session history receives worker output. */
+  function watchRepair(session: Session, initial: ReturnType<typeof publicRepairJob>) {
+    void (async () => {
+      let job = initial;
+      const deadline = Date.now() + 25 * 60_000;
+      while (!shutdown.signal.aborted && Date.now() < deadline && !["pr_open", "failed"].includes(job.status)) {
+        await delay(2000, undefined, { signal: shutdown.signal });
+        if (!opts.mcp?.repair) return;
+        job = publicRepairJob(await opts.mcp.repair.get(initial.id));
+      }
+      if (shutdown.signal.aborted) return;
+      session.queue.push({ incidentId: initial.incident_id, title: "Coding repair update",
+        message: "Automatic Mirage update, not typed by the human: the local repair has this observed public receipt. " +
+          untrusted("repair_job", job) + " Summarize its actual state and PR only. A pending job is not a verified fix. Do not merge, restart or start another repair." });
+      void drain(session);
+    })().catch(() => {});
   }
 
   /** Run queued follow-ups one at a time, only while the session has no live turn. */
