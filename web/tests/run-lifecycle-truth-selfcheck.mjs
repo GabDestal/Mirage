@@ -1,12 +1,11 @@
 // Synthetic REST/render regressions only; browser and live-engine acceptance are separate.
 // Run from web/: node tests/run-lifecycle-truth-selfcheck.mjs [--demo]
-// Phase 1 uses the agreed RuntimeInfo fixture in the transport's published connection cache.
-// This baseline does not consume runtime metadata yet: ownership failures must stay RED.
+// Ownership fixtures use the published RuntimeInfo/useConnection store; HTTP transport is checked below.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createElement as h } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { createServer } from 'vite'
@@ -29,6 +28,8 @@ try {
   const client = await server.ssrLoadModule('/src/api/client.ts')
   const actions = await server.ssrLoadModule('/src/components/actions.tsx')
   const { Fleet } = await server.ssrLoadModule('/src/pages/fleet.tsx')
+  const { RunPage } = await server.ssrLoadModule('/src/pages/trace.tsx')
+  const stream = await server.ssrLoadModule('/src/api/stream.ts')
   const cache = client.queryClient
   const run = { id: 'run/one', agent: 'meeting_assistant', env: 'prod', task: 'Synthetic lifecycle check',
     status: 'running', started_at: '2026-10-11T00:00:00Z', tool_calls: 0 }
@@ -60,7 +61,10 @@ try {
     return value
   }
   const dialog = (kind, subject = halted) => capture(() =>
-    actions.__LifecycleReasonDialog({ pending: { kind, run: subject }, onClose() {} })).props
+    actions.__LifecycleReasonDialog({ pending: { kind, run: subject, runtime: cache.getQueryData(['connection']).runtime }, onClose() {} })).props
+  const renderTrace = () => renderToStaticMarkup(h(QueryClientProvider, { client: cache },
+    h(MemoryRouter, { initialEntries: [`/runs/${encodeURIComponent(run.id)}`] },
+      h(actions.ActionsProvider, {}, h(Routes, {}, h(Route, { path: '/runs/:id', element: h(RunPage) }))))))
   const text = (html) => html.replace(/<[^>]*>/g, ' ')
   const enabled = (html, label) => [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)]
     .some(([, attributes, contents]) => !/(?:^|\s)disabled(?:=|\s|$)/.test(attributes) && text(contents).trim() === label)
@@ -190,6 +194,61 @@ try {
       assert.equal(stat(render(Fleet), 'Active Agents'), 0)
       assert.deepEqual(cache.getQueryData(['runs']), [run], 'Ownership changes must preserve historical evidence')
     })
+    await test('an open reason dialog cannot apply its old intent to a reused run ID in a new engine', async () => {
+      seed([run])
+      const open = dialog('freeze', run)
+      connection(runtime([run.id], { instance_id: 'synthetic-engine-b', stream_epoch: 'synthetic-epoch-b' }))
+      let calls = 0
+      globalThis.fetch = async () => { calls++; return new Response(JSON.stringify({ ...run, status: 'frozen' })) }
+      open.onSubmit('Synthetic explicit reason from the old engine')
+      for (let turn = 0; turn < 4; turn++) await new Promise((resolve) => setImmediate(resolve))
+      assert.equal(calls, 0, 'A changed context requires a fresh human decision')
+      assert.deepEqual(cache.getQueryData(['runs']), [run])
+      assert.match(String(toast.getHistory().at(-1).title), /engine changed/i)
+    })
+    await test('direct stale-owner mutation fails before any POST and preserves history', async () => {
+      seed([run], runtime([]))
+      let calls = 0
+      globalThis.fetch = async () => { calls++; return new Response('{}') }
+      await assert.rejects(capture(actions.useHumanAction).mutateAsync({ kind: 'freeze', run, body }), /no observed live control/)
+      assert.equal(calls, 0)
+      assert.deepEqual(cache.getQueryData(['runs']), [run])
+    })
+    await test('archived running/frozen traces preserve history without claiming current execution', () => {
+      for (const status of ['running', 'frozen']) {
+        seed([{ ...run, status }], runtime([]))
+        const html = renderTrace()
+        assert.match(text(html), /recorded|history/i)
+        assert.doesNotMatch(text(html), /Watching current activity|The assistant is working|Paused for human review/)
+      }
+    })
+    await test('actual mocked runtime/events REST sync establishes ownership; disconnect removes it', async () => {
+      seed([run], null)
+      const eventSource = Object.getOwnPropertyDescriptor(globalThis, 'EventSource')
+      Object.defineProperty(globalThis, 'EventSource', { configurable: true, value: undefined })
+      const calls = []
+      globalThis.fetch = async (path, init) => {
+        assert.notEqual(init?.method, 'POST')
+        calls.push(path)
+        if (path === '/api/runtime') return new Response(JSON.stringify(runtime([run.id])))
+        if (path === '/api/events?after=0') return new Response('[]', { headers: { 'X-Mirage-Stream-Epoch': 'synthetic-epoch-a' } })
+        assert.fail(`Unexpected transport read: ${path}`)
+      }
+      try {
+        stream.connect()
+        for (let turn = 0; turn < 8 && cache.getQueryData(['connection']).runtime === null; turn++)
+          await new Promise((resolve) => setImmediate(resolve))
+        assert.ok(calls.includes('/api/runtime') && calls.includes('/api/events?after=0'))
+        assert.ok(enabled(render(Fleet), 'Freeze'))
+        stream.disconnect()
+        assert.ok(!enabled(render(Fleet), 'Freeze'))
+        assert.equal(stat(render(Fleet), 'Active Agents'), 0)
+      } finally {
+        stream.disconnect()
+        if (eventSource) Object.defineProperty(globalThis, 'EventSource', eventSource)
+        else delete globalThis.EventSource
+      }
+    })
     for (const status of [200, 409]) {
       await test(`late ${status} control response from a previous engine cannot replace current evidence`, async () => {
         seed([run])
@@ -253,6 +312,17 @@ try {
       assert.match(pending, /href="\/runs\/run%2Ftwo"/)
       assert.ok(!enabled(pending, 'Approve clean restart'))
     })
+    for (const kind of ['unfreeze', 'restart']) {
+      await test(`${kind} cannot describe a returned failed run as working or queued`, async () => {
+        const subject = { ...run, status: kind === 'unfreeze' ? 'frozen' : 'killed' }
+        seed([subject])
+        const failed = { ...(kind === 'restart' ? queued : run), status: 'failed', status_reason: 'Synthetic execution failure' }
+        const message = await request(kind, subject, failed)
+        assert.match(message, /failed/i)
+        assert.doesNotMatch(message, /working again|queued|Waiting for the owner/i)
+        assert.ok(cache.getQueryData(['runs']).some((r) => r.id === failed.id && r.status === 'failed'))
+      })
+    }
     await test('ownership refusal sends one actor/reason POST and rolls back without inventing execution', async () => {
       const frozen = { ...run, status: 'frozen' }
       seed([frozen])
