@@ -72,4 +72,3 @@ def missing_ledger(snapshot, call_tool):
 def directory_ledger(snapshot, call_tool):
     missing_ledger(snapshot, call_tool)
     Path(os.environ["MIRAGE_EFFECTS"]).mkdir()
-
