@@ -2,7 +2,7 @@
 
 <img src="web/public/brand/mirage-mark.svg" alt="Mirage" width="180" height="108" />
 
-Incident response for compromised AI agents. **Proof, not guesses. Verified fixes, not alerts.**
+Incident response for compromised AI agents.
 
 AI agents read untrusted content all day: emails, calendar invites, tickets, pull requests. One injected
 instruction is enough to turn a helpful agent into a data leak. Today's tools raise an alert and leave the
