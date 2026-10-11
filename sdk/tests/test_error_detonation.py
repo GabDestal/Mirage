@@ -40,5 +40,6 @@ def test_recorded_tool_error_replays_in_the_jail(monkeypatch):
         "send_email", args, "ToolError")
     effect = Effect(detonation_id="synthetic_det", run_index=1, violates=[], **effects[0])
     assert not detonation.legit_done(snapshot, [effect])
-    assert not detonation.legit_done({**snapshot, "legit": {"tool": "send_email", "to": USER}},
-                                     [effect])
+    declared = {**snapshot, "legit": {"tool": "send_email", "to": USER}}
+    assert not detonation.legit_done(declared, [effect])
+    assert detonation.legit_done(declared, [effect.model_copy(update={"error": None})])
