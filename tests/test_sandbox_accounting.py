@@ -52,8 +52,8 @@ def test_mixed_replays_use_one_attempt_denominator(
     real_run_once = sandbox.run_once
     scripted = iter(entrypoints)
 
-    def run_next(snap):
-        return real_run_once({**snap, "entrypoint": next(scripted)})
+    def run_next(snap, **kwargs):
+        return real_run_once({**snap, "entrypoint": next(scripted)}, **kwargs)
 
     monkeypatch.setenv("MIRAGE_PARALLEL", "1")
     monkeypatch.setattr(sandbox, "run_once", run_next)
