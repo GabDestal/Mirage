@@ -108,3 +108,77 @@ Vite on 5173 and chat on 8001). CLI requests without Origin are accepted. There 
 CORS response. Vite proxies `/chat` to `MIRAGE_CHAT_API` (default `http://localhost:8001`).
 This is a single-laptop prototype: actor is an audit label, not remote authentication;
 do not publish this chat port through a tunnel.
+
+## Verified rollout and useful clean recovery (M2)
+
+A confirmed compromised task uses a fresh restart after a human merges its verified
+repair PR into `special-improvements`; `/resume` still refuses confirmed incidents.
+The trusted local supervisor prepares and registers the complete merged factory before
+the operator approves the existing `/runs/{original}/restart` action. Actor strings are
+audit labels; report authority is the same direct private loopback connection and
+`MIRAGE_REPAIR_SUPERVISOR_TOKEN` as repair-job reports. Public/tunnel/forwarded access is refused.
+
+| Method | Path | Body / response |
+|---|---|---|
+| GET | `/incidents/{id}/recovery/provenance` | Private supervisor only: `RecoveryProvenance` with current full `agent_spec`, effective `policy` and canonical `policy_digest`, minimal effective `config` and `config_digest`. |
+| POST | `/incidents/{id}/recovery/report` | Private supervisor only: `RecoveryReport` → prepared `RecoveryState`. No approval or launch occurs here. |
+| GET | `/incidents/{id}/recovery` | `RecoveryState`; 409 when no verified rollout is prepared. Completion is derived from the linked run and successful tool ledger. |
+
+`RecoveryReport` binds `repair_job_id`, `original_run_id`, `agent`, `task`, the actual
+GitHub `pull_request` receipt (`url`, `number`, `baseRefName`, `headRefOid`, `isDraft`,
+`state`, `mergeCommit: {oid}`), `merged_sha`, `candidate_tree`, `merged_tree`,
+`verified_sha`, `snapshot_digest`, the registered full `agent_spec`, `policy_digest`,
+`config`, `config_digest`, and the SHA-256 raw-byte `checkpoint_digest`. The source job
+must already have verified attack blocking/useful completion `3/3` and a clean
+counterpart `1/1`. Its PR/head must match the observed merged receipt.
+
+Unchanged candidate/merged trees and unchanged effective policy reuse the verified
+candidate. Changed code or policy requires `verified_sha = merged_sha` with complete
+`verification: RepairCommandEvidence` and `clean_control: RepairCleanControl` receipts.
+The engine applies M1's deterministic proof checks and checks every successful effect
+against the prepared effective policy. Raw proof ledgers are excluded from recovery
+state events; the accepted report retains revision/digest links and null proof fields.
+
+The configuration map is exactly `{MEETING_ASSISTANT_MODEL_ID, DEMO_USER_EMAIL}`.
+The selected model is the first nonempty role model, `BEDROCK_AGENT_MODEL_ID`, then
+`BEDROCK_MODEL_ID`; it must match the original snapshot's model. Both config and policy
+digests use recursively sorted JSON with compact separators and unescaped Unicode,
+as in M1's `repair.digest`. The launcher preserves the explicit original synthetic
+service checkpoint; recovery does not seed/reset services or relaunch other agents.
+
+For the baseline's explicit `ScriptedModel` capture only, the operator may configure
+`MIRAGE_RECOVERY_CONFIG_SOURCE` to its original trusted M0 nonsecret receipt. The engine
+checks the receipt's raw `original_snapshot_sha256`, original agent/task/factory/legit,
+effective model/recipient and nonsecret environment, clean source revision, fixed region
+and temperature. It also binds `original_services_sha256` to the reported checkpoint.
+The receipt's canonical `config_source_digest` is exposed in provenance and pinned in
+the report, approval and claim. It resolves the scripted class label to the actual
+recorded continuation configuration; it never edits the source snapshot. Ordinary
+real-model snapshots still require model equality and a null `config_source_digest`.
+
+This MVP only admits an original with zero successful outward task writes. The engine
+joins that original's production `tool.requested` and successful `tool.result` records;
+failed attempts, blocked calls, sibling runs, and sandbox effects do not count. An
+outstanding admitted write also prevents preparation. General partial-write replay
+and payment/message idempotency are unsupported and recovery refuses such tasks.
+
+`RecoveryState` carries `incident_id`, `report`, the prepared `policy`, `prepared_at`,
+`approval: HumanRequest | null`, `approved_at`, `new_run_id`, `useful_task_completed`,
+and a controlled `error`. Its `status` is `prepared`, `queued` (human approved),
+`running` (SDK claimed), `completed` (useful task proven), or `failed`. Preparation and
+approval emit `recovery.prepared` and `recovery.approved`; preparation records the
+incident's real merged status without clearing its confirmed verdict. Existing human
+approval and run events preserve actor/reason/time and original/new-run lineage.
+
+Approval rechecks snapshot, full registration, policy/config and successful prior writes.
+The queue pins the same full spec and policy; later registration changes refuse claim.
+A later Rules activation can affect new runs while the approved queue keeps its policy
+copy. The claim rechecks the source snapshot/config and prior-write condition. The
+original remains killed/halted/failed, and its token never admits new effects.
+
+Ordinary SDK `/complete` behavior remains unchanged. Recovery success additionally
+requires an actual completed invocation, the approved full spec and task identity,
+a complete grounded legitimate-task declaration, exactly one successful outward brief,
+safe effects, and `contracts.completion.matches_requirements` over successful new-run
+request/result pairs. Empty/failed/duplicate briefs fail recovery even if invocation
+returned. Synthetic wire example: `contracts/fixtures/recovery.json`; it is not provider proof.
