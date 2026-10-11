@@ -94,7 +94,8 @@ class LiveRun:
         return Run(id=self.id, agent=self.agent, env="prod", task=self.task, status=self.status,
                    started_at=self.started_at, ended_at=self.ended_at,
                    incident_id=self.incident_id, tool_calls=self.tool_calls,
-                   restarted_from=self.restarted_from, status_reason=self.status_reason)
+                   restarted_from=self.restarted_from, status_reason=self.status_reason,
+                   rule_revision=self.policy.get("rule_revision"))
 
 
 def reset():

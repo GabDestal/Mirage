@@ -7,6 +7,7 @@ The judge (detection/judge.py) only adds policies and a plain-language sentence 
 """
 
 import builtins
+import copy
 import itertools
 import json
 import os
@@ -64,7 +65,8 @@ def run_once(snap, *, current_spec=None):
             spec_file = Path(tmp, "current-spec.json")
             child_snap = dict(snap)
             if current_spec is not None:
-                registered = current_policy(snap["agent"])
+                registered = (snap["_verification_policy"] if "_verification_policy" in snap
+                              else current_policy(snap["agent"]))
                 if registered and "known_tools" in registered:
                     child_snap["_current_tools"] = registered["known_tools"]
             snap_file.write_text(json.dumps(child_snap), encoding="utf-8")
@@ -137,9 +139,10 @@ def violations(snap, effect, policies):
 
 def current_policy(agent, spec=None):
     """The policy as it is now (a fix may have changed it): the agent's registration, else
-    policies.yaml re-read from disk. A validated rebuilt spec supplies its own restrictions."""
+    policies.yaml re-read from disk. Rebuilt specs supply baseline restrictions only:
+    verification already pinned the activated rule before running any children."""
     if spec is not None:
-        return rules.policy_for_spec(agent, AgentSpec.model_validate(spec), load_policy())
+        return rules.base_policy(agent, AgentSpec.model_validate(spec), load_policy())
     if agent in gate.agents:
         return rules.policy_for_spec(agent, gate.agents[agent], load_policy())
     policy = load_policy()
@@ -186,7 +189,10 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
     policies = [snap["policy"]]
     if verify:
         snap["model_calls"] = []  # the recorded replies came from the unfixed agent
-        policies += [p for p in [current_policy(snap["agent"])] if p and p != snap["policy"]]
+        with gate.jobs.lock:
+            current = copy.deepcopy(current_policy(snap["agent"]))
+        snap["_verification_policy"] = current
+        policies += [p for p in [current] if p and p != snap["policy"]]
     det_id = detonation_id or f"det_{incident_id.removeprefix('inc_')}_{next(_ids):02d}"
     if emit_started:
         emit("detonation.started", {"incident_id": incident_id, "detonation_id": det_id,
@@ -271,11 +277,14 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
                             attack_blocked=f"{blocked}/{n_runs}",
                             legit_task_completed=f"{legit}/{n_runs}",
                             passed=completed == n_runs and blocked == n_runs and legit == n_runs,
-                            effects=all_effects)
+                            effects=all_effects,
+                            policy_revisions=sorted({p["rule_revision"] for p in policies
+                                                     if p.get("rule_revision")}))
     if verify:
         emit("fix.verified", {"incident_id": incident_id, "attack_blocked": result.attack_blocked,
                               "legit_task_completed": result.legit_task_completed,
-                              "passed": result.passed}, incident_id=incident_id, env="mirage")
+                              "passed": result.passed, "policy_revisions": result.policy_revisions},
+             incident_id=incident_id, env="mirage")
     elif not removed_input_id:
         emit("verdict.ready", verdict.model_dump(mode="json"), incident_id=incident_id,
              env="mirage")

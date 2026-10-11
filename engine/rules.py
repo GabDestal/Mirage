@@ -10,9 +10,9 @@ from engine.detection.rules import EMAIL, _allowed, hard_rules
 from engine.store import events
 
 
-def revisions():
+def revisions(stream=None):
     drafts, active = {}, {}
-    for event in events.read():
+    for event in events.read() if stream is None else stream:
         payload = event.payload
         if event.type == "rule.drafted":
             drafts[payload["version"]] = {**copy.deepcopy(payload), "status": "draft",
@@ -27,9 +27,9 @@ def revisions():
     return drafts
 
 
-def read(version):
+def read(version, stream=None):
     try:
-        return revisions()[version]
+        return revisions(stream)[version]
     except KeyError:
         raise KeyError("Rule revision does not exist") from None
 

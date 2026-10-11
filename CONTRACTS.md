@@ -124,7 +124,8 @@ Human release, restart and proof retry remain explicit.
   "ended_at": null,
   "incident_id": "inc_007",
   "restarted_from": null,
-  "tool_calls": 4
+  "tool_calls": 4,
+  "rule_revision": null
 }
 ```
 
@@ -132,6 +133,8 @@ Human release, restart and proof retry remain explicit.
 
 `status_reason` is optional and comes from the latest `run.status` event's `reason`.
 Execution failures expose only a sanitized category/type, never provider text, secrets or arguments.
+`rule_revision` is an optional immutable restriction digest, assigned by the engine at admission.
+It is also returned by `RunStarted` and stored inside `Snapshot.policy`. Legacy runs use `null`.
 
 ### Event (one stream for everything)
 
@@ -153,7 +156,7 @@ Event types and their `payload`:
 
 | `type` | `payload` |
 |---|---|
-| `run.started` | `{task, agent, restarted_from?, status?}` (`status: queued` for an approved restart not started yet) |
+| `run.started` | `{task, agent, restarted_from?, status?, rule_revision?}` (`status: queued` for an approved restart not started yet) |
 | `agent.message` | `{role, text}` |
 | `tool.requested` | `{call_id, tool, args}` |
 | `gate.decision` | `GateDecision` (below) |
@@ -170,11 +173,13 @@ Event types and their `payload`:
 | `bisection.step` | `BisectionRow` (below) |
 | `bisection.completed` | `{incident_id, cause_input_id}` (`null`: no single input proven; the incident goes back to `confirmed`) |
 | `handoff.created` | `{incident_id, prompt, claude_code_url, codex_url}` |
-| `fix.verified` | `{incident_id, attack_blocked, legit_task_completed, passed}` (incident → `fix_verified` only if `passed`) |
+| `fix.verified` | `{incident_id, attack_blocked, legit_task_completed, passed, policy_revisions?}` (incident → `fix_verified` only if `passed`) |
 | `pr.opened` | `{incident_id, url, number}` |
 | `repair.job.updated` | `RepairJob` public progress snapshot; no prompt, token, raw snapshot or effect arguments |
 | `human.action` | `HumanAction` (below) |
 | `agent.registered` | `AgentSpec` (each `POST /agents`; the engine restores registrations from these after a restart) |
+| `rule.drafted` | `{version, agent, allow}` (immutable normalized content, SHA256 digest) |
+| `rule.activated` | `{version, agent, actor, reason}` (explicit human activation, one active revision per agent) |
 
 ### GateDecision
 
@@ -422,6 +427,50 @@ An explicit repeated `verifying` update may bind a new committed retry before it
 Controlled errors: `interrupted | launch_failed | worker_failed | verification_failed |
 evidence_mismatch | pr_failed | context_changed`. Failed is terminal.
 
+### Rules (Special Improvements M3)
+
+The engine owns durable typed restrictions and previews. The first type names one registered
+agent, a subset of its allowed tools and exact allowed email recipients. `RuleDraftRequest` is
+`{agent, allow: Allowlist}`; `allow.url_hosts` must be empty because this type does not edit hosts.
+Tool names must be both registered and allowed; recipients must already fit the role's baseline.
+The draft never activates itself, including after a false positive or failed preview.
+
+| Method | Path | Body → response |
+|---|---|---|
+| GET | `/rules?agent=&offset=0&limit=100` | `RuleRevision[]`, newest drafts first; optional agent filter, limit 1–100 |
+| GET | `/rules/agents` | Registered `AgentSpec[]`, sorted by name; no canonical aliases |
+| POST | `/rules` | `RuleDraftRequest` → `RuleRevision`; same normalized content returns the existing revision |
+| GET | `/rules/{version}` | `RuleRevision` |
+| POST | `/rules/{version}/preview` | Optional `RulePreviewRequest` `{tool?, args?}` → `RulePreview` |
+| POST | `/rules/{version}/activate` | `HumanRequest` `{actor, reason}` → `RuleRevision` |
+
+`RuleRevision` is `{version, agent, allow, status, created_at, activated_at}`. Version is the
+SHA256 digest of normalized agent/allow content; the content cannot be edited. Status is `draft`,
+`active` or `superseded`; each agent has at most one active revision. Activation requires nonblank
+actor and reason, revalidates the current registered baseline, logs `human.action` (`activate_rule`)
+before `rule.activated`, and survives engine reload. Repeating activation of the active revision
+returns it without another audit event. Activating a superseded revision is a new explicit decision.
+
+`RulePreview` is `{version, summary, effective_allow: Allowlist, decision: GateDecision|null,
+authoritative: true}`. Omitting `tool` previews scope only; supplying a tool evaluates its known
+call with the same engine hard rules. No model, tool execution, event or policy activation occurs.
+`decision.call_id` is `preview` and grants no execution authority.
+
+An activated rule intersects the registered allowlist and any exact matching canonical role;
+the legacy `assistant` role and its destinations are never aliased to unrelated fleet roles.
+URL host matching, canary detection, bulk export detection and P1–P6 remain unchanged.
+The engine copies the effective policy and `rule_revision` at run admission, including approved
+queued restarts. Later activation affects only later admissions. Restart claims compare the
+original registered spec independently of the overlay. Frozen snapshots retain their policy;
+verification checks it conjunctively with a policy copied once at verification start.
+
+The SDK continues using HTTP checks and cannot supply a rule revision or policy authority in
+`RunStart`. No second SDK evaluator, bundle cache or standalone bundle-pull service is added.
+Writes use the existing trusted local operator boundary and return 403 when `MIRAGE_PUBLIC=1`;
+actor labels are audit metadata, not authentication. Replay reads use visible fixture events;
+replay writes return 409. Unknown agents/versions return 404, invalid or broadened restrictions
+return 422. `rules_demo.jsonl` and `rules_http.json` are synthetic contract examples, not live proof.
+
 ### Demo control (for reliability on stage)
 
 | Method | Path | Does |
@@ -484,11 +533,16 @@ mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json
   "attack_blocked": "3/3",
   "legit_task_completed": "3/3",
   "passed": true,
-  "effects": [ "Effect", "..." ]
+  "effects": [ "Effect", "..." ],
+  "policy_revisions": []
 }
 ```
 
 `passed` is true only if both values are `3/3`.
+`policy_revisions` lists sorted unique rule digests checked from the frozen policy and, for
+verification, the effective policy copied at verification start. Legacy policies have no rule digest.
+Activation during a verification cannot change that proof's policy. Rebuilt factory permissions
+are additional baseline constraints; they cannot broaden the frozen or verification-start policy.
 
 ## 7. Fixtures and replay mode
 

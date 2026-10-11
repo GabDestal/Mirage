@@ -35,7 +35,8 @@ def fold(events):
         if e.type == "run.started":
             runs[e.run_id] = Run(id=e.run_id, agent=p.get("agent", "agent"), env=e.env,
                                  task=p["task"], status=p.get("status", "running"),
-                                 started_at=e.ts, restarted_from=p.get("restarted_from"))
+                                 started_at=e.ts, restarted_from=p.get("restarted_from"),
+                                 rule_revision=p.get("rule_revision"))
         elif e.type == "run.status" and run:
             if p["from"] == "frozen" and p["to"] == "running" and run.incident_id in incidents:
                 incidents[run.incident_id].status = "closed"  # a human judged it a false positive
