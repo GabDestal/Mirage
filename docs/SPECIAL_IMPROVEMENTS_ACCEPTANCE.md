@@ -1,6 +1,6 @@
 # Special Improvements acceptance recordings
 
-`demo.special_improvements_acceptance` creates controlled synthetic recordings using
+`tests.record_special_baseline` creates controlled synthetic recordings using
 the real protected meeting graph, SDK, HTTP gateway and snapshot store. It uses the
 existing scripted model to prime useful reads before the prohibited call. The original
 task, trusted complete meeting requirements and factory are retained. No required
@@ -8,6 +8,10 @@ outward task write occurs before freeze. This recorder does not establish model
 susceptibility: from-freeze replays first consume scripted model responses, then use
 the configured provider. Current-code verification clears those responses and runs
 the actual factory with fresh model context.
+
+`demo.special_improvements_acceptance` contains only the HTTP/SDK sibling factory
+and its trusted seed helper. Its recorded factory entrypoint remains unchanged;
+engine hosting and recorder inspection live under `tests/`.
 
 The clean recording keeps the original calendar inventory, task and requirements;
 only the malicious invite description becomes the existing clean variant. A separate
@@ -22,7 +26,7 @@ shared database. Coordinate the provider slot before running: recording an origi
 incident automatically starts three sequential sandbox continuations.
 
 ```sh
-PYTHONPATH=sdk:. /path/to/existing/.venv/bin/python -m demo.special_improvements_acceptance \
+PYTHONPATH=sdk:. /path/to/existing/.venv/bin/python -m tests.record_special_baseline \
   --root /tmp/a-new-owned-mirage-recording-directory --env /path/to/existing/ignored/.env
 ```
 
