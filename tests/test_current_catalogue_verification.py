@@ -227,8 +227,11 @@ def test_parent_receives_validated_spec_without_changing_two_value_return(agent_
 
 
 def test_sdk_runner_without_current_metadata_cannot_pass(agent_module):
-    frozen_snapshot("current_catalogue_agent:unregistered_factory", sdk=True)
-    with pytest.raises(sandbox.DetonationError, match="current.*spec|metadata"):
+    snap = frozen_snapshot("current_catalogue_agent:unregistered_factory", sdk=True)
+    effects, error = sandbox.run_once(snap, current_spec={})
+    assert effects[0]["tool"] == "send_email"
+    assert error and "current agent spec" in error
+    with pytest.raises(sandbox.DetonationError):
         verify()
 
 
