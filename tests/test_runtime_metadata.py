@@ -228,9 +228,11 @@ def test_reset_is_excluded_while_active_and_changes_epoch_only_when_accepted(api
 
 
 def test_external_lower_sequence_reset_changes_epoch_and_recovers_events(api, tmp_path):
+    old_run, _ = start(api)
     for index in range(8):
         events.emit("agent.message", {"text": f"Old synthetic event {index}"})
     before = runtime(api)
+    assert before["owned_run_ids"] == [old_run]
     child('''
 import json
 from engine.store import events
@@ -244,9 +246,17 @@ print(json.dumps(event.model_dump(mode="json")))
     after = runtime(api)
     assert after["instance_id"] == before["instance_id"]
     assert after["stream_epoch"] == epoch and after["last_seq"] == 1
+    assert after["owned_run_ids"] == []
     fresh = api.get("/events")
     assert fresh.headers["X-Mirage-Stream-Epoch"] == epoch
     assert [e["payload"]["text"] for e in fresh.json()] == ["Fresh synthetic generation"]
+
+
+def test_sse_first_frame_is_named_runtime_even_when_business_events_exist(api):
+    frame = first_frame(0)
+    assert frame.get("event") == "runtime", "Business history cannot establish live ownership"
+    assert "id" not in frame
+    assert json.loads(frame["data"]) == runtime(api)
 
 
 def test_sse_reconnect_starts_with_runtime_before_stale_cursor_filtering(api):
