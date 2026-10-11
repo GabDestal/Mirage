@@ -3,6 +3,7 @@
 import copy
 import importlib
 import json
+import runpy
 import threading
 from collections import Counter
 
@@ -38,7 +39,7 @@ def fleet(monkeypatch):
 def transport(monkeypatch):
     """Observe SDK lifecycle requests; terminal human states remain authoritative."""
     specs, runs, completions, starts = {}, {}, [], []
-    failures = {"start": None}
+    failures = {"register": None, "start": None, "complete": None}
     lock = threading.Lock()
 
     def respond(request):
@@ -46,6 +47,8 @@ def transport(monkeypatch):
         path = request.url.path
         with lock:
             if path == "/agents":
+                if body["name"] == failures["register"]:
+                    return httpx.Response(503, json={"detail": "synthetic provider secret"})
                 specs[body["name"]] = body
             elif path == "/runs":
                 starts.append(body["agent"])
@@ -57,6 +60,8 @@ def transport(monkeypatch):
             elif path.endswith("/complete"):
                 run_id = path.split("/")[2]
                 completions.append((run_id, body))
+                if runs[run_id]["agent"] == failures["complete"]:
+                    return httpx.Response(503, json={"detail": "synthetic provider secret"})
                 if runs[run_id]["status"] == "running":
                     runs[run_id]["status"] = "failed" if body.get("error") else "completed"
             elif path == "/gateway/check":
@@ -122,6 +127,50 @@ def test_start_failure_is_not_launched_or_completed_and_siblings_continue(fleet,
     assert "Launched invoicing" not in output
     assert "synthetic provider secret" not in output
     assert result is False
+
+
+def test_registration_failure_has_no_fabricated_run_and_siblings_continue(fleet, transport, capsys):
+    transport[-1]["register"] = "invoicing"
+    result = fleet.run_fleet()
+    _, runs, completions, starts, _ = transport
+    assert "invoicing" not in starts
+    assert len(runs) == len(completions) == 3
+    assert all(run["status"] == "completed" for run in runs.values())
+    output = capsys.readouterr().out
+    assert "invoicing: register_error" in output
+    assert "Launched invoicing" not in output
+    assert "synthetic provider secret" not in output
+    assert result is False
+
+
+def test_completion_delivery_failure_is_not_reported_as_success(fleet, transport, capsys):
+    transport[-1]["complete"] = "invoicing"
+    result = fleet.run_fleet()
+    _, runs, completions, starts, _ = transport
+    assert len(starts) == len(runs) == len(completions) == 4
+    assert by_agent(runs)["invoicing"]["status"] == "running"
+    assert all(run["status"] == "completed" for name, run in by_agent(runs).items()
+               if name != "invoicing")
+    output = capsys.readouterr().out
+    assert "invoicing: completion_error" in output
+    assert "invoicing: completed" not in output
+    assert "synthetic provider secret" not in output
+    assert result is False
+
+
+@pytest.mark.parametrize("failed_agent,code", [(None, 0), ("invoicing", 1)])
+def test_blocking_cli_exit_matches_actual_fleet_outcome(fleet, transport, monkeypatch,
+                                                     failed_agent, code):
+    transport[-1]["start"] = failed_agent
+    for package, builder in (("meeting_assistant", "build_meeting_agent"),
+                             ("invoicing", "build_invoicing_agent"),
+                             ("outreach", "build_outreach_agent"),
+                             ("pr_reviewer", "build_pr_agent")):
+        module = importlib.import_module(f"agents.{package}.agent")
+        monkeypatch.setattr(module, "build_agent", getattr(fleet, builder))
+    with pytest.raises(SystemExit) as exited:
+        runpy.run_path(fleet.__file__, run_name="__main__")
+    assert exited.value.code == code
 
 
 def test_success_has_exactly_one_lifecycle_per_protected_invoke(fleet, transport):
