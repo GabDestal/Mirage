@@ -20,6 +20,10 @@ Generated solely from saved result rows; all bounds are missing-outcome bounds, 
 | AgentRx | within_seen_domain_unseen_task_families_v1 / within_seen_domain_heldout_task_families | Haiku 4.5 | Simple | root_cause_correct | 6 | 4 | 3 | 3/1/2 | [0.5000, 0.8333] |
 | AgentRx | within_seen_domain_unseen_task_families_v1 / within_seen_domain_heldout_task_families | Haiku 4.5 | Assisted | critical_step_correct | 6 | 0 | 0 | 0/0/6 | [0.0000, 1.0000] |
 | AgentRx | within_seen_domain_unseen_task_families_v1 / within_seen_domain_heldout_task_families | Haiku 4.5 | Assisted | root_cause_correct | 6 | 0 | 0 | 0/0/6 | [0.0000, 1.0000] |
+| AgentRx | within_seen_domain_families_opus_reference_v1 / within_seen_domain_heldout_task_families | Opus 4.8 reference | Simple | critical_step_correct | 6 | 0 | 0 | 0/0/6 | [0.0000, 1.0000] |
+| AgentRx | within_seen_domain_families_opus_reference_v1 / within_seen_domain_heldout_task_families | Opus 4.8 reference | Simple | root_cause_correct | 6 | 0 | 0 | 0/0/6 | [0.0000, 1.0000] |
+| AgentRx | within_seen_domain_families_opus_reference_v1 / within_seen_domain_heldout_task_families | Opus 4.8 reference | Assisted | critical_step_correct | 6 | 0 | 0 | 0/0/6 | [0.0000, 1.0000] |
+| AgentRx | within_seen_domain_families_opus_reference_v1 / within_seen_domain_heldout_task_families | Opus 4.8 reference | Assisted | root_cause_correct | 6 | 0 | 0 | 0/0/6 | [0.0000, 1.0000] |
 | HarnessRisk | resource_budget_v5 / development | GPT-OSS 20B | Unprotected | raw_utility | 1 | 1 | 1 | 1/0/0 | [1.0000, 1.0000] |
 | HarnessRisk | resource_budget_v5 / development | GPT-OSS 20B | Unprotected | raw_oracle | 1 | 1 | 0.3333 | partial/partial/0 | [0.3333, 0.3333] |
 | HarnessRisk | resource_budget_v5 / development | GPT-OSS 20B | Unprotected | raw_fallback | 1 | 1 | 1 | 1/0/0 | [1.0000, 1.0000] |

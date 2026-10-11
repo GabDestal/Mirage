@@ -1,0 +1,24 @@
+{
+  "exports": [
+    {
+      "figure": "agentrx-outcomes",
+      "width": 1380,
+      "height": 1541,
+      "method": "native QuickLook square canvas, exact CoreGraphics crop; no browser tiling"
+    },
+    {
+      "figure": "harnessrisk-utility-safety",
+      "width": 1510,
+      "height": 1301,
+      "method": "native QuickLook square canvas, exact CoreGraphics crop; no browser tiling"
+    }
+  ],
+  "arithmetic": "PASS: reporting script assertions",
+  "render_inspection": "Both complete SVG/PNG figures visually inspected, direct labels and full bounds visible",
+  "unavailable": [
+    "No provider acceptance",
+    "No grader invocation",
+    "No broad tests",
+    "USD costs and human wait unknown"
+  ]
+}

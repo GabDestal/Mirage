@@ -1,8 +1,8 @@
 {
-  "snapshot_at_utc": "2026-10-11T07:08:00.189610+00:00",
+  "snapshot_at_utc": "2026-10-11T07:13:07.023785+00:00",
   "published_base_sha": "2640720f45a987c507f74a905f25d06948b86921",
-  "reporting_code_parent_sha": "2640720f45a987c507f74a905f25d06948b86921",
-  "script_sha256": "d55ec9c39a611099bff332766f9fb9daf3780a63223c885ef1d096e2e548cbe1",
+  "reporting_code_parent_sha": "8c9477e9963579695d40d5f23ead140e497cb309",
+  "script_sha256": "1cd940b9b8f4c2668692a0b9d762bb88d18923f89c9c7b55a39e4b115cea4588",
   "sources": [
     {
       "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/report.json",
@@ -13,6 +13,11 @@
       "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/report.json",
       "sha256": "2beeed362ffaf2d96947c4f5260050ec23fea03c65bc01a1b72aacc106ddf5ec",
       "input_mtime_utc": "2026-10-11T06:54:28.955988+00:00"
+    },
+    {
+      "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/opus-reference/report.json",
+      "sha256": "79dc60686730e168040270cbc6f634ffde48285aae2a086edffcde760ba189a9",
+      "input_mtime_utc": "2026-10-11T06:59:25.680159+00:00"
     },
     {
       "path": "docs/BENCHMARKMAXXING_RESULTS.json",
@@ -1146,6 +1151,342 @@
         "critical_step_correct": null,
         "root_cause_correct": null
       }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:2dfc4c37-fec1-4518-84a7-10095d30ad75",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:2dfc4c37-fec1-4518-84a7-10095d30ad75",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:42576abe-0deb-4869-8c63-225c2d75a95a",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:42576abe-0deb-4869-8c63-225c2d75a95a",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:42d4198c-5895-4f0a-b0c0-424a66465d83",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:42d4198c-5895-4f0a-b0c0-424a66465d83",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families",
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "b6e50bc3afe15575a35ae119c32451da659e3e46",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_on_time_access_cheap_blocks_drained_and_explicit_root_lease",
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "evidence_refs": [],
+      "values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null
+      }
     }
   ],
   "agentrx_groups": [
@@ -1653,6 +1994,156 @@
         "latency_s": {
           "known_sum": 16.387,
           "known_rows": 6,
+          "N": 6
+        }
+      },
+      "metrics": {
+        "critical_step_correct": {
+          "N": 6,
+          "scored": 0,
+          "U": 6,
+          "score_sum": 0,
+          "coverage": 0.0,
+          "bounds": [
+            0.0,
+            1.0
+          ],
+          "values": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "S": 0,
+          "F": 0
+        },
+        "root_cause_correct": {
+          "N": 6,
+          "scored": 0,
+          "U": 6,
+          "score_sum": 0,
+          "coverage": 0.0,
+          "bounds": [
+            0.0,
+            1.0
+          ],
+          "values": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "S": 0,
+          "F": 0
+        }
+      }
+    },
+    {
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "split": "within_seen_domain_heldout_task_families",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "arm": "simple_diagnosis",
+      "case_ids": [
+        "magentic:2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf",
+        "magentic:2dfc4c37-fec1-4518-84a7-10095d30ad75",
+        "magentic:3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4",
+        "magentic:42576abe-0deb-4869-8c63-225c2d75a95a",
+        "magentic:42d4198c-5895-4f0a-b0c0-424a66465d83",
+        "magentic:52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5"
+      ],
+      "compute": {
+        "calls": {
+          "known_sum": 0,
+          "known_rows": 6,
+          "N": 6
+        },
+        "tokens": {
+          "known_sum": 0,
+          "known_rows": 0,
+          "N": 6
+        },
+        "latency_s": {
+          "known_sum": 0,
+          "known_rows": 0,
+          "N": 6
+        }
+      },
+      "metrics": {
+        "critical_step_correct": {
+          "N": 6,
+          "scored": 0,
+          "U": 6,
+          "score_sum": 0,
+          "coverage": 0.0,
+          "bounds": [
+            0.0,
+            1.0
+          ],
+          "values": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "S": 0,
+          "F": 0
+        },
+        "root_cause_correct": {
+          "N": 6,
+          "scored": 0,
+          "U": 6,
+          "score_sum": 0,
+          "coverage": 0.0,
+          "bounds": [
+            0.0,
+            1.0
+          ],
+          "values": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "S": 0,
+          "F": 0
+        }
+      }
+    },
+    {
+      "cohort": "within_seen_domain_families_opus_reference_v1",
+      "split": "within_seen_domain_heldout_task_families",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "arm": "evidence_assisted_diagnosis",
+      "case_ids": [
+        "magentic:2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf",
+        "magentic:2dfc4c37-fec1-4518-84a7-10095d30ad75",
+        "magentic:3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4",
+        "magentic:42576abe-0deb-4869-8c63-225c2d75a95a",
+        "magentic:42d4198c-5895-4f0a-b0c0-424a66465d83",
+        "magentic:52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5"
+      ],
+      "compute": {
+        "calls": {
+          "known_sum": 0,
+          "known_rows": 6,
+          "N": 6
+        },
+        "tokens": {
+          "known_sum": 0,
+          "known_rows": 0,
+          "N": 6
+        },
+        "latency_s": {
+          "known_sum": 0,
+          "known_rows": 0,
           "N": 6
         }
       },

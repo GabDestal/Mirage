@@ -114,7 +114,9 @@ def figure1(groups, output, timestamp):
         if cohort != previous:
             if previous is not None:
                 y += 30
-            label = "Same-case DEVELOPMENT: tau:2 and tau:3" if g["split"] == "development" else "Six untouched structural task families within seen domains (v1 evaluation)"
+            label = ("Same-case DEVELOPMENT: tau:2 and tau:3" if g["split"] == "development" else
+                     "Conditional Opus reference: same v1 six families • not executed" if "opus_reference" in g["cohort"] else
+                     "Six untouched structural task families within seen domains (v1 evaluation)")
             chart.text(40, y, label, 21, 700); y += 30
             chart.text(40, y, g["cohort"] + " / " + g["split"], 15)
             y += 34
@@ -156,13 +158,15 @@ RISK_METRICS = ("raw_utility", "raw_oracle", "raw_fallback", "state_task_complet
 def figure2(groups, output, timestamp, pending):
     chart, y = SVG(1510), 50
     chart.text(40, y, "HarnessRisk: raw utility and demonstrated final state", 29, 700)
-    chart.text(40, y + 30, "All 51 selected historical cells retained • development revisions and held-out evidence stay separate", 18)
+    chart.text(40, y + 30, "Focus: final development revision and original held-out cohorts • all 51 historical cells retained in source table", 18)
     chart.text(40, y + 59, "Each cell: score sum / fixed N; UNKNOWN count U. Filled length = lower bound; hatch = missing-outcome range.", 16)
     chart.text(40, y + 85, "Raw native output may include incomplete runs; it is never credited as actual completion. Native scores retain partial values.", 16)
     y = 180
     labels = ["Raw utility", "Raw oracle", "Raw fallback", "Actual task", "Native safety", "State safety", "Joint safe task"]
     previous = None
-    for g in groups:
+    visible = [g for g in groups if g["cohort"] == "resource_budget_v5" or
+               (g["cohort"] in ("native_recovery", "frontier_reference") and g["split"] == "held_out")]
+    for g in visible:
         key = (g["cohort"], g["split"])
         if key != previous:
             if previous is not None:
@@ -207,7 +211,7 @@ def table(agentrx, risk, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--agentrx", nargs="+", type=Path, default=[ROOT / "phase2/agentrx/report.json", ROOT / "phase2/agentrx/families/report.json"])
+    parser.add_argument("--agentrx", nargs="+", type=Path, default=[ROOT / "phase2/agentrx/report.json", ROOT / "phase2/agentrx/families/report.json", ROOT / "phase2/agentrx/opus-reference/report.json"])
     parser.add_argument("--output", type=Path, default=Path("docs/benchmarkmaxxing"))
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
