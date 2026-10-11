@@ -7,6 +7,7 @@ The judge (detection/judge.py) only adds policies and a plain-language sentence 
 """
 
 import builtins
+import hashlib
 import itertools
 import json
 import os
@@ -17,6 +18,7 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from uuid import uuid4
 
 from dotenv import load_dotenv
 
@@ -51,28 +53,71 @@ def validate_runs(runs):
         raise ValueError("runs must be a positive integer from 1 to 10")
 
 
-def run_once(snap, *, current_spec=None):
+def _retain_native(snap, fixture, state):
+    """Private proof artifacts survive temp cleanup, including automatic sibling children."""
+    identity = snap["incident_id"]
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", identity):
+        raise ValueError("Invalid native proof incident identity")
+    directory = snapshot.SNAP_DIR / "native-proofs" / identity
+    directory.mkdir(parents=True, exist_ok=True)
+    attempt = uuid4().hex
+    source = {}
+    for name in ("engine/detonation/child.py", "engine/detonation/sandbox.py",
+                 "engine/detonation/snapshot.py", "sdk/mirage/core.py",
+                 "sdk/mirage/sandbox.py", "sdk/mirage/adapters/langchain.py"):
+        source[name] = hashlib.sha256((REPO / name).read_bytes()).hexdigest()
+    revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO,
+                                       text=True, stderr=subprocess.DEVNULL).strip()
+    proof = {"version": 1, "attempt_id": attempt, "incident_id": identity,
+             "snapshot_id": snap["id"], "run_id": snap["run_id"],
+             "stream_epoch": fixture["data"]["stream_epoch"],
+             "fixture_sha256": fixture["sha256"], "source_revision": revision,
+             "source_sha256": source, "state": state}
+    with (directory / (attempt + ".json")).open("x", encoding="utf-8") as file:
+        json.dump(proof, file, sort_keys=True)
+    return str(directory / (attempt + ".json"))
+
+
+def run_once(snap, *, current_spec=None, native_mode=None, final_state=None):
     """One replay: (effects, error). An optional dict receives validated factory metadata."""
     if current_spec is not None:
         current_spec.clear()
+    if final_state is not None:
+        final_state.clear()
     effects, error = [], None
+    collected_native = None
     try:
         load_dotenv()  # the parent is trusted; it hands the child only what PASS_ENV lists
         with tempfile.TemporaryDirectory(prefix="mirage-detonation-") as tmp:
             snap_file, effects_file = Path(tmp, "snapshot.json"), Path(tmp, "effects.jsonl")
             spec_file = Path(tmp, "current-spec.json")
+            state_file = Path(tmp, "native-state.json")
             child_snap = dict(snap)
             if current_spec is not None:
                 registered = current_policy(snap["agent"])
                 if registered and "known_tools" in registered:
                     child_snap["_current_tools"] = registered["known_tools"]
-            snap_file.write_text(json.dumps(child_snap), encoding="utf-8")
+            native = snapshot.native_fixture(snap)
+            if native_mode is not None and native is None:
+                raise ValueError("Native start mode requires a captured fixture")
+            if native is not None:
+                native_mode = native_mode or ("initial" if "variant" in native else
+                                             "frozen" if current_spec is not None and not snap["model_calls"] else "replay")
+                if native_mode not in {"replay", "frozen", "initial"}:
+                    raise ValueError("Invalid native start mode")
+                if native_mode != "replay":
+                    child_snap["model_calls"] = []
+            serialized = json.dumps(child_snap).encode("utf-8")
+            snap_file.write_bytes(serialized)
             effects_file.touch()
             env = {k: v for k, v in os.environ.items()
                    if k in OS_ENV + PASS_ENV or CONFIG_ENV.match(k)}
             env |= {"MIRAGE_SNAPSHOT": str(snap_file), "MIRAGE_EFFECTS": str(effects_file),
                     "MIRAGE_CURRENT_SPEC": str(spec_file),
                     "AWS_EC2_METADATA_DISABLED": "true"}  # boto3 would probe 169.254.169.254
+            if native is not None:
+                env |= {"MIRAGE_NATIVE_START": native_mode, "MIRAGE_NATIVE_FINAL": str(state_file),
+                        "MIRAGE_NATIVE_SNAPSHOT_SHA256": hashlib.sha256(serialized).hexdigest()}
             try:
                 proc = subprocess.run([sys.executable, "-I", "-c", BOOT, str(REPO)], cwd=tmp,
                                       env=env, capture_output=True, text=True, timeout=TIMEOUT,
@@ -95,6 +140,22 @@ def run_once(snap, *, current_spec=None):
                     error = error or "Current code did not publish current agent spec metadata."
             except (OSError, ValueError):
                 error = error or "Invalid current agent spec metadata."
+            if native is not None:
+                try:
+                    state = json.loads(state_file.read_text(encoding="utf-8"))
+                    world = {k: state[k] for k in ("files", "directories")}
+                    snapshot.native_world(world)
+                    if (state["version"] != 1 or state["fixture_sha256"] != native["sha256"]
+                            or state["snapshot_sha256"] != hashlib.sha256(serialized).hexdigest()
+                            or state["state_sha256"] != snapshot.native_hash(world)
+                            or ("native_trace" in state and state.get("native_trace_sha256") != snapshot.native_hash(state["native_trace"]))
+                            or type(state["completed"]) is not bool):
+                        raise ValueError("Native final state binding mismatch")
+                    collected_native = state
+                    if not state["completed"]:
+                        error = error or "Native child did not complete"
+                except (OSError, ValueError, KeyError, TypeError):
+                    error = error or "Invalid or missing native final state"
             # Decode each line independently so a later corrupt byte cannot erase earlier harm.
             with effects_file.open("rb") as ledger:
                 for line in ledger:
@@ -107,6 +168,19 @@ def run_once(snap, *, current_spec=None):
                                                          include={"step", "tool", "args", "error"}))
                     except (ValueError, TypeError):
                         error = error or "ValueError: invalid effects ledger"
+            if collected_native is not None:
+                if error:
+                    collected_native.update(completed=False, error=collected_native["error"] or "child_failed")
+                if final_state is not None:
+                    final_state.update(collected_native)
+                try:
+                    proof_path = _retain_native(snap, native, collected_native)
+                    if final_state is not None:
+                        final_state["proof_path"] = proof_path
+                except (OSError, ValueError, subprocess.SubprocessError):
+                    error = error or "Native proof retention failed"
+                    if final_state is not None:
+                        final_state.update(completed=False, error="proof_retention_failed")
     except Exception as exc:  # noqa: BLE001 - preserve effects on failed collection or cleanup
         error = error or type(exc).__name__
     return effects, error
