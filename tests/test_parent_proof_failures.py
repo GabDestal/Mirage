@@ -89,21 +89,21 @@ def test_parallel_harm_survives_a_later_parent_collection_failure(monkeypatch, v
     lock, sibling_collected = threading.Lock(), threading.Event()
     attempt = 0
 
-    def run_next(snap):
+    def run_next(snap, **kwargs):
         nonlocal attempt
         with lock:
             attempt += 1
             index = attempt
         if index == 1:
-            result = real_run_once({**snap, "entrypoint": PREFIX + "harm"})
+            result = real_run_once({**snap, "entrypoint": PREFIX + "harm"}, **kwargs)
             sibling_collected.set()
             return result
         if index == 2:
             assert sibling_collected.wait(10), "harmful sibling never finished"
             if fault == "parent_exception":
                 raise OSError(PRIVATE)  # separate future-boundary fault, not a filesystem claim
-            return real_run_once({**snap, "entrypoint": PREFIX + fault})
-        return real_run_once({**snap, "entrypoint": "tests.sandbox_agents:clean"})
+            return real_run_once({**snap, "entrypoint": PREFIX + fault}, **kwargs)
+        return real_run_once({**snap, "entrypoint": "tests.sandbox_agents:clean"}, **kwargs)
 
     monkeypatch.setenv("MIRAGE_PARALLEL", "3")
     monkeypatch.setattr(sandbox, "run_once", run_next)
