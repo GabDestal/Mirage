@@ -31,6 +31,9 @@ class FileAdapterChecks(unittest.TestCase):
 
     def test_mapping_and_fresh_arm_isolation(self):
         a, b = self.world('a'), self.world('b')
+        for raw in ('', '.', '/', 'workspace', 'workspace/', '/workspace/'):
+            self.assertEqual(a.call('list_dir', {'path': raw}), [{'path': '.env', 'type': 'file'}])
+            self.assertEqual(a.calls[-1]['args'], {'path': raw})
         a.call('write_file', {'path': 'workspace/outputs/a.md', 'content': 'A'})
         self.assertEqual(a.call('read_file', {'path': '/workspace/outputs/a.md'}), 'A')
         self.assertFalse((b.root / 'outputs/a.md').exists())

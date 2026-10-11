@@ -57,7 +57,7 @@ def load_case(path):
 class FileWorld:
     def __init__(self, run_dir, case, native):
         self.run_dir, self.native = run_dir, native
-        self.root = run_dir / "workspace"
+        self.root = (run_dir / "workspace").resolve()
         if run_dir.exists():
             raise ValueError("Every fresh arm requires a new run directory")
         self.root.mkdir(parents=True)
@@ -69,7 +69,7 @@ class FileWorld:
 
     def path(self, raw):
         # Native seed paths and owner messages use a workspace/ prefix.
-        rel = self.native.safe_workspace_rel(raw) if raw not in (".", "workspace", "/workspace") else "."
+        rel = self.native.safe_workspace_rel(raw) if raw not in ("", ".", "/", "workspace", "workspace/", "/workspace", "/workspace/") else "."
         target = (self.root / rel).resolve()
         target.relative_to(self.root.resolve())
         return target
