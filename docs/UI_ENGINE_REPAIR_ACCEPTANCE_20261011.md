@@ -1,8 +1,8 @@
 # UI and engine repair acceptance — 2026-10-11
 
 **Status: draft; fresh composed acceptance pending.** Source inspected at
-`3a50abcafdcecbba5f18ee373844caf3ae07c737` after rebasing the documentation draft;
-it is the verified remote `origin/main` source. GitHub independently reports the twenty-seven
+`56fc52e5b9ce7be26825984da07800b6563f1fe9` after rebasing the documentation draft;
+it is the verified remote `origin/main` source. GitHub independently reports the thirty-one
 PRs below merged, with the
 listed squash commits. This documentation worker inspected source, merge metadata
 and published worker reports; it ran no services, controls, providers or fleets.
@@ -31,10 +31,11 @@ or a production roadmap.
 **Latest user product steering:** medium-band suspicious-tool clearance is automatic;
 manual engine approval for that band is no longer a demo acceptance requirement.
 High-risk/hard-rule/escalation recovery remains human-directed, and Miragio operator
-approvals remain explicit. Medium automatic clearance and the requested Fleet panel
-removal are pending atomic engine/UI source gates; exact PRs and composed evidence
-have not yet been supplied. Earlier queue/panel observations below retain their
-historical source scope and do not accept the new flow or layout.
+approvals remain explicit. Fleet Service evidence/Engine approvals removal #153 is
+merged and accepted in the empty browser view on its reported source. Medium automatic
+clearance remains a pending atomic engine source gate; exact PR/evidence is awaited.
+Earlier queue/panel observations retain their historical scope. The new empty layout
+does not accept the pending medium flow or full fleet rehearsal.
 
 ## 1. Evidence boundaries
 
@@ -90,6 +91,10 @@ counts describe the worker's named suite/head and must not be added together.
 | [#146](https://github.com/GabDestal/Mirage/pull/146) / B | Dashboard controls use current runtime owners and fence old generations; queued recovery wording/UI/MCP and archived/recorded controls are truthful | `6cfea0e4831827d3cdfb49b15e5da1b9d504717b` | `18bfd73e1977041a301727b16dc3a4478aef0e9e` | Queue/ownership/late-response/health/recorded-preflight REDs → worker and independent coordinator 31 live/6 recorded lifecycle checks and 68 MCP passes. UI/MCP tree unchanged across intervening Python merge. Browser recovery remains pending; restart accepts killed/halted only. |
 | [#141](https://github.com/GabDestal/Mirage/pull/141) / B | Synchronous LangChain/SDK failure completion preserves original exceptions and containment; handled tool errors retain status in recorded/jailed replay | `98b397d70c1f2a4e6e691b9b99342d7fecc600ef` | `3f87e30291f68d5187eef9ed706b0c8f02fc1bf9` | Initial 14 RED/2 controls and later 10 Blocked-terminal REDs → 39 focused and 62 full SDK passes, independently rerun by coordinator; four existing warnings. Final owned source byte-identical to canonical62f09a2. Reporting outages may prevent terminal receipt; factory-start/authority/provider acceptance separate. |
 | [#143](https://github.com/GabDestal/Mirage/pull/143) / B | Keyword-only trusted `legit` forwarded by all three adapters; validated full current AgentSpec sent via HTTP or optional sandbox register_spec callback | `3a50abcafdcecbba5f18ee373844caf3ae07c737` | `1c25fc26b97c206c670ef30b8dc6fcb9577e83ea` | Initial 23 RED/2 compatibility controls, then 20 RED/5 after shared default → 25 metadata and 87 full SDK passes; independent coordinator 87. Current-spec callback rejection/raw-result isolation and pinned real-child errors covered. Fleet declaration wiring and provider acceptance separate. |
+| [#150](https://github.com/GabDestal/Mirage/pull/150) / A | Exact tool+argument reads consumed chronologically; typed missing/exhausted/error reads, declared synthetic write acknowledgments; no entity substitution | `86dfc5198e55d55b62a9f3d06fe2e5bfa984d00e` | `131ade4ebc7599301be388380c154c71db7396ad` | Real jailed RED → 29 focused passes; isolated Git-archive composition 1024 passed/1 Git-provenance case failed, that exact case 1/1 in real feature checkout. Combined SDK `3d7f5cba04da797cdbb59c56084200ccffc0a60e` pinned in parent/child. No provider/real-service acceptance; counts are separate runs. |
+| [#147](https://github.com/GabDestal/Mirage/pull/147) / B | One SDK lifecycle before factory construction, sanitized failed phases/nonzero blocking result; clean initial full-inventory declarations and healthy sibling continuation | `07cf300208b6ed2dfee839d07a3996aaf1c11c73` | `ac240704c1a1b81efa41f819a3f12954eaee5535` | 18 original fleet REDs → worker 359 agents/SDK/fleet/completion checks; independent coordinator 359 in 26.55s. Scripted full-inventory/partial-work/error/containment checks; no provider/UI fleet acceptance. |
+| [#151](https://github.com/GabDestal/Mirage/pull/151) / B | Optional SCRIPTED provider-free two-healthy/one-poison backup, causality driven by actual read results and current factories | `1993c783d028261a568ed0308c83cf94e8f43477` | `34f59396f00a7db9f657a6af31a43ca52f711445` | Worker 27 component/real-jailed cases; independent coordinator 27 in 12.36s. Trapped real tools/providers; artificial 0.75s cadence. Actual HTTP/UI/after-freeze healthy ordering remains pending; never replaces primary four-agent Bedrock rehearsal. |
+| [#153](https://github.com/GabDestal/Mirage/pull/153) / B | Fleet removes Service evidence/Engine approvals components/styles; launcher/run links/recovery/queued status/Miragio approvals preserved | `56fc52e5b9ce7be26825984da07800b6563f1fe9` | `00a3cca4459a6703a1d2b2d4c8da3a3727995d3b` | Panel-absence assertion RED → worker web/lifecycle 31+6/proof GREEN; coordinator live 6/recorded 2 human-control groups. Actual 02:22UTC empty Dia Fleet removal accepted on UI56fc/APIc116 without launch/provider/control effects; full rehearsal separate. |
 
 ### Published validation commands and report provenance
 
@@ -127,28 +132,32 @@ reproducing. This ledger does not ask for a new suite or provider rerun.
 | #146 | From `web/`: `node tests/run-lifecycle-truth-selfcheck.mjs` → 31 passed; same with `--demo` → 6 passed. From `mcp/`: `npm test` → 68 passed. Independent coordinator reruns match worker results at `18bfd73e`; typecheck/build/lint and existing controls/runs/workflow checks GREEN. | PR body/coordinator report; synthetic REST/render checks, no browser/provider acceptance |
 | #141 | Coordinator used the installed main `.venv` Python with `-m pytest sdk/tests -q`, SDK worker cwd/`PYTHONPATH` and `MIRAGE_LAYER2=0 MIRAGE_JUDGE=0` → 62 passed, four existing OpenAI warnings; byte-identical to tested canonical source. | PR body, coordinator full-suite report and `/tmp/mirage-sdk-error-truth-20261011.md`; pinned jailed SDK imports, sockets/providers disabled |
 | #143 | `MIRAGE_LAYER2=0 MIRAGE_JUDGE=0 PYTHONPATH=sdk:. /Users/liamszefner/Business/hacks/Mirage/.venv/bin/python -m pytest sdk/tests -q --tb=short` → 87 passed, including 25 metadata cases; independent coordinator full 87 matches. | PR body/coordinator report; six-file final tree byte-identical to reviewed composition, dotenv/metadata/providers disabled |
+| #150 | PR reports 29 focused, 1024 archive-composition passes/1 provenance failure, then that exact runtime-provenance case 1/1 in the real checkout; exact invocations not supplied, so not inferred. New suite: `tests/test_replay_read_fidelity.py`. | PR body; Git-object archive composition, actual parent/child SDK source assertions, no mocked Git expectations/providers |
+| #147 | PR reports 359 agents/SDK/fleet/factory/demo-control/completion checks; coordinator independently confirms 359 in 26.55s. Exact invocation not supplied, so not inferred. New suite: `tests/test_fleet_execution_truth.py`. | PR body/coordinator report; two-file feature, scripted models and synthetic services |
+| #151 | `uv run pytest demo/test_acceptance_fleet.py -q --tb=short` → worker 27 in 12.57s; coordinator independently confirms 27 in 12.36s (exact coordinator invocation not supplied). | PR body/coordinator report; two-file scripted backup, real jailed children, trapped tools/providers |
+| #153 | From `web/`: `node tests/human-controls-selfcheck.mjs` and same with `--demo` → independent coordinator 6 live/2 recorded groups GREEN; worker lifecycle 31/6 and typecheck/lint/build/proof/presentation checks GREEN (existing warnings). | PR body/coordinator report; server-render synthetic controls plus separately bounded actual browser panel removal |
 
 ## 3. U1–U5 delivery and open dependencies
 
 | Slice | Current delivery evidence | Acceptance still pending |
 |---|---|---|
-| U1 — SDK error truth and protected fleet | Shared #140, engine callback/current-policy #142, full matcher #149 and SDK #141/#143 merged. Failure/tool-error truth and trusted full-spec/legit/current callback source gates closed; latest worker/coordinator 87 full SDK GREEN. [#147](https://github.com/GabDestal/Mirage/pull/147) open at `ac240704c1a1b81efa41f819a3f12954eaee5535` on merged `3a50abc`;18 original fleet REDs → 359 worker checks. | Fleet repair merge, exact-call authority and composed UI evidence. Earlier 61-pass/1-accounting-RED and metadata 76-pass/1-jailed-failure results stay historical on their older compositions. |
-| U2 — services and human controls | #125 and #146 merged; queued/released/archived-owned/live/recorded controls are source-delivered with independent 31/6/68 checks. The earlier #146 lifecycle13 GREEN/10 RED and separately found recorded preflight RED were repaired before merge. Latest medium automatic clearance/Fleet panel removal is a new pending engine/UI source gate. | Exact steering PRs and browser evidence; medium automatic clearance, high/hard-rule/escalation human recovery, separate Miragio approvals, manual Freeze→Unfreeze/Kill, restored ownership refusal, queued restart, STOP/recovery and no repeated effects. Current restart accepts killed/halted only; failed-run restart stays unavailable until the agreed engine repair. No broader authorization requirement is added. |
+| U1 — SDK error truth and protected fleet | Shared #140, callback/current-policy #142, full matcher #149, SDK #141/#143, read fidelity #150 and fleet #147 merged. Failure/tool-error, full spec/legit/current callback and factory/start/full-inventory source gates closed; worker/coordinator 87 SDK and 359 fleet-related GREEN apply to their named heads. | Exact-call authority, latest medium steering and final primary provider/UI fleet rehearsal. Earlier 61-pass/1-accounting-RED and metadata 76-pass/1-jailed-failure results stay historical on their older compositions. |
+| U2 — services and human controls | #125/#146 merged; queued/released/archived-owned/live/recorded controls have independent 31/6/68 source checks. Earlier lifecycle 13/10 and recorded preflight REDs were repaired. #153 Fleet panel removal is merged and accepted in the empty actual browser view; medium automatic clearance remains pending. | Exact medium source PR/evidence; automatic clearance, high/hard-rule/escalation human recovery, separate Miragio approvals, manual Freeze→Unfreeze/Kill, restored ownership refusal, queued restart, STOP/recovery and no repeated effects. Current restart accepts killed/halted only; failed-run restart stays unavailable until the agreed engine repair. No broader authorization requirement is added. |
 | U3 — stream recovery | #130 merged at `5eef2405cbb3869ea70d124b38ae31b90f318d7c`, reviewed `bfdac85b`; source delivery gate closed. Runtime contract #148 is merged; final worker24 transport/14 provider-free actual HTTP+SSE/83 backend and web checks GREEN. | Fresh engine8040/UI5180/chat8041 browser recovery/ownership acceptance. Provider-free wire checks are not browser acceptance. |
 | U4 — persistent proof | #132 merged at `93073bb429af2c7865521bdd06c8f21f3a858155`, reviewed `0ac5193a`; source delivery gate closed. Independent `ac50da1` tests and final worker GREEN apply to the coordinator-confirmed byte-identical owned tree. Shared job contract #148 is merged. | Navigate Chat/Fleet/Incident on the composed runtime without a model turn and keep baseline distinct from bisection/verification. Synthetic renders are not browser8040 acceptance. |
 | U5 — documentation acceptance | [Draft #137](https://github.com/GabDestal/Mirage/pull/137), these three documentation files; README updated for #133. | Final known source SHA and coordinator rehearsal artifacts, final link/syntax/scope checks, pushed matching PR head. Documentation readiness will not close missing runtime gates. |
 
 Person A's complete-task matcher #149 and runtime/ownership/job metadata #148 are
-merged. Alternate-read fidelity and exact-call authority remain separate dependencies
-at the inspected source.
+merged. Alternate-read fidelity #150 is also merged; exact-call authority remains
+a separate dependency at the inspected source.
 #142 repairs current-tool policy and typed recorded errors on the engine side; #140
 supplies the execution-truth contract/projections. SDK failure truth and trusted
-metadata #141/#143 are merged; fleet delivery is still open. Metadata's meaningful
+metadata #141/#143 and fleet #147 are merged. Metadata's meaningful
 initial 23 RED/2 compatibility controls and later 20 RED/5 on the shared default are
 now 87 full SDK GREEN on reviewed `1c25fc26`. Its older stacked 76-pass/1-jailed-failure
 result described that earlier composition and is not a current open SDK gate.
 #129 supplies criteria now consumed by #149's canonical matcher;
-fleet registration remains pending. #133 supplies process-local pacing, not a shared
+fleet registration is now wired by #147. #133 supplies process-local pacing, not a shared
 fleet/gateway/chat/subprocess provider budget. Final PR status must be refreshed before
 accepting the composed tree; an open PR or another branch's GREEN is not merged code.
 
@@ -159,8 +168,8 @@ preserves human containment and lets healthy siblings continue. Trusted criteria
 captured before poison/concurrent mutation for both overdue invoices, four initial
 leads, three open PRs and a brief to the exact user; explicit opt-out IDs require an
 unsubscribe update and prohibit sending/scheduling. Blocking failure returns nonzero;
-nonblocking requests report only launch requested. Exact359-check invocation is not
-published, so not inferred. This is staged source evidence, not accepted fleet runtime.
+nonblocking requests report only launch requested. Exact 359-check invocation is not
+published, so not inferred. #147 is merged source evidence, not accepted fleet runtime.
 
 Earlier U3 wire provenance: `/tmp/mirage-pr130-runtime-http-results.json` pins frontend
 `116258461d6858543ea4c5d888e53dd2ed36690e` and premerge engine
@@ -216,18 +225,19 @@ published scope. Coordinator reports independent 78 engine/API/services checks f
 #140 and independent 160 checks for #139, but exact commands have not been supplied
 and are not inferred.
 
-A separately owned provider-free acceptance harness is open as
-[#151](https://github.com/GabDestal/Mirage/pull/151) at
-`34f59396f00a7db9f657a6af31a43ca52f711445`, on merged `3a50abc`, with explicitly
+A separately owned provider-free acceptance harness #151 is merged at
+`1993c783d028261a568ed0308c83cf94e8f43477`, reviewed
+`34f59396f00a7db9f657a6af31a43ca52f711445`, with explicitly
 SCRIPTED two healthy meeting probes plus one poison probe. Its model path depends
 on actual calendar/CRM tool responses, so removing the injection changes causality;
 healthy briefs use the original clean titles/times/recipient/contacts/inbox.
-`uv run pytest demo/test_acceptance_fleet.py -q --tb=short` → worker27 passes,
+`uv run pytest demo/test_acceptance_fleet.py -q --tb=short` → worker 27 passes,
 including pinned real jailed children, trapped real tool/provider functions and
 current-code verification. It changes neither normal fleet nor startup, requires
 explicit loopback/live/provider-disabled configuration, uses labelled artificial
-0.75-second pacing and leaves the offending run held. Component evidence is GREEN;
-merge and actual HTTP/UI/after-freeze healthy event ordering are pending. Artificial
+0.75-second pacing and leaves the offending run held. Worker and independent
+coordinator 27 component cases are GREEN; actual HTTP/UI/after-freeze healthy event
+ordering is pending. Artificial
 pacing is not detection-speed evidence, and scripted probes remain synthetic backup
 evidence rather than normal source-fleet provider proof.
 
@@ -252,9 +262,9 @@ independent followup PRs. Their final source/evidence remains pending.
 
 | Detail | Current fact / coordinator-owned evidence slot |
 |---|---|
-| Final composed source | Pending coordinator's known full SHA; draft inspection source is `3a50abcafdcecbba5f18ee373844caf3ae07c737` |
+| Final composed source | Pending coordinator's known full SHA; draft inspection source is `56fc52e5b9ce7be26825984da07800b6563f1fe9` |
 | Engine | Owned loopback `http://127.0.0.1:8040`, Person A, PID51886; startup revision `c116744767053793662dcbccc49c498f607e10f4`, live mode. Reported instance `fcbf633818e846abb33b7d7f518eeedb`, epoch token `43e5246fccd841c88e85955ffb7b2656`, last_seq 0/owned_run_ids[]. Full final runtime packet and restart source remain pending. Empty attachment is accepted; fleet proof is not. |
-| Web/proxy | Main UI `http://127.0.0.1:5180`, PID84720, terminal `term_146a8a2b-1ee2-4b95-9d64-9c0bab73eaa1`; initial source `e3a0d019`, Vite HMR source `5eef2405cbb3869ea70d124b38ae31b90f318d7c` for the 03:59 Paris browser observation. `/api`→8040, `/chat`→8041; coordinator reports 5180/api/runtime matches direct8040. Final all-surface revision/parity pending. |
+| Web/proxy | Main UI `http://127.0.0.1:5180`, PID84720, terminal `term_146a8a2b-1ee2-4b95-9d64-9c0bab73eaa1`; initial source `e3a0d019`, HMR `5eef2405` for initial attachment and `56fc52e5b9ce7be26825984da07800b6563f1fe9` for 02:22UTC Fleet removal. `/api`→8040, `/chat`→8041; earlier coordinator runtime GET matched direct8040. Final all-surface revision/parity pending. |
 | Chat/MCP | Coordinator restarted owned `http://127.0.0.1:8041` after main `d9c5f774` build, Node PID68595, same terminal `term_55913927-9c65-4fd4-8984-b9dc1b19ceba`, fresh main configuration selected over inherited bearer/model values. Native-browser no-tool turn through5180/chat8041/Bedrock succeeded; engine8040/MCP actions untested. Earlier PID86841/denial is historical. |
 | State isolation | New absolute DB/snapshot/token paths and scheduler identity pending coordinator evidence; a different port alone is insufficient |
 | Existing session | User engine8000/UI5173/chat8001 remain untouched and are not acceptance test targets |
@@ -287,16 +297,17 @@ Record observed counts/errors; never replace partial evidence with expected `3/3
 | Proof (1:20) | Three jailed attempts, consistent attempted/completed/error/harm counts and deterministic verdict; Production blocked vs Mirage captured effects; no real tools in child | Pending; from-freeze recorded replies prove consequences, not three fresh injection successes |
 | Cause | Human Find the cause runs from scratch with removed input; report observed ratios and no cause if interrupted/inconclusive | Pending; #126 synthetic retry/folding evidence only |
 | Persistent views | Chat opens after automatic job and reads existing proof without model turn; Fleet/Incident navigation and reconnect preserve baseline; removed-input/verify effects identified separately | U3/U4 source delivery merged; actual browser/composed-runtime acceptance pending |
-| Failure/retry | Job failure preserves prior proof, leaves production contained, shows sanitized category and explicit retry; missing snapshot/read/tool error cannot become success | Failure/status/job contracts merged; alternate-read fidelity and actual browser failure/retry flow pending |
-| Clearance and human controls | Medium-band clearance automatic; high/hard-rule/escalation recovery and Miragio operator approvals remain human-directed. Manual freeze/unfreeze/kill and STOP/recovery preserve actor/reason; confirmed compromise refused, restored owner409 honest, no automatic POST retry | Latest medium/Fleet steering source gates and composed browser evidence pending; earlier #125/#146 synthetic controls do not accept the new flow. |
+| Failure/retry | Job failure preserves prior proof, leaves production contained, shows sanitized category and explicit retry; missing snapshot/read/tool error cannot become success | Failure/status/job and exact-read fidelity source merged; actual browser failure/retry flow pending |
+| Clearance and human controls | Medium-band clearance automatic; high/hard-rule/escalation recovery and Miragio operator approvals remain human-directed. Manual freeze/unfreeze/kill and STOP/recovery preserve actor/reason; confirmed compromise refused, restored owner409 honest, no automatic POST retry | Fleet removal #153 source/empty-layout acceptance closed; medium source gate and composed control evidence pending. Earlier #125/#146 synthetic controls do not accept the new medium flow. |
 | External handoff (2:00) | Human opens/copies incident report to their external coding agent; same snapshot reachable through local checkout/state or connected deployment; untrusted inputs fenced; tokens excluded from chat/model cards | #138 synthetic/coordinator selfchecks accept truthful drawer wording and prompt readiness; actual external handoff/access remains pending. Mirage does not write or internally generate the repair. |
 | Failed fix rejected | External agent's changed current code tested from scratch against same snapshot, freeze/current policy and full legitimate task; bad/no-op/permission-loosening/partial-task fix fails | Pending current-code verification; recorded fixture fix is an example only |
-| Clean fix passes | Positive requested runs all finish, attack blocked n/n and entire legitimate task completed n/n; exact user/content/entity inventory, useful brief, no duplicate/forbidden work | Matcher #149 merged with deterministic exact/literal/count evidence; fleet wiring and fresh rehearsal pending. Semantic grounding/prose quality remain separate; a sent email or completed card is insufficient. |
+| Clean fix passes | Positive requested runs all finish, attack blocked n/n and entire legitimate task completed n/n; exact user/content/entity inventory, useful brief, no duplicate/forbidden work | Matcher #149 and fleet wiring #147 merged with deterministic exact/literal/count evidence; fresh rehearsal pending. Semantic grounding/prose quality remain separate; a sent email or completed card is insufficient. |
 | PR/restart (2:40) | External coding agent opens actual fix PR; human review/merge and explicit clean-restart decision separately recorded; queued stays pending until owner starts | Pending actual product decisions; this docs PR is not an incident fix PR |
 | False positive | Clean held action replay shows no harm with completed task; human unfreezes the held call; resumed task completes | Pending fresh scenario, distinct from merely lifting STOP |
 | Reconnect/reset/restore | GET-only recovery, epoch/instance match, stale responses excluded; authorized reset cannot erase active proof; restored history does not imply live locks/tokens | Pending final runtime/transport composition and browser evidence |
 | Browser operator-chat connection | Actual signed-in browser sends harmless no-tool turn through Vite/chat to real Bedrock; rendered response visible | Accepted at reported chat build `d9c5f774`, PID68595; native Dia AX and screenshot reported. No engine action, tool card, model retry or incident proof. |
 | Empty live-engine attachment | Browser shows actual live connection, advancing sync, empty state and synthetic service labels; Vite/runtime GET matches identified API | Accepted at UI `5eef2405`/engine `c1167447`, engine PID51886 and reported instance/epoch. Native Dia AX/screenshot; no agent launch/model/tool/control call. Final shared revision and incident flows remain pending. |
+| Requested Fleet removal | Empty live Fleet goes from summary to runs; Service evidence/Engine approvals absent; four-agent launcher, Ask Miragio and STOP preserved | Accepted at UI `56fc52e5`/earlier API `c1167447`, native Dia AX/screenshot at 02:22UTC. Advancing sync, no model/provider/launch/control call; medium flow and full rehearsal remain pending. |
 
 Current CLI semantics at the inspected source: the product shorthand `mirage detonate`
 is executed as `uv run python -m engine.cli detonate --incident <id> --runs 3 --json`
@@ -306,7 +317,7 @@ replay. Exit0 requires `passed`; both attack-blocked and legitimate-task n/n are
 Counts now accept integers1..10 only, with default detonate/verify 3 and bisect 2, before
 loading or scheduling. #142 enforces current-factory policy on the engine side;
 the exact legitimate-task matcher #149 and automatic SDK metadata #143 are merged,
-but fleet declaration wiring and fresh rehearsal remain pending, so the
+and fleet declaration wiring #147 is merged; fresh rehearsal remains pending, so the
 interface alone does not establish verified fixes. Use the actual live incident snapshot; the recorded
 M1 handoff has no executable snapshot/token and its PR URL is a placeholder.
 
@@ -374,6 +385,15 @@ parity, fleet, containment, automatic three-run replay or current-code fix-loop 
 Coordinator also reports composed-main typecheck,24 stream and incident-data checks
 GREEN after #130/#132 merge; this worker did not rerun them.
 
+**Coordinator browser report, 02:22 UTC (04:22 Europe/Paris):** native Dia Fleet
+at 5180 on HMR `56fc52e5` displayed Engine connected/Live engine, with sync advancing
+04:22:00→04:22:20→04:22:25. Service evidence and Engine approvals were absent;
+the four-agent launcher, Ask Miragio and STOP remained visible. Accessibility and
+screenshot verified the requested empty-view removal; API8040 still loaded earlier
+`c1167447`. No provider/fleet/control launch or full rehearsal occurred. This closes
+the layout acceptance only; medium clearance and final all-source rehearsal remain
+pending. No portable screenshot path was supplied here.
+
 ## 6. Open provider, service and deployment gates
 
 **Coordinator provider-access report, 01:19 UTC:** Person A ran one sequential
@@ -436,7 +456,7 @@ Historical metrics, selected N=4 eval results and M1 recordings remain unchanged
 ## 7. Documentation delivery checks
 
 Draft validation command: `python3 /tmp/mirage-ui-engine-repair-docs-check.py` →
-24 local links/anchors, 8 pinned source objects, 27 squash ancestors and 5 shell blocks
+24 local links/anchors, 8 pinned source objects, 31 squash ancestors and 5 shell blocks
 (`zsh -n`, syntax only) passed. Exact three-file scope and byte-identical connection-plan
 sections 1+ passed; `git diff --check` passed. GitHub PR metadata was fetched, but no
 broader external-link crawl or code/provider test rerun was performed.
@@ -446,11 +466,11 @@ remote/PR head remain pending. No implementation/config/schema edits, new reposi
 tests, service restarts, control POSTs, provider calls, credentials or deployments
 belong to this task.
 
-[source-model]: https://github.com/GabDestal/Mirage/blob/3a50abcafdcecbba5f18ee373844caf3ae07c737/agents/common/model.py
-[source-fleet]: https://github.com/GabDestal/Mirage/blob/3a50abcafdcecbba5f18ee373844caf3ae07c737/agents/run_demo_fleet.py
-[source-completion]: https://github.com/GabDestal/Mirage/blob/3a50abcafdcecbba5f18ee373844caf3ae07c737/agents/common/completion.py
-[source-services]: https://github.com/GabDestal/Mirage/blob/3a50abcafdcecbba5f18ee373844caf3ae07c737/agents/services/__init__.py
-[source-verifier]: https://github.com/GabDestal/Mirage/blob/3a50abcafdcecbba5f18ee373844caf3ae07c737/engine/detonation/sandbox.py
-[source-handoff]: https://github.com/GabDestal/Mirage/blob/3a50abcafdcecbba5f18ee373844caf3ae07c737/engine/handoff.py
-[source-cli]: https://github.com/GabDestal/Mirage/blob/3a50abcafdcecbba5f18ee373844caf3ae07c737/engine/cli.py
-[source-handoff-ui]: https://github.com/GabDestal/Mirage/blob/3a50abcafdcecbba5f18ee373844caf3ae07c737/web/src/components/handoff-drawer.tsx
+[source-model]: https://github.com/GabDestal/Mirage/blob/56fc52e5b9ce7be26825984da07800b6563f1fe9/agents/common/model.py
+[source-fleet]: https://github.com/GabDestal/Mirage/blob/56fc52e5b9ce7be26825984da07800b6563f1fe9/agents/run_demo_fleet.py
+[source-completion]: https://github.com/GabDestal/Mirage/blob/56fc52e5b9ce7be26825984da07800b6563f1fe9/agents/common/completion.py
+[source-services]: https://github.com/GabDestal/Mirage/blob/56fc52e5b9ce7be26825984da07800b6563f1fe9/agents/services/__init__.py
+[source-verifier]: https://github.com/GabDestal/Mirage/blob/56fc52e5b9ce7be26825984da07800b6563f1fe9/engine/detonation/sandbox.py
+[source-handoff]: https://github.com/GabDestal/Mirage/blob/56fc52e5b9ce7be26825984da07800b6563f1fe9/engine/handoff.py
+[source-cli]: https://github.com/GabDestal/Mirage/blob/56fc52e5b9ce7be26825984da07800b6563f1fe9/engine/cli.py
+[source-handoff-ui]: https://github.com/GabDestal/Mirage/blob/56fc52e5b9ce7be26825984da07800b6563f1fe9/web/src/components/handoff-drawer.tsx
