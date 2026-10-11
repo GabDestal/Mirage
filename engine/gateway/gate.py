@@ -13,6 +13,8 @@ are in memory: a run's thread and its freeze lock belong to the process that run
 """
 
 import builtins
+import copy
+import json
 import os
 import secrets
 import threading
@@ -59,7 +61,8 @@ class LiveRun:
     token: str = field(default_factory=lambda: secrets.token_urlsafe(24))
     model_calls: list = field(default_factory=list)  # snapshot material
     tool_results: list = field(default_factory=list)  # snapshot material
-    calls: dict = field(default_factory=dict)  # call_id -> {tool, args}, to pair results
+    calls: dict = field(default_factory=dict)  # checked call identity and admission/result state
+    containment_generation: int = 0
     revoked_by_reset: bool = False  # fences pending checks after incident ids are reused
     check_lock: Any = field(default_factory=threading.Lock)  # serialize this run only
     resume: threading.Event = field(default_factory=threading.Event)  # set = not frozen
@@ -120,6 +123,11 @@ def is_probe(policy, tool):
 
 def _apply_status(run, to, reason):
     previous = run.status
+    if to in ("frozen", "completed", "failed", "killed", "halted"):
+        run.containment_generation += 1
+        for call in run.calls.values():
+            if call["state"] == "held":
+                call["state"] = "revoked"
     run.status = to
     run.status_reason = reason
     if to in ("completed", "failed", "killed", "halted"):
@@ -139,6 +147,10 @@ def _emit_status(run, previous, to, actor, reason):
 def set_status(run, to, actor, reason):
     if to == "running":
         _emit_status(run, run.status, to, actor, reason)
+        # Install release authority after durable evidence, before waking any waiter.
+        for call in run.calls.values():
+            if call["state"] == "held" and call["generation"] == run.containment_generation:
+                call["released"] = True
         _apply_status(run, to, reason)
     else:
         previous = _apply_status(run, to, reason)
@@ -150,13 +162,20 @@ def _human(actor, action, target, reason):
                                      ts=datetime.now(UTC)).model_dump(mode="json"))
 
 
-def _control(run_id, to, action, actor, reason):
+def _control(run_id, to, action, actor, reason, call_id=None):
     with jobs.lock:
         run = runs[run_id]
         allowed = ("frozen",) if to == "running" else ("running", "frozen")
         if (run.status not in allowed or run.revoked_by_reset
                 or (to == "running" and STOP.is_set())):
             raise ValueError(f"Cannot {action} a run that is {run.status} or revoked.")
+        if action in ("approve", "reject"):
+            pending = [cid for cid, call in run.calls.items()
+                       if call["state"] == "held" and not call["released"]
+                       and call["generation"] == run.containment_generation
+                       and call["rule_id"] == "NEEDS_APPROVAL"]
+            if len(pending) != 1 or (call_id is not None and call_id != pending[0]):
+                raise CallAuthorityError("The original call is no longer waiting for approval.")
         if to == "running":
             _human(actor, action, run_id, reason)
             set_status(run, to, actor, reason)
@@ -176,14 +195,14 @@ def unfreeze(run_id, actor, reason):
     _control(run_id, "running", "unfreeze", actor, reason)
 
 
-def approve(run_id, actor, reason):
+def approve(run_id, actor, reason, call_id=None):
     """Approval queue: the held call runs (like unfreeze), logged as an approval."""
-    _control(run_id, "running", "approve", actor, reason)
+    _control(run_id, "running", "approve", actor, reason, call_id)
 
 
-def reject(run_id, actor, reason):
+def reject(run_id, actor, reason, call_id=None):
     """Approval queue: the held call never runs and the run ends (like kill)."""
-    _control(run_id, "killed", "reject", actor, reason)
+    _control(run_id, "killed", "reject", actor, reason, call_id)
 
 
 def kill(run_id, actor, reason):
@@ -240,7 +259,10 @@ def _check(run, tool, args) -> GateDecision:
                                 explanation="Run was revoked by demo reset.")
         call_id = next_id("call")
         run.tool_calls += 1
-        run.calls[call_id] = {"tool": tool, "args": args}
+        generation = run.containment_generation
+        call = run.calls[call_id] = {"tool": tool, "args": copy.deepcopy(args),
+                                    "token": run.token, "state": "revoked",
+                                    "generation": generation, "was_held": False}
         emit("tool.requested", {"call_id": call_id, "tool": tool, "args": args}, run_id=run.id)
         policy = policy_for(run.agent)
         evaluate = not STOP.is_set() and run.status not in (
@@ -260,11 +282,14 @@ def _check(run, tool, args) -> GateDecision:
             decision, rule = "block", ("RUN_REVOKED", f"Run is {run.status}; access is revoked.")
         elif run.status == "frozen":
             hit = None
-            decision, rule = "freeze", ("RUN_FROZEN", "Run is frozen; waiting for a human.")
+            decision, rule = "block", ("RUN_FROZEN", "Run is frozen; no new call may run.")
+        elif generation != run.containment_generation:
+            hit = None
+            decision, rule = "block", ("RUN_REVOKED", "Containment changed during this check.")
         elif not is_known(policy, tool):
             hit = None
-            decision, rule = "allow", ("UNKNOWN_TOOL",
-                                       f"{tool} is not one of the agent's tools; nothing can run.")
+            decision, rule = "block", ("UNKNOWN_TOOL",
+                                       f"{tool} is not registered; execution is blocked.")
             if is_probe(policy, tool):
                 run.probes.append(tool)
                 if len(run.probes) >= int(os.getenv("MIRAGE_ESCALATE_AFTER", "2")):
@@ -273,9 +298,7 @@ def _check(run, tool, args) -> GateDecision:
                                           f"It looks for a way around its permissions."))
                     decision, rule = "freeze", hit
         elif not evaluate:
-            # A human may have released a freeze while this check was in flight. Keep this
-            # call held; the SDK's wait observes the release without bypassing a new check.
-            decision, rule = "freeze", ("RUN_FROZEN", "Run was frozen; waiting for a human.")
+            decision, rule = "block", ("RUN_FROZEN", "This call was not evaluated while frozen.")
         elif hit:
             decision, rule = "freeze", hit
         elif review:  # held like a freeze (the SDK waits), but no incident: a human decides
@@ -304,6 +327,13 @@ def _check(run, tool, args) -> GateDecision:
             set_status(run, "frozen", "gate", rule[1])
         emit("gate.decision", gate.model_dump(mode="json"), run_id=run.id,
              incident_id=run.incident_id if hit else None)
+        if decision == "allow" and is_known(policy, tool):
+            call["state"] = "admitted"
+        elif decision == "freeze":
+            # Probe escalation contains the run, but an unregistered callback cannot be released.
+            call.update(state="held" if is_known(policy, tool) else "revoked",
+                        generation=run.containment_generation, was_held=True,
+                        released=False, rule_id=rule[0])
         if hit:
             spec = agents.get(run.agent)
             try:
@@ -337,21 +367,70 @@ def error_type(error):
     return "ExecutionError"
 
 
+class CallAuthorityError(ValueError):
+    """A call has no remaining admission or result authority for this run."""
+
+
+def _wait_status(run, call_id):
+    if call_id is not None:
+        call = run.calls.get(call_id)
+        if (run.revoked_by_reset or not call or call["token"] != run.token
+                or call["state"] != "held"
+                or call["generation"] != run.containment_generation or STOP.is_set()):
+            raise CallAuthorityError("This held call is unknown, revoked, or already admitted.")
+        if run.status == "running" and call["released"]:
+            call["state"] = "admitted"
+            return "running"
+        if run.status != "frozen":
+            raise CallAuthorityError("This held call has no approved release.")
+    elif run.status == "running" and any(
+            call["was_held"] and call["state"] in ("held", "revoked")
+            for call in run.calls.values()):
+        raise CallAuthorityError("The original checked call_id is required to claim this release.")
+    return "halted" if run.status == "completed" else (
+        "running" if run.status == "queued" else run.status)
+
+
+def wait(run, call_id=None, timeout=25):
+    """Status-only legacy polling, or one atomic admission of the original held call."""
+    with jobs.lock:
+        status = _wait_status(run, call_id)
+    if status == "frozen":
+        run.resume.wait(timeout)
+        with jobs.lock:
+            status = _wait_status(run, call_id)
+    return status
+
+
 def record_result(run, call_id, tool, result, error=None):
-    if error is not None:
-        error, result = error_type(error), None
-    args = run.calls.get(call_id, {}).get("args", {})
-    run.tool_results.append({"call_id": call_id, "tool": tool, "args": args, "result": result,
-                             "error": error})
-    emit("tool.result", {"call_id": call_id, "tool": tool, "result": result, "error": error},
-         run_id=run.id)
+    with jobs.lock:
+        call = run.calls.get(call_id)
+        if (run.revoked_by_reset or not call or call["tool"] != tool
+                or call["token"] != run.token or call["state"] not in ("admitted", "consumed")):
+            raise CallAuthorityError("This call is not admitted for this run and tool.")
+        if error is not None:
+            error, result = error_type(error), None
+        recorded = {"call_id": call_id, "tool": tool, "args": call["args"],
+                    "result": result, "error": error}
+        if call["state"] == "consumed":
+            if (json.dumps(call["result"], sort_keys=True, default=str)
+                    != json.dumps(recorded, sort_keys=True, default=str)):
+                raise CallAuthorityError("This call already recorded a different result.")
+            return
+        emit("tool.result", {"call_id": call_id, "tool": tool, "result": result, "error": error},
+             run_id=run.id)
+        call["state"], call["result"] = "consumed", copy.deepcopy(recorded)
+        run.tool_results.append(call["result"])
 
 
 def execute(run, tool, args):
     """Dev harness path: check, wait while frozen, run the tool in-process."""
     gate = check(run, tool, args)
     if gate.decision == "freeze":
-        run.resume.wait()  # only this run's thread waits; a human decides
+        try:
+            wait(run, gate.call_id, timeout=None)  # only this run's thread waits
+        except CallAuthorityError:
+            return {"error": "Access revoked by Mirage."}
     if gate.decision == "block" or run.status != "running":
         return {"error": "Access revoked by Mirage."}
     try:

@@ -197,10 +197,10 @@ def test_real_sdk_path_holds_the_callback_and_verdict_reuses_each_rule(api, monk
     monkeypatch.setattr(core, "_sandbox", None)
     real_wait = core._wait
 
-    def reject_frozen(run):
+    def reject_frozen(run, *args, **kwargs):
         assert gate.runs[run["id"]].status == "frozen"
         gate.kill(run["id"], "test", "Reject unsafe effect")
-        real_wait(run)
+        real_wait(run, *args, **kwargs)
 
     monkeypatch.setattr(core, "_wait", reject_frozen)
     run = core.open_run("destination_test", "Send my brief")

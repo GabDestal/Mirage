@@ -103,28 +103,47 @@ def replayed_reply():
     return None
 
 
-def _wait(run):
+def _deny(run, explanation):
+    blocked = Blocked(explanation)
+    if run is not None:
+        try:
+            complete(run, type(blocked).__name__)
+        except Exception as reporting_error:  # noqa: BLE001 - preserve the denial
+            blocked.add_note(f"Mirage failure reporting failed: {type(reporting_error).__name__}")
+    raise blocked
+
+
+def _wait(run, call_id=None):
+    params = {"timeout": 60}
+    if call_id is not None:
+        params["call_id"] = call_id
     while True:
-        r = _http.get(f"/runs/{run['id']}/wait", params={"timeout": 60},
+        r = _http.get(f"/runs/{run['id']}/wait", params=params,
                       headers={"Authorization": f"Bearer {run['token']}"})
+        if r.status_code == 409:
+            _deny(run, f"The held call is no longer authorized for run {run['id']}.")
         r.raise_for_status()
         status = WaitResult.model_validate(r.json()).status
         if status == "running":
+            if call_id is None:
+                _deny(run, "A checked call_id is required to resume a held tool.")
             return
         if status != "frozen":
-            raise Blocked(f"Run {run['id']} is {status}.")
+            _deny(run, f"Run {run['id']} is {status}.")
 
 
 def check(name, args, run):
     """Gate one tool call: returns its call_id once allowed, waits while frozen, raises Blocked."""
     if run is None:  # fail closed: a protected tool only runs inside a checked run
-        raise Blocked(f"{name} was called outside a Mirage run.")
+        _deny(run, f"{name} was called outside a Mirage run.")
     gate = GateDecision.model_validate(_post("/gateway/check", ToolCheck(
         run_id=run["id"], tool=name, args=_json(args)), run))
     if gate.decision == "block":
-        raise Blocked(gate.explanation)
+        if gate.rule_id == "RUN_FROZEN":  # a denied sibling cannot cancel a later human grant
+            raise Blocked(gate.explanation)
+        _deny(run, gate.explanation)
     if gate.decision == "freeze":
-        _wait(run)  # only this run's thread waits; a human decides
+        _wait(run, gate.call_id)  # only this checked call can claim its release
     return gate.call_id
 
 

@@ -97,7 +97,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Wait */
+        /**
+         * Wait
+         * @description Poll status; a bound call_id claims only that call's approved release, once.
+         */
         get: operations["wait_runs__run_id__wait_get"];
         put?: never;
         post?: never;
@@ -1314,6 +1317,8 @@ export interface operations {
         parameters: {
             query?: {
                 timeout?: number;
+                /** @description Original checked call held for a human. */
+                call_id?: string | null;
             };
             header?: {
                 authorization?: string;

