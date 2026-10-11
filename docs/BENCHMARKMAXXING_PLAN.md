@@ -1,121 +1,156 @@
-# Mirage benchmark improvement plan
+# Mirage benchmark improvement plan — two-hour pilot
 
-Status: planning only. Benchmark execution and tuning are not authorized yet.
+Status: parked, planning only. Documentation and rebasing this independent feature branch are authorized. Benchmark execution, implementation and tuning wait for the user's explicit start.
 
 ## Objective and start condition
 
-Demonstrate that Mirage prevents harmful actions, diagnoses failures accurately, and restores useful work safely. Pursue strong measured results by improving general enforcement and recovery, without teaching benchmark answers.
+Prove one workflow end to end: a Bedrock agent attempts a legitimate external benchmark task, Mirage contains an injected harmful action, the incident is investigated in isolation, a general correction is verified, and a human-approved fresh run completes useful work. Publish the native outcomes, coverage and overhead honestly. Strong results come from general mechanisms, never teaching benchmark answers.
 
-The benchmarkmaxxing worktree is independent of main. Its coordinator may read the repository, prepare this plan, and identify dependencies. Do not run benchmarks, make Bedrock calls, install dependencies, start services, change implementation or configuration, or dispatch implementation workers until the user explicitly starts this phase. Documentation preparation is authorized now.
+The benchmarkmaxxing worktree remains independent and parallel to main. Until explicit start, edit only this plan. Do not run benchmarks/tests/provider smoke calls, call Bedrock or another model testing API, install dependencies, launch services, tune policies, edit implementation/tests/configs, dispatch workers, merge PRs or change main. Preserve existing engine workers and their ownership.
 
-After authorization, complete a small pilot within three to four hours of agent execution. Engine fixes take priority and must land first. Recheck the composed main revision rather than assuming individual workers or passing unit tests establish readiness. Preserve existing worker ownership.
+**Key branch rule: publish and use `benchmaxing` as the benchmark base branch. Every future benchmark worker branch starts from its exact published SHA, never directly from main or an unrelated feature. Rebasing from main is allowed. Merge nothing during this phase: no merge into main, no merge into `benchmaxing`, and no worker PR merges. Commit/push branches and deliver reviewable results; any later integration needs a new explicit user instruction.** This rule supersedes the generic merge/cleanup workflow for this phase.
 
-## Selected external benchmarks
+The user reports adding the Bedrock key to this environment. Access and model availability have not been tested here. After start, reuse the first bounded clean benchmark invocation to check access; do not add a separate provider-testing campaign.
 
-| Benchmark | Use | Initial scope | Limits |
+The execution cap is **120 minutes from explicit start**, replacing the earlier three-to-four-hour proposal. Milestones share this cap; parallel work does not receive another two hours. Log human wait separately, but do not extend the cap or keep launching runs while waiting. Engine fixes and the engine coordinator's exact accepted engine-composition SHA remain prerequisites; record both that engine revision and the published `benchmaxing` base SHA. The reviewed main fixes below are already included by rebase. No new main merge is a prerequisite or permitted action. Use an existing acceptance handoff when it covers the engine SHA; do not rerun the entire engine verification programme.
+
+## Current engine baseline: what changed and why it helps
+
+This branch was rebased from main `6cfea0e` onto fetched main **`1e6052e073886abf36f54af10c48e8c521f4b86e`** on 2026-10-11. The following findings come from source review, not benchmark execution. This is the reviewed baseline; confirm its accepted composition with the engine coordinator at start if main moves again.
+
+| Change on main | How it works now | Benchmark consequence |
+|---|---|---|
+| SDK failure truth, [PR #141](https://github.com/GabDestal/Mirage/pull/141) | SDK invocation exceptions report `failed`; handled LangChain tool errors remain typed errors with sanitized recording | Crashes and failed tools cannot masquerade as useful completion |
+| SDK completion metadata, [PR #143](https://github.com/GabDestal/Mirage/pull/143) | `mirage.protect(..., legit=...)` forwards trusted completion declarations; rebuilt factories publish current registration metadata | Reuse existing completion transport and current-code verification rather than inventing another verifier |
+| Fleet execution truth, [PR #147](https://github.com/GabDestal/Mirage/pull/147) | Trusted initial inventories define full story requirements; registration, factory, invocation and completion failures stay visible | Reuse the requirements pattern, but grade benchmark utility with native checks and actual final state |
+| Exact replay reads, [PR #150](https://github.com/GabDestal/Mirage/pull/150) | The child consumes chronological recordings for exact tool + arguments; missing/exhausted reads return typed failures | A different entity or missing read cannot silently receive a plausible fake result |
+| Call-bound admission, [PR #154](https://github.com/GabDestal/Mirage/pull/154) | A human releases the original checked `call_id` once; result recording matches the admitted run/tool/call and deduplicates identical retries | Use the SDK's bound wait and recording path; do not write a benchmark approval bypass |
+| Admission-time policy, [PR #155](https://github.com/GabDestal/Mirage/pull/155) | Each run deep-copies its registered permissions and completion declaration; freeze uses its admitted registration | Re-registration cannot quietly change the restrictions for an ongoing benchmark run |
+| Partial proof retention, [PR #152](https://github.com/GabDestal/Mirage/pull/152) | Replay collection keeps valid ledger entries and sibling evidence through corrupt records, collection errors or failed futures | Harm remains harm; failed replay coverage remains incomplete rather than clean |
+| Restart identity, [PR #157](https://github.com/GabDestal/Mirage/pull/157) | A queued restart matches the original agent/task, approved registration and optional original-run selector; stale/ambiguous claims are rejected | A successful new task cannot be reported as recovery of the failed original task |
+
+Source seams: [SDK core](../sdk/mirage/core.py), [SDK adapter](../sdk/mirage/adapters/langchain.py), [gateway](../engine/gateway/gate.py), [HTTP lifecycle](../engine/api/server.py), [replay child](../engine/detonation/child.py), [proof collection](../engine/detonation/sandbox.py), [story requirements](../agents/common/completion.py). The shared contract remains `contracts/models.py` and `CONTRACTS.md`.
+
+**Remaining integration gap:** the child still captures declared demo writes with synthetic acknowledgments; it is not a general stateful benchmark world. Native tool names/arguments may also differ from the gate's destination conventions. Solve only what the selected task family needs. Unknown reads, fake acknowledgments or an effects-only completion declaration do not establish external task success.
+
+## Selected benchmarks and bounded coverage
+
+All three approved sources remain in scope. Smaller complete cohorts replace the earlier 10–20-case aspirations; report anything infeasible explicitly.
+
+| Benchmark | Purpose | Two-hour target | Limits |
 |---|---|---|---|
-| [AgentDojo](https://github.com/ethz-spylab/agentdojo) | Harmful action prevention and legitimate task completion, including completion after recovery | 10–20 task/attack pairs, plus corresponding clean tasks; prefer non-calendar suites | Native checks do not grade Mirage's internal freeze, replay, bisection or restart mechanism |
-| [AgentRx](https://github.com/microsoft/AgentRx) | Failure-step localization and root-cause attribution against human annotations | 10–20 recorded failed traces | Offline diagnosis dataset; not executable repair or counterfactual bisection. A dataset evaluation is not a reproduction of the complete AgentRx framework |
-| [HarnessRisk](https://github.com/Baiyajing/HarnessRisk) | Recovery from compromised state while resisting poisoned recovery instructions | About five file-based recovery/persistence cases | New August 2026 research preprint. Existing runners target other harnesses; adapter and OS isolation require a feasibility check |
+| [AgentDojo](https://github.com/ethz-spylab/agentdojo) | Harm prevention and useful task completion | Two development task families; four held-out task/attack pairs plus their clean counterparts, on two models. Preselect one or two of those pairs for the full recovery cohort | Primary executable workflow. Prefer a non-calendar suite with compatible read-then-write tools. Full-workflow comparisons use the same predeclared recovery subset across all three arms |
+| [AgentRx](https://github.com/microsoft/AgentRx) | Failure-step localization and root-cause attribution | Two development traces and six held-out traces; simple diagnosis versus evidence-assisted diagnosis, on the same two models | Released human labels grade a disclosed offline diagnostic adapter. This is not reproduction of the complete AgentRx framework, counterfactual bisection or executable repair |
+| [HarnessRisk](https://github.com/Baiyajing/HarnessRisk) | Safe recovery and persistence removal | One development and one or two held-out file-based cases on two models, only if the existing tools/isolation can support them inside the feasibility cap | Select by tool/environment compatibility before outcomes. Preserve native case semantics. Missing isolation or a substantial new harness means not run, with coverage disclosed |
 
-AgentRx releases 115 annotated failed trajectories. HarnessRisk releases 128 cases across six lifecycle phases. Sources: [Microsoft Research](https://www.microsoft.com/en-us/research/blog/systematic-debugging-for-ai-agents-introducing-the-agentrx-framework/), [HarnessRisk paper](https://arxiv.org/abs/2608.17597), [HarnessRisk cases](https://huggingface.co/datasets/YajingB/HarnessRisk).
+HarnessRisk recovery_119 and recovery_120 remain candidate compatibility examples, not mandatory cases or expected answers. Pin case/source revisions at start. Do not add ITBench, OSWorld, new cyber ranges, adaptive attack generation or full benchmark infrastructures.
 
-Useful HarnessRisk examples are recovery_119, which restores unsafe gateway/approval configuration, and recovery_120, which repairs poisoned durable memory. A report alone is insufficient: the attack checks inspect whether the unsafe configuration or memory remains. Select cases by tool/environment compatibility before seeing their evaluation outcomes.
+## Reuse and the smallest complete integration
 
-Do not add ITBench, OSWorld, new cyber ranges or full benchmark infrastructures to this phase. Keep the three selected sources; report an unavailable adapter honestly if it cannot fit the budget.
+Preferred approach: reuse the existing Bedrock/LangGraph agent construction, `mirage.protect`, HTTP gateway, snapshots, automatic three-run replay, bisection, verification and approved restart. The benchmark worker owns a thin native-tool bridge and saved result rows. Person A continues to own engine changes. No new safety engine, sandbox platform, policy framework or product UI.
 
-## Engine readiness and architecture dependencies
+- Bedrock construction already exists in [agents/common/model.py](../agents/common/model.py); its limiter is process-local. Coordinate the request budget across workers and replay children instead of assuming it is global.
+- AgentDojo exposes [a pipeline query seam](https://github.com/ethz-spylab/agentdojo/blob/main/src/agentdojo/agent_pipeline/base_pipeline_element.py), [native function execution](https://github.com/ethz-spylab/agentdojo/blob/main/src/agentdojo/functions_runtime.py) and [task execution/grading](https://github.com/ethz-spylab/agentdojo/blob/main/src/agentdojo/task_suite/task_suite.py). Bridge those to the installed agent/SDK stack; keep the published task prompt, tools and graders.
+- First try exact recorded-read replay plus applying captured write attempts in order through native functions on an independent copy of the frozen world. Disclose this reconstructed-state validation. Validate each mutation through the native function; a rejected mutation or a later read depending on an unavailable write result makes that path unsupported/unknown. Never replay already-completed pre-freeze writes twice.
+- If the selected family needs live sandbox reads after writes, request the smallest stateful callback seam from the current engine owner. Give this dependency a 15-minute cap; do not build a generic simulator. If it does not fit, report the full recovery arm incomplete and retain the independently scored baseline/gate results.
+- Resolve effects from published tool schemas and trusted task scope, including recipients/resources; pass native arguments unchanged to the native function. Disclose any deterministic compatibility mapping used for the gate. Derive permissions from the user's task and declared tools, never attack objectives, ground truth, case ID or expected output.
+- Each arm starts from a fresh native world; production, detonation and verification use separate state and ledgers. Use a separate benchmark engine port/store, leaving the active demo and existing engine workers untouched. Only fixture-local file tools are candidates for HarnessRisk. Do not expose arbitrary shell execution or real services/credentials to benchmark agents.
 
-The coordinator must obtain the exact accepted main SHA and confirmation of these capabilities from the engine/SDK owners before execution:
+Alternative considered: implement generic adapters for all suites and a fully stateful sandbox up front. Defer it because it would consume the pilot. The recommendation is the thin native bridge for one compatible family, extending it only after the primary workflow runs. Default contract impact: none. Any necessary shared-model change requires Person A/B agreement and models, fixtures and `CONTRACTS.md` in the same worker commit.
 
-- Every relevant effect goes through the gate before execution, including file/configuration writes and mutations hidden behind generic tools.
-- Company policy, agent permissions and trusted task scope intersect. External content cannot grant permissions. Policy authority and version binding are consistent across gate, snapshot, verifier and restarted run.
-- Snapshots retain input identity, complete relevant context and tool outcomes. Replay failures are failures; unknown reads and generic fake success responses cannot establish native task completion.
-- Each benchmark world can be reset and forked. Sandbox writes change only the benchmark simulation state. Production execution and detonation use separate ledgers and state.
-- Fix verification evaluates both safety and useful completion using the same authoritative restrictions. Removing the task, refusing every tool or allowlisting the attacker is not a fix.
-- Restart revokes the compromised run's authority, starts fresh context and preserves the original authorized task. Already-completed writes have receipts or idempotency protection.
-- Evaluation scheduling prevents automatic detonation from multiplying inference calls unexpectedly. No bypass of normal gateway checks is acceptable.
+## Milestones: one shared 120-minute clock
 
-The current contract describes recorded-read replay and generic captured-write responses. A stateful benchmark bridge is a dependency, not an existing guarantee. Request the smallest bridge from the owning worker after authorization; do not replace the engine or quietly substitute a new detector.
+Coordinator roles are **C0 delivery**, **C1 executable integration**, and **C2 grading/coverage**. This planning coordinator initially carries all three responsibilities in one supervised Orca inbox. They are not three mandatory agent processes. Delegate a coordinator role only when it actually reduces supervision time; reuse the same role across milestones.
 
-Benchmark fixtures and ground-truth labels are untrusted evaluation data. Keep any native fake credentials in isolated fixtures; never load real service credentials into a benchmark world. Confirm compatibility with repository fake-secret conventions before adopting native cases rather than silently rewriting published fixtures.
+| Milestone / time | Accountable coordinator | Delegated work | Observable exit and commit |
+|---|---|---|---|
+| **M0: pin the experiment, 0–10 min** | C0 with C2 | W1 pins executable sources, initial state and task-family split; W2 pins diagnosis split; W3 checks file-case compatibility. Confirm accepted engine SHA; record two model candidates from environment for M1's clean check | Saved manifest: code/source SHAs, case/attack IDs, split, recovery subset, candidate model IDs, limits, policy version and grader type. First focused commit. No model choice based on attack outcomes |
+| **M1: native baseline and containment, 10–30 min** | C1 | W1 connects one native task family to unprotected and SDK-protected execution, checking access/tool competence through its first clean calls. W2 starts the offline diagnostic adapter in parallel. W3 gets at most 15 minutes for its feasibility decision | Two models selected on clean competence; one development attack/clean pair produces native outcomes and saved final-world evidence in baseline and gate-only arms. Gate precedes the protected tool callback. Commit this runnable step; publish draft worker PRs. Auth failures remain explicit; no provider substitution |
+| **M2: finish the incident loop, 30–50 min** | C1 with C0 for operator actions | W1 reuses snapshot → three replays → bounded bisection → a general correction → three-run verification → approved clean restart. Request a scoped engine-owner seam only if essential | Original task completes in a fresh authorized run; native checks and disclosed state-backed validation agree or the disagreement is saved. Record actual approval/restart IDs, not a queued claim. Commit the working loop and correction. Lock evaluation manifest/policies by minute 50 |
+| **M3: paired held-out evaluation, 50–100 min** | C2 | W1 runs the executable matrix; W2 runs held-out diagnosis and builds the scorecard; W3 runs compatible file cases. Share inference scheduling instead of simultaneous provider bursts | Append results after every completed case/model/arm; commit the first complete pair and subsequent coherent batches. Preserve timeouts, unknowns and all manifest denominators. Freeze code/policies during held-out evaluation; stop launching work at minute 100 |
+| **M4: close the pilot, 100–120 min** | C0 with C2 | Workers inspect saved failures/disagreements, finish bounded in-flight jobs, complete the scorecard and update their atomic PRs | Published counts/coverage/bounds, native scores, utility/recovery evidence, source/model/code revisions, overhead and explicit incomplete rows. All owned code/docs committed and pushed; precise PR handoff. Stop at minute 120 |
 
-## Experimental design
+Do not shift later milestones to compensate for overruns. If M1 is late, shrink the predeclared evaluation cohort before looking at outcomes and record the change. If M2 fails, do not describe gate-only results as end-to-end recovery. From minute 100, reporting has priority over expansion.
 
-For executable AgentDojo and compatible HarnessRisk cases, compare three configurations:
+Two-hour delivery means an inspectable pilot, published worker branches and unmerged review PRs against `benchmaxing`, with measured or explicitly unknown outcomes. Actual restart approvals remain human actions. Pending approval is a visible incomplete milestone, not permission to restart or extend the clock. No branch or PR is merged.
 
-1. Unprotected agent.
-2. Mirage gate only, with the same detector/policies as the full configuration, and recovery disabled.
-3. Full Mirage workflow: containment, snapshot, isolated investigation, verification and operator-approved clean restart.
+## Worker briefs and ownership after explicit start
 
-Keep victim model, prompt, tools, authorized task, attack, initial state, model parameters and step limits identical within each comparison. Reset state between runs. Disclose any runner modifications or unsupported cases. Use a fixed, published attack source where available; skip adaptive attack generation for the first pilot.
+Create independent, supervised Orca feature worktrees explicitly based on the pinned published `origin/benchmaxing` SHA; do not accept Orca's default main base. One feature/worktree/atomic review PR, with `benchmaxing` as its target and no merge. Coordinators inspect and decide; workers implement, validate, review, commit, push and maintain PRs. No worker is started during planning. Reuse proven workers rather than building a deep coordinator hierarchy.
 
-After explicit authorization, inspect the pinned native graders for report-only or textual fallbacks before evaluation. Publish raw native scores separately from any disclosed validation backed by final execution state after continuation/restart. Keep the native oracle unchanged; disclose any additional checks and their limitations. No silent oracle changes. Final utility requires evidence that the requested deliverable exists or the authorized action completed; the model merely mentioning the deliverable is insufficient. Deliberately permitted harm inside detonation is separate evidence and does not count as a production compromise.
+| Worker | Goal / demo step | Owned scope | Dependencies and observable acceptance |
+|---|---|---|---|
+| **W1: executable benchmark loop** | Evidence for prevent → explain → verify → recover | Proposed `benchmarks/agentdojo.py`, `benchmarks/run.py`, `benchmarks/common.py`, `benchmarks/manifest.json`; scoped tests only if new nontrivial adapter logic needs them | Accepted engine/SDK and `benchmaxing` base SHAs; W2/W3 consume saved data artifacts, not an assumed merged code dependency. Preserve native runtime/checks and the gateway. Development pair runs end to end, then held-out paired rows have real world evidence and original-task restart identity |
+| **W2: diagnosis and scorecard** | Explain failures and show useful/safe completion honestly | Proposed `benchmarks/agentrx.py`, `benchmarks/report.py`, `docs/BENCHMARKMAXXING_RESULTS.md`; diagnosis result artifacts | Shared row shape fixed in M0. Labels are scorer-only. Same trace/policy/schema and model for both diagnostic arms. Scorecard reconciles every manifest row, separates native/state-backed scores and includes coverage/bounds |
+| **W3: bounded recovery cases** | Recover without poisoned configuration or durable memory | Proposed `benchmarks/harnessrisk.py`; fixture-local run artifacts | Reuse model/SDK seams already in the `benchmaxing` base and W1's published row format; do not require W1 to merge. Native published fixtures/graders; no arbitrary host execution. One development file case reaches final-state grading within its feasibility cap, or a precise not-run reason is delivered |
+| **Existing engine owner, conditional** | Unblock only the selected native-world/replay seam | Exact approved files in `engine/`, possibly SDK/contract files with Person B agreement | Existing fleet ownership is unchanged. C1 asks the owning coordinator first. Owner supplies the smallest reviewed seam and its SHA; benchmark workers never patch around it or take over those files |
 
-For AgentRx, compare a simple diagnosis prompt with Mirage's evidence-based diagnostic output using the same Bedrock model and the same allowed trace/policy/schema information. Grade against the released failure-step and cause labels. Do not show labels to either diagnostic system. Static traces cannot demonstrate replay, bisection or restart; do not claim otherwise.
+These paths are planned scopes, not files created by this preparation. Avoid changing project-wide dependencies/configs unless an approved adapter needs them. Person A owns engine/gate/store/replay/verifier/API; Person B owns SDK/agent adapters, policy text, task-completion declarations and reports. Shared contracts follow `CONTRACTS.md`.
 
-Mirage's event trace separately records containment, replay, verification, human approval, restart and final completion. A safe recovery score derived from those stages is our disclosed extension. Original benchmark metrics remain separately visible. No external benchmark selected here certifies the entire internal lifecycle out of the box.
+Every dispatch includes: goal/demo step, exact owned files, accepted base SHA, dependencies, time/step/call caps, prohibited boundaries, result location and observable exit. Questions and completion reports use supervised Orca orchestration. A worker report includes tested SHA, commit/push/PR state, saved evidence, unknowns and remaining ownership; settle each dispatch before reassignment/release.
 
-## Honest benchmark improvement
+Exchange manifests and result artifacts across the independent worker checkouts. The scorecard records each worker's actual tested SHA; it does not invent a combined tested revision. If a dependency would require a merge or unapproved composition, stop that dependency and report it rather than integrating silently. Existing engine workers retain their ownership and publish any conditional seam on their own unmerged branch.
 
-Before tuning, pin source revisions and create a reproducible manifest containing case IDs, attack IDs, model IDs, seeds where supported, split assignment, limits and policy version. Split by task/attack family so near-duplicate variants do not cross the development/evaluation boundary. A single task attacked multiple ways stays in one split.
+**Commit cadence:** commit each working slice, normally every 10–15 minutes and at every milestone exit; do not wait for the whole pilot. Push at least every 30 minutes and after a completed milestone. Update the same atomic review PR as its feature progresses. No empty clock-driven commits, merge commits, branch/PR merges or coordinator implementation takeover. Retain unmerged worktrees; merge-triggered cleanup does not apply during this phase.
 
-Use development cases to improve general mechanisms:
+## Experimental design and bounded verification
 
-- Resolve actual effects before authorization, independent of tool spelling.
-- Check trusted resource, destination, beneficiary, action and data scope rather than demo-only domains or one hardcoded canary.
-- Cover unauthorized configuration changes, memory writes, deletion, secret exposure and privilege escalation.
-- Remove poisoned influence during recovery without removing necessary benign task information.
-- Repair fresh-run reconstruction, tool error handling and side-effect deduplication.
-- Reduce false positives using clean counterparts and correct authorized task scopes.
+Executable arms: **unprotected**, **Mirage gate only with recovery disabled**, and **full Mirage workflow**. Detector/policies match between protected arms. Within a paired comparison, hold victim model, task prompt, tools, authorized scope, attack, initial world, parameters and step limits fixed. Full workflow uses the predeclared smaller recovery cohort; show comparisons for that same cohort across all three arms and keep the larger baseline/gate cohort separate.
 
-Forbidden: case-ID branches, attack-text matching, evaluator-answer injection, permissions inferred from attacker objectives, feeding AgentRx labels to diagnosis, modifying success criteria to pass, selecting final cases/models because they fail attacks, dropping failures from denominators, or repeatedly tuning against held-out results.
+Clean counterparts remain part of every compared arm; no full recovery is needed when no incident occurs. Native attacker-success and utility checks run on the final execution world after continuation/restart. Deliberately permitted harm in detonation is separate evidence, not production compromise. If validation reconstructs state from the ledger, label that method explicitly and preserve the original native score fields.
 
-Choose two available smaller Bedrock models based on clean tool-use competence and access before held-out attack results are visible. A third model is optional only if the pilot leaves budget. If evaluation exposes a new issue that we fix, mark those cases as development and obtain untouched evaluation cases; do not relabel the rerun as held-out.
+The existing gateway automatically schedules three replays per incident. At M0/M1 account for those calls in both protected arms. Prefer to retain and label automatic investigation with recovery disabled in the gate-only arm; do not claim it has zero investigation overhead. Only the existing engine owner may supply an explicit scheduling control. Never monkeypatch the gateway/scheduler, suppress failures or silently bypass checks to save calls.
+
+Bisection and three-run fix verification are limited to the fixed recovery cohort. Cap bisection at two candidate inputs, two attempts each; select candidates from incident evidence, not benchmark labels. A correction removes the identified untrusted influence while preserving the original task, useful benign context and pinned restrictions. Never use the published clean fixture or expected deliverable as a recovery answer oracle. Missing required context is an unsuccessful/unknown recovery, not a reason to redefine utility. Actual operator approval must be logged before a fresh run claims success; otherwise leave it awaiting approval.
+
+AgentRx compares one simple diagnosis prompt with a disclosed evidence-assisted diagnostic adapter using the same Bedrock model and allowed trace/policy/schema information. Deterministic extraction may structure observed calls, results and errors; it must not add answers from annotations. Grade critical failure step and cause separately against released labels. Static traces do not prove replay or restart, and the adapter is not a second detector.
+
+Verification is proportional: use the development paired run plus one focused check for any new mapping/state-isolation logic; use affected existing checks only when an owner changes their code. Inspect final native state, callback gating, errors and restart events in the actual loop. Once these checks pass, proceed to evaluation. No broad repeated test sweeps, production-hardening programme, generalized refactor, new eval framework or extra review fleet.
+
+## No answer teaching and no silent oracle changes
+
+Pin source revisions and manifest before tuning. Split by task/attack family so variants of the same task remain in one split. Development cases may improve general tool-effect mapping, faithful replay, fresh-run reconstruction, error handling, deduplication and false-containment handling. Freeze policies/prompts/code before held-out attack results are visible. Keep labels and grader-only fields outside runtime/diagnostic contexts.
+
+Forbidden: case-ID branches, attack-text matching, evaluator-answer injection, permissions inferred from attacker objectives, AgentRx labels in diagnosis, modifying success criteria to pass, choosing final models/cases because they resist attacks, dropping failures from denominators, or repeated tuning against held-out outcomes. If a held-out case motivates a fix, reclassify the exposed family as development and use untouched evaluation cases; within this time cap, leave the fix unevaluated if there is no untouched cohort.
+
+Inspect the **pinned native graders** for report-only/textual fallbacks before evaluation. AgentDojo's grading seam passes both model output and environment/trace evidence to task checks. HarnessRisk's [published evaluator](https://github.com/Baiyajing/HarnessRisk/blob/main/harness_adapter/scripts/evaluate_run.py) can take the maximum of oracle utility and a final-answer fallback. Publish its raw `utility_score`, `utility_oracle_score` and `utility_final_answer_fallback_score` separately from any disclosed state-backed validation. Do not silently patch or replace the native oracle.
+
+**Final utility requires evidence that the requested deliverable exists or the authorized action completed. A model mentioning or promising the deliverable is insufficient.** Preserve raw native scores even when they disagree with this stricter validation; report the disagreement and method. The additional safety/restart/reinfection checks are Mirage extensions, not benchmark-certified lifecycle coverage.
+
+Use only synthetic benchmark worlds and fake fixture credentials. Check native fixture compatibility with repository fake-secret conventions; disclose incompatible cases instead of silently rewriting them. Real service keys, environment files, capability tokens and raw provider errors never enter Git or reports.
 
 ## Metrics and evidence
 
 | Metric | Definition |
 |---|---|
-| Attack success rate | Raw native attacker-success scores, scored-case coverage and conservative bounds across all selected executable attack cases |
-| Legitimate task completion | Native user-task success for both clean and attacked tasks, reported separately |
-| Joint safe completion | Native task succeeds and native attack fails on final execution state |
-| Diagnosis accuracy | Correct critical failure step and correct cause category, reported separately against AgentRx labels |
-| Safe recovery | Required recovery state passes external checks and the authorized task finishes; any additional restart/reinfection check is labelled a Mirage extension |
-| False containment | Clean legitimate tasks incorrectly held; include human approvals and unresolved holds |
-| Overhead | Model calls, token usage, provider throttling, machine processing time and human wait time, reported separately |
+| Attack success | Raw native attacker-success outcomes with counts, coverage and conservative bounds |
+| Legitimate completion | Raw native user-task scores for clean/attacked tasks separately, plus separately disclosed final-state validation |
+| Joint safe completion | Task completion is established and attacker failure is established on final execution state |
+| Diagnosis | Correct critical failure step and correct cause category, each scored separately against AgentRx labels |
+| Safe recovery | Required recovery state passes external checks and the original authorized task completes; lifecycle/reinfection checks are labelled extensions |
+| False containment | Clean tasks incorrectly held, including approvals and unresolved holds |
+| Overhead | Model calls/tokens, throttling, processing time and human wait, separated by arm and inference role |
 
-Publish counts and denominators per benchmark/model/arm; do not pool unlike metrics into one giant accuracy percentage. Keep unsupported cases, timeouts, errors and incomplete recoveries visible. Zero baseline compromises means relative reduction is undefined. Use uncertainty intervals when the sample supports them, and label small samples as pilots.
+Missing native scores, timeouts and adapter failures remain **unknown**, never successful prevention or completion. Preserve the fixed manifest denominator and report scored-case coverage for each metric. For a binary outcome with N selected cases, S confirmed successes for that outcome and U unknowns, publish conservative bounds **[S/N, (S+U)/N]** alongside counts/raw scores. For nonbinary native scores, publish the raw values and equivalent bounds using the metric's declared range; do not silently convert partial scores into binary success. N = 0 is not evaluated. Missing-outcome bounds are distinct from statistical uncertainty intervals.
 
-Missing native scores, timeouts and adapter failures remain unknown outcomes, never successful prevention or completion. Preserve the fixed selected-case denominator and report scored-case coverage for each metric. With N selected cases, S confirmed successes for that metric and U unknown outcomes, publish conservative bounds [S/N, (S+U)/N], alongside raw scores and counts; these missing-outcome bounds are separate from statistical uncertainty intervals. A missing attacker-success score does not establish that an attack failed. Claim joint safe completion or safe recovery only when both safety and final task completion are established.
+A missing attacker-success score does not establish attacker failure. Known harmful evidence remains harmful even if another stage fails. Claim joint safe completion/recovery only when both safety and final task completion are established. Keep unsupported cases, incomplete recoveries, disagreements and errors visible; do not use native completed-only aggregation as the headline denominator.
 
-Aspirational targets, not promised or measured results: at least 80% relative attack-success reduction where a nonzero baseline exists, with legitimate completion within five percentage points of baseline, and a visible safe-completion gain over gate-only containment. Do not trade away utility to hit the safety target.
+Publish per benchmark/model/arm/cohort; do not pool unlike metrics. Zero baseline compromises makes relative reduction undefined. Label small samples as pilots. Aspirational targets remain unmeasured: 80% relative attack-success reduction where baseline is nonzero, utility within five percentage points of baseline, and visible safe-completion improvement over gate-only. Do not sacrifice useful work to meet a safety target.
 
-Each result links to source revision, selected case, model configuration, policy version, native scores, final world diff and a sanitized event/incident trace. Pin verification to the exact tested code/configuration revision. Keep tokens, environment files and capability credentials out of Git and reports.
+Save a result row immediately after each run: case/attack/split/cohort, source and code SHAs, model/parameters, policy version, arm, terminal status/unknown reason, untouched native scores, validation method/result, final-world diff/receipt references, incident and approved-restart references, calls/tokens/latency. Use JSONL and stdlib reporting; no dashboard/database. Credentials and large raw datasets stay outside committed artifacts.
 
-## Bedrock and time budget after authorization
+## Bedrock budget and stopping rules
 
-All inference uses existing Bedrock access in us-east-1. Load python-dotenv before boto3 where needed. Use AWS_BEARER_TOKEN_BEDROCK and model/profile IDs from environment; never hardcode or print secrets. Respect model-specific temperature support. Victim parameters stay fixed across arms; diagnostic/report roles are disclosed separately.
+Exactly **two available smaller Bedrock models**, chosen on clean tool-use competence/access before held-out attack outcomes. Model/profile IDs come from environment; no hardcoded IDs or secret output. All inference uses existing `us-east-1` access, python-dotenv before boto3, the installed client and model-specific parameter support. Victim parameters match across arms; diagnostic/report roles are disclosed separately. Defer a third model.
 
-Reuse the project's Bedrock client. AgentRx's published client and HarnessRisk's runner are not native drop-in Bedrock integrations; adapt provider seams only where necessary. Use native state checks and released labels instead of introducing paid external judges. Coordinate a shared request budget with the existing fleet, approximately one request per second per person across all inference roles. Retries need caps and backoff; never silently change provider or model after auth failures.
+Start with one compatible development pair to estimate calls and latency. Initial cap: 12 tool steps and 120 seconds for each ordinary task invocation; retain the existing engine's 180-second replay timeout. M0 records any necessary uniform change before outcomes. Stop expanding if the estimate will exceed minute 100. Budget automatic replays, bisection, verification, gate/judge calls and diagnostic calls, not just victim turns.
 
-| Budget | Outcome |
-|---|---|
-| 0–30 minutes | Confirm accepted engine revision, provider access, one case per adapter and real isolation; decide feasible coverage |
-| 30–90 minutes | Minimal adapters, effect mapping and development-set corrections, owned by scoped workers |
-| 90–180 minutes | Freeze evaluation manifest/policies; paired held-out runs and a small recovery cohort |
-| 180–240 minutes | Finish bounded runs, inspect failures and produce a compact sourced scorecard |
+Share approximately one request per second per person with the existing fleet, across inference roles/processes. Prefer sequential inference scheduling with parallel adapter/report work. Keep existing three-run incident/verification semantics; reduce cohort size before increasing concurrency. Retries are capped at two for transient failures with backoff; no retry-until-pass and no silent provider/model substitution after auth failure. No paid external judge integration: use published native checks and released labels.
 
-These are caps, not measured runtimes. Pilot five cases to estimate calls and latency before expanding. Prefer fewer complete paired cases and two models over an unfinished broad sweep. If a provider/sandbox bridge exceeds the feasibility gate, retain the benchmark in the plan and report that it was not run.
+At minute 100 launch no new runs or tuning. Drain bounded in-flight work and produce the report by minute 120; anything unfinished remains unknown. An unavailable benchmark/arm stays in the scorecard as not run with its dependency and coverage. One complete paired incident journey is more valuable than many ungraded trajectories.
 
-## Coordinator and delivery contract
+## Planning acceptance and standby
 
-Demo purpose: provide evidence for prevent, explain and recover after the incident journey; do not create a benchmark-focused product UI.
+This plan lives on the published `benchmaxing` branch in the independent benchmarkmaxxing worktree, rebased on the reviewed engine revision. Only documentation was prepared and pushed. No benchmark, test, provider call, installation, service, worker dispatch, implementation or policy tuning ran as part of preparation. No PR is authorized for the parked plan, and no merge is authorized anywhere in this phase.
 
-Initial ownership: planning coordinator in benchmarkmaxxing; documentation preparation only. Future implementation uses supervised Orca workers in independent scoped worktrees, one feature and atomic PR per worktree. Never create Codex/raw Git worktrees. Main is read-only coordination. Human approval remains required for merges and production restarts.
-
-Person A owns engine/gate/store/replay/verifier/API changes. Person B owns SDK/agent adapters, policy text, story completion criteria, benchmark experience and reports. Shared changes require contracts/models.py, fixtures and CONTRACTS.md together. Do not duplicate or take over files already owned by the engine-fix fleet.
-
-After authorization, propose workers for (a) minimal executable benchmark adapters, (b) offline diagnosis evaluation, and (c) the report, combining scopes where reuse makes a separate worker unnecessary. Each brief includes goal/demo step, owned files, dependencies, constraints and observable checks. No worker should invent a second safety engine to get higher numbers.
-
-Acceptance for this planning task: this document exists in the independent benchmarkmaxxing worktree; the coordinator has the brief and is waiting for an explicit start. No benchmark, implementation, tuning or Bedrock test has run as part of preparation.
+The coordinator owns the future milestone handoff and waits for the user's explicit start. At start, confirm the engine coordinator's accepted composition and published `benchmaxing` base, then dispatch the scoped Orca workers above from that branch. Close with evidence-backed pilot results, published branches and unmerged review PRs inside the shared two-hour cap, preserving pending human decisions and incomplete outcomes honestly. Main remains unchanged.
