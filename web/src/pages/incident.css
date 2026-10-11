@@ -1,3 +1,4 @@
+.incident-secondary .clean-restart-status { font-size: 13px; color: var(--ink-2); max-width: 32ch; }
 .incident-page { max-width: 920px; padding: 32px 40px 0; margin: 0 auto; overflow-wrap: anywhere; }
 .incident-nav, .incident-back, .incident-nav > a, .incident-identity, .incident-chain { display: flex; align-items: center; gap: 8px; }
 .incident-nav { justify-content: space-between; flex-wrap: wrap; margin-bottom: 32px; color: var(--ink-2); font-size: 13px; }
