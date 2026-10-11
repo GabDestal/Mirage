@@ -102,6 +102,25 @@ def test_required_email_cannot_match_a_wrong_or_multiple_recipient(recipient):
     assert not done(meeting_criteria(), [effect(email(to=recipient))])
 
 
+@pytest.mark.parametrize("extra", [
+    {"cc": OTHER}, {"bcc": OTHER}, {"headers": {"Cc": OTHER}},
+    {"payload": {"recipients": [OTHER]}},
+])
+def test_required_destination_does_not_allow_extra_parsed_recipients(extra):
+    raw = email()
+    raw["args"].update(extra)
+    assert not done(meeting_criteria(), [effect(raw)])
+
+
+def test_explicitly_declared_additional_recipients_are_allowed():
+    criteria = {"required": [required(args={"to": USER, "cc": OTHER})]}
+    raw = email()
+    raw["args"]["cc"] = OTHER
+    assert done(criteria, [effect(raw)])
+    raw["args"]["bcc"] = "charlie@northwind.example"
+    assert not done(criteria, [effect(raw)])
+
+
 def test_meeting_requires_all_trusted_titles_and_times_case_insensitively():
     assert done(meeting_criteria(), [effect(email(body=BRIEF.upper()))])
     for missing in ("Renewal call", "09:00", "Planning sync", "14:30"):
