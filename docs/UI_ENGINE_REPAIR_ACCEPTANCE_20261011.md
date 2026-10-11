@@ -6,7 +6,9 @@ it is the verified remote `origin/main` source. GitHub independently reports the
 PRs below merged, with the
 listed squash commits. This documentation worker inspected source, merge metadata
 and published worker reports; it ran no services, controls, providers or fleets.
-Final coordinator source SHA and rehearsal evidence have not yet been supplied.
+Final coordinator source SHA and composed rehearsal evidence have not yet been
+supplied. Provider access has now been attempted and failed for all six configured
+distinct model IDs; the failure evidence is recorded in section 6.
 
 This ledger covers [PRODUCT.md](../PRODUCT.md) steps 0:00–2:40 and the Person A/B
 ownership in [CONTRACTS.md](../CONTRACTS.md), using [docs/UX.md](UX.md) for human
@@ -118,7 +120,7 @@ approval/recovery acceptance is established by #125's UI controls or this report
 | Chat/MCP | Coordinator reports `http://127.0.0.1:8041`, PID86841, terminal `term_55913927-9c65-4fd4-8984-b9dc1b19ceba`. Engine target8040 is planned; native-browser chat attempt exposed Bedrock denial for the configured chat model in `us-east-1`. No successful provider/tool completion; built source and final model identity pending. |
 | State isolation | New absolute DB/snapshot/token paths and scheduler identity pending coordinator evidence; a different port alone is insufficient |
 | Existing session | User engine8000/UI5173/chat8001 remain untouched and are not acceptance test targets |
-| Victim/companions | Four protected source agents: meeting assistant, invoicing, outreach, PR reviewer; final resolved model IDs/user/task/day/seed/poison and request/effect/error evidence pending |
+| Victim/companions | Four protected source agents: meeting assistant, invoicing, outreach, PR reviewer; coordinator's access probe reports meeting GPT-OSS and shared companion Haiku IDs below, with companion overrides unset. Final fleet user/task/day/seed/poison and request/effect/error evidence pending. |
 | Model configuration in source | Individual override→`BEDROCK_AGENT_MODEL_ID`→`BEDROCK_MODEL_ID`; blank overrides fall through; temperature0, region `us-east-1`, all factories use existing sanitizer |
 | Cadence | One `InMemoryRateLimiter` per Python process, 1 provider model turn/second, capacity1; recorded replies bypass calls. No cross-process or internal-retry guarantee. |
 | Tool backend | Source fleet uses process-local in-memory synthetic mail/calendar/CRM/invoice/PR tools. Eight shared contacts, two clean events plus V2 forged-system invite. No actual Gmail/Calendar/HubSpot on these paths. |
@@ -189,11 +191,35 @@ containment or provider proof is established.
 
 ## 6. Open provider, service and deployment gates
 
-Coordinator-supplied sanitized configuration: Bedrock is configured in `us-east-1`;
-the browser chat attempt above failed with configured-model access denied, while other
-model roles have not yet been tested. Configured Google credential/token paths are absent;
-HubSpot token is unset; no deployment URL/target is configured. This worker has not
-read or copied `.env`, credentials, provider responses or incident capabilities.
+**Coordinator provider-access report, 01:19 UTC:** Person A ran one sequential
+no-tool “Reply OK” request per distinct configured model, in `us-east-1`, with at
+least1.1s between attempts and retries0. `/tmp/mirage-provider-access-20261011.json`
+contains the sanitized configured IDs and categories below; this documentation worker
+read that report and made no requests. All six attempts returned `AccessDeniedException`,
+with zero nonempty responses. Unset companion overrides were reported without extra
+attempts. Exact probe command and code SHA are not supplied; this is access evidence
+for the reported configuration, not a protected-fleet or final-composition rehearsal.
+
+| Configured role/key | Reported model ID | Access result |
+|---|---|---|
+| Shared companions / `BEDROCK_AGENT_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | `AccessDeniedException` |
+| Fallback / `BEDROCK_MODEL_ID` | `us.openai.gpt-5.6-sol` | `AccessDeniedException` |
+| Victim / `MEETING_ASSISTANT_MODEL_ID` | `openai.gpt-oss-20b-1:0` | `AccessDeniedException` |
+| Gate / `BEDROCK_GATE_MODEL_ID` | `openai.gpt-oss-safeguard-20b` | `AccessDeniedException` |
+| Judge / `BEDROCK_JUDGE_MODEL_ID` | `openai.gpt-oss-safeguard-120b` | `AccessDeniedException` |
+| Chat / `BEDROCK_CHAT_MODEL_ID` | `us.anthropic.claude-opus-4-8` | `AccessDeniedException` |
+
+`INVOICING_MODEL_ID`, `OUTREACH_MODEL_ID` and `PR_REVIEWER_MODEL_ID` are unset in
+that reported configuration, so source factory fallback selects the shared agent ID.
+These failures do not establish credential expiry, invalid IDs, availability of
+unconfigured models, or a root cause. Person A owns provider access probes; Person B
+remains provider-idle without retries. Provider-free browser/HTTP acceptance can still
+proceed after repair composition, but no successful live-model incident is established.
+
+Coordinator-supplied sanitized integration configuration: Google configured
+credential/token paths are absent; HubSpot token is unset; no deployment URL/target
+is configured. This worker has not read/copied `.env`, credentials, raw provider
+payloads or incident capabilities.
 
 Even a successful Bedrock fleet/UI rehearsal with these tools would establish a
 **local live-model synthetic-service** flow. Actual team-owned Gmail/Calendar/HubSpot
