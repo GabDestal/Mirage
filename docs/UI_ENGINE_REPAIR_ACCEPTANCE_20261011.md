@@ -7,9 +7,9 @@ PRs below merged, with the
 listed squash commits. This documentation worker inspected source, merge metadata
 and published worker reports; it ran no services, controls, providers or fleets.
 Final coordinator source SHA and composed rehearsal evidence have not yet been
-supplied. All six configured distinct model IDs denied the earlier access attempts;
-the user subsequently regenerated the key, so current access awaits a fresh report.
-Section 6 preserves both the failed attempts and the credential-state change.
+supplied. After the user regenerated the key, fresh six-model access and bounded
+gate/judge usability checks succeeded, plus one actual browser no-tool chat turn.
+Sections 5–6 preserve the earlier denials and the precise limits of this new evidence.
 
 This ledger covers [PRODUCT.md](../PRODUCT.md) steps 0:00–2:40 and the Person A/B
 ownership in [CONTRACTS.md](../CONTRACTS.md), using [docs/UX.md](UX.md) for human
@@ -138,7 +138,7 @@ approval/recovery acceptance is established by #125's UI controls or this report
 | Final composed source | Pending coordinator's known full SHA; draft inspection source is `d9c5f7744b1d742da03c9910427566ad9c5d0247` |
 | Engine | Planned owned loopback `http://127.0.0.1:8040`, Person A; coordinator reports not yet running. Started PID/time/loaded revision/mode/instance/epoch/owned runs pending. |
 | Web/proxy | Coordinator reports main UI `http://127.0.0.1:5180`, PID84720, terminal `term_146a8a2b-1ee2-4b95-9d64-9c0bab73eaa1`, source at startup `e3a0d019`; configured `/api`→8040, `/chat`→8041. Read parity/loaded final source pending. |
-| Chat/MCP | Coordinator reports `http://127.0.0.1:8041`, PID86841, terminal `term_55913927-9c65-4fd4-8984-b9dc1b19ceba`. Engine target8040 is planned; native-browser chat attempt exposed Bedrock denial for the configured chat model in `us-east-1`. No successful provider/tool completion; built source and final model identity pending. |
+| Chat/MCP | Coordinator restarted owned `http://127.0.0.1:8041` after main `d9c5f774` build, Node PID68595, same terminal `term_55913927-9c65-4fd4-8984-b9dc1b19ceba`, fresh main configuration selected over inherited bearer/model values. Native-browser no-tool turn through5180/chat8041/Bedrock succeeded; engine8040/MCP actions untested. Earlier PID86841/denial is historical. |
 | State isolation | New absolute DB/snapshot/token paths and scheduler identity pending coordinator evidence; a different port alone is insufficient |
 | Existing session | User engine8000/UI5173/chat8001 remain untouched and are not acceptance test targets |
 | Victim/companions | Four protected source agents: meeting assistant, invoicing, outreach, PR reviewer; coordinator's access probe reports meeting GPT-OSS and shared companion Haiku IDs below, with companion overrides unset. Final fleet user/task/day/seed/poison and request/effect/error evidence pending. |
@@ -176,6 +176,7 @@ counts and error outcomes; never replace partial evidence with expected `3/3`.
 | PR/restart (2:40) | External coding agent opens actual fix PR; human review/merge and explicit clean-restart decision separately recorded; queued stays pending until owner starts | Pending actual product decisions; this docs PR is not an incident fix PR |
 | False positive | Clean held action replay shows no harm with completed task; human unfreezes the held call; resumed task completes | Pending fresh scenario, distinct from merely lifting STOP |
 | Reconnect/reset/restore | GET-only recovery, epoch/instance match, stale responses excluded; authorized reset cannot erase active proof; restored history does not imply live locks/tokens | Pending final runtime/transport composition and browser evidence |
+| Browser operator-chat connection | Actual signed-in browser sends harmless no-tool turn through Vite/chat to real Bedrock; rendered response visible | Accepted at reported chat build `d9c5f774`, PID68595; native Dia AX and screenshot reported. No engine action, tool card, model retry or incident proof. |
 
 Current CLI semantics at the inspected source: the product shorthand `mirage detonate`
 is executed as `uv run python -m engine.cli detonate --incident <id> --runs 3 --json`
@@ -212,7 +213,7 @@ agents?” and a public error that Bedrock denied access to the configured chat 
 in `us-east-1`. This is a browser-observed failed chat/provider attempted gate, with
 no successful provider/tool completion or incident proof. A ScreenCaptureKit error
 followed sign-in, but subsequent accessibility state verified navigation; no screenshot
-proof was supplied. Engine8040 was still not started. The observation does not identify
+proof was supplied for this earlier failed capture. Engine8040 was still not started. The observation does not identify
 an expired key or establish that other model roles are unavailable.
 
 **Coordinator browser report, 01:16 UTC:** native Dia `/fleet` accessibility state
@@ -220,6 +221,17 @@ showed “Can't reach the Mirage engine”, “502 Bad Gateway” and “Try aga
 engine8040 remained absent. This accepts visibility of the disconnected Fleet state
 only: no fake agent cards or model retry were observed, and no live attachment,
 containment or provider proof is established.
+
+**Coordinator browser report, 01:29 UTC:** owned chat8041 was rebuilt/restarted from
+main `d9c5f774` with explicitly selected fresh main configuration; Node PID68595
+replaces86841 in the same terminal. A new native Dia tab at `127.0.0.1:5180`, preserving
+the user's GitHub tab, completed normal sign-in. Prompt “Reply only: Chat connection
+verified. Do not call tools” rendered “Chat connection verified.” Accessibility and
+screenshot capture succeeded and were reported in the coordinator conversation;
+no portable screenshot path was supplied here. This accepts one real
+browser5180→chat8041→Bedrock no-tool turn. There were no tool cards, engine actions or
+retries, and engine8040 remained absent. It accepts the chat connection, not fleet,
+containment, replay or full MCP/incident workflows.
 
 ## 6. Open provider, service and deployment gates
 
@@ -232,14 +244,14 @@ with zero nonempty responses. Unset companion overrides were reported without ex
 attempts. Exact probe command and code SHA are not supplied; this is access evidence
 for the reported configuration, not a protected-fleet or final-composition rehearsal.
 
-| Configured role/key | Reported model ID | Access result |
-|---|---|---|
-| Shared companions / `BEDROCK_AGENT_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | `AccessDeniedException` |
-| Fallback / `BEDROCK_MODEL_ID` | `us.openai.gpt-5.6-sol` | `AccessDeniedException` |
-| Victim / `MEETING_ASSISTANT_MODEL_ID` | `openai.gpt-oss-20b-1:0` | `AccessDeniedException` |
-| Gate / `BEDROCK_GATE_MODEL_ID` | `openai.gpt-oss-safeguard-20b` | `AccessDeniedException` |
-| Judge / `BEDROCK_JUDGE_MODEL_ID` | `openai.gpt-oss-safeguard-120b` | `AccessDeniedException` |
-| Chat / `BEDROCK_CHAT_MODEL_ID` | `us.anthropic.claude-opus-4-8` | `AccessDeniedException` |
+| Configured role/key | Reported model ID | Earlier access | Fresh regenerated-key access |
+|---|---|---|---|
+| Shared companions / `BEDROCK_AGENT_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | `AccessDeniedException` | HTTP200, nonempty |
+| Fallback / `BEDROCK_MODEL_ID` | `us.openai.gpt-5.6-sol` | `AccessDeniedException` | HTTP200, nonempty |
+| Victim / `MEETING_ASSISTANT_MODEL_ID` | `openai.gpt-oss-20b-1:0` | `AccessDeniedException` | HTTP200, nonempty |
+| Gate / `BEDROCK_GATE_MODEL_ID` | `openai.gpt-oss-safeguard-20b` | `AccessDeniedException` | HTTP200; no nonempty text in32-token access probe |
+| Judge / `BEDROCK_JUDGE_MODEL_ID` | `openai.gpt-oss-safeguard-120b` | `AccessDeniedException` | HTTP200; no nonempty text in32-token access probe |
+| Chat / `BEDROCK_CHAT_MODEL_ID` | `us.anthropic.claude-opus-4-8` | `AccessDeniedException` | HTTP200, nonempty |
 
 `INVOICING_MODEL_ID`, `OUTREACH_MODEL_ID` and `PR_REVIEWER_MODEL_ID` are unset in
 that reported configuration, so source factory fallback selects the shared agent ID.
@@ -249,11 +261,24 @@ unconfigured models, or a root cause.
 **Credential-state change, coordinator report at 01:25 UTC:** the user regenerated
 the main server key. Person A owns the fresh no-tool window, using the explicitly
 selected main configuration rather than a stale inherited token, with at least1.1s
-pacing and retries0. No fresh result has yet been supplied. The six denials above
-remain real earlier evidence, but do not establish current access after regeneration
-or prove that expiry caused them. Person B and this worker remain provider-idle.
-Provider-free browser/HTTP acceptance can proceed after repair composition; no
-successful live-model incident is established.
+pacing and retries0. The six denials remain real earlier evidence and do not prove
+that expiry caused them.
+
+**Fresh access/usability report, 01:29 UTC:**
+`/tmp/mirage-provider-access-regenerated-20261011.json` records HTTP200 for all six
+same configured IDs, nonempty agent/fallback/victim/chat responses and no nonempty
+gate/judge text within the access-only32-token budget. HTTP200 alone is not successful
+classification proof. The separate
+`/tmp/mirage-provider-usability-regenerated-20261011.json`, pinned to
+`d9c5f7744b1d742da03c9910427566ad9c5d0247`, reports isolated direct provider calls
+with synthetic inputs and no tool execution: existing gate classification returned
+`violates=true`, P5, `p=0.99`, nonempty reason; judge parsed P1/P2/P5 and a nonempty
+summary. This clears the reported credential/model access gate and establishes one
+bounded gate/judge usability case, not semantic detection performance, a deterministic
+incident verdict, or a protected-fleet rehearsal. Exact probe commands are not supplied.
+Person A owns those probes; this worker made none. Person B's sole fresh provider
+acceptance is the harmless browser chat turn above. No successful live-model incident,
+source-fleet task, snapshot, replay or fix verification has been demonstrated here.
 
 Coordinator-supplied sanitized integration configuration: Google configured
 credential/token paths are absent; HubSpot token is unset; no deployment URL/target
