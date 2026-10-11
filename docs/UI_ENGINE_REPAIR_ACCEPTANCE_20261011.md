@@ -139,7 +139,10 @@ browser, provider/model call or tool execution. Exact HTTP harness command is no
 supplied. PR #130 publishes `uv run pytest -q tests/test_runtime_metadata.py
 tests/test_demo_control.py tests/test_managed_replay.py tests/test_replay.py
 tests/test_services.py tests/test_execution_truth.py` → 74 passed at that stacked
-composition; this worker has not rerun it.
+composition; this worker has not rerun it. At 01:48 UTC the coordinator independently
+ran `node tests/stream.test.mjs` from the PR #130 worktree's `web/` on exact
+`116258461d6858543ea4c5d888e53dd2ed36690e`: 24 passed, 0 failed. This is the tracked
+test filename; it accepts neither final main nor a browser workflow.
 
 ### Engine invariant and architecture ledger — reserved for Person A
 
