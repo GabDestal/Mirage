@@ -98,12 +98,12 @@ async function collect(response: Response, onEvent?: (event: ChatEvent) => Promi
   return events;
 }
 
-test("streams actual HTTP deltas and supplies the exact eight-tool MCP catalogue to Bedrock", async () => {
+test("streams actual HTTP deltas and supplies the MCP catalogue to Bedrock", async () => {
   const p = provider(plain()); const app = await start(p.model);
   const events = await collect(await app.post("/chat/turn", turn));
   expect(events.map((e) => e.type)).toEqual(["session", "text_delta", "text_delta", "done"]);
   expect(events[0]).toMatchObject({ session_id: expect.stringMatching(/^[a-f0-9-]{36}$/) });
-  expect(p.requests[0].tools.map((t) => t.toolSpec?.name)).toEqual(["list_runs", "get_incident", "get_audit", "detonate", "find_cause", "unfreeze", "kill", "resume", "resume_all", "send_fix"]);
+  expect(p.requests[0].tools.map((t) => t.toolSpec?.name)).toEqual(["start_repair", "get_repair", "list_runs", "get_incident", "get_audit", "detonate", "find_cause", "unfreeze", "kill", "resume", "resume_all", "send_fix"]);
   expect(app.posts).toEqual([]);
 });
 
