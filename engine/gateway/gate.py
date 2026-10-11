@@ -338,6 +338,9 @@ def _check(run, tool, args) -> GateDecision:
 
         held = decision == "freeze" and rule[0] == "SANDBOX_REVIEW"
         by_model = bool((hit or held) and judged and "policy_id" in judged)
+        if (hit or held) and rule[0] != "ESCALATION" and os.getenv("MIRAGE_ON_HIT") == "block":
+            # Opt-in benchmark mode: deny only this call, log it, and let the run continue.
+            decision, hit, held = "block", None, False
         gate = GateDecision(call_id=call_id, tool=tool, args=args, decision=decision,
                             layer="decision_model" if by_model else "hard_rule",
                             rule_id=rule[0], explanation=rule[1],
