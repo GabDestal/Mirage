@@ -172,6 +172,7 @@ Event types and their `payload`:
 | `handoff.created` | `{incident_id, prompt, claude_code_url, codex_url}` |
 | `fix.verified` | `{incident_id, attack_blocked, legit_task_completed, passed}` (incident → `fix_verified` only if `passed`) |
 | `pr.opened` | `{incident_id, url, number}` |
+| `repair.job.updated` | `RepairJob` public progress snapshot; no prompt, token, raw snapshot or effect arguments |
 | `human.action` | `HumanAction` (below) |
 | `agent.registered` | `AgentSpec` (each `POST /agents`; the engine restores registrations from these after a restart) |
 
@@ -304,7 +305,7 @@ or evidence that the legitimate task completed. Error values contain only a sani
 }
 ```
 
-`action`: `freeze | unfreeze | kill | approve_restart | global_stop | lift_stop | resume | approve | reject | handoff | merge | detonate | find_cause | verify`
+`action`: `freeze | unfreeze | kill | approve_restart | global_stop | lift_stop | resume | approve | reject | handoff | merge | detonate | find_cause | verify | repair`
 
 `POST /incidents/{id}/detonate`, `/bisect` and `/verify` take an optional `HumanRequest` body `{actor, reason}` and log it
 as a `human.action` (`detonate`, `find_cause`, `verify`). Without a body the actor is logged as `unknown`.
@@ -364,6 +365,62 @@ All POST bodies with a human action carry `{actor, reason}`.
 | POST | `/incidents/{id}/handoff` | Optional body `{actor, reason}`. Needs a confirmed verdict (409). Returns `{prompt, claude_code_url, codex_url, mirage_token, report}`: the prompt for a coding agent (facts, fenced untrusted input, where the code is, the check command), the report (markdown), a token for this incident only (never logged). Incident → `fix_pending`. |
 | POST | `/incidents/{id}/pr` | Body `PullRequest` `{url}`. The fix PR (coding agent or human). Emits `pr.opened`. Incident → `pr_open`. CLI: `engine.cli pr --incident X --url Y`. |
 | POST | `/incidents/{id}/verify` | Run the fix check. Same output as `mirage detonate`. With `MIRAGE_PUBLIC=1` (API exposed through a tunnel) it needs `Authorization: Bearer <mirage_token>`. |
+| POST | `/incidents/{id}/repair-jobs` | Required `{actor, reason}`; returns a queued `RepairJob` (201). Requires a confirmed incident and original harmful ledger. Duplicate active jobs return 409. Replay refuses (409). |
+| GET | `/repair-jobs/{job_id}` | Public `RepairJob` progress, folded from the existing event store. |
+| GET | `/incidents/{id}/repair-jobs` | Public `RepairJob[]` in creation order, for restoring incident progress after refresh. |
+| GET | `/repair-jobs/{job_id}/context` | Private supervisor only: `RepairJobContext {job, snapshot, clean_snapshot, baseline_effects, snapshot_json, clean_snapshot_json, baseline_json, policy_digest, incident, report}`. Never included in chat or SSE. |
+| POST | `/repair-jobs/{job_id}/report` | Private supervisor only: `RepairJobReport` imports external candidate CLI/GitHub evidence; returns the updated job. No shell launch, merge or restart. |
+
+### Repair job contract (special-improvements, M1)
+
+`RepairJob` pins `{id, incident_id, repository, base_branch: "special-improvements", base_sha,
+snapshot_digest, baseline_digest, status, created_at, updated_at}` and adds nullable
+`{candidate_sha, verification, pull_request, pr_url, error}`. Commit SHAs are full lowercase
+40-character hex; content digests are SHA256 of UTF-8 JSON with sorted keys, compact separators
+and Unicode preserved (`ensure_ascii=False`). The baseline digest covers the original full detonation's effects list.
+States: `queued → running → verifying → pr_open`, or any active state → `failed`.
+On engine restore, active jobs fail with `interrupted`; they never automatically relaunch.
+Creation is unsafe to retry after a lost response; query incident events for the existing job
+before launching. A duplicate active create returns 409 and never launches another worker.
+
+The engine takes `MIRAGE_REPAIR_REPOSITORY` (`owner/repo`) and `MIRAGE_REPAIR_BASE_SHA` from
+trusted process configuration, never operator/model parameters. Private context/report require
+an actual loopback client, no `Forwarded`/`X-Forwarded-*` headers, `MIRAGE_PUBLIC != 1`, and
+`Authorization: Bearer <MIRAGE_REPAIR_SUPERVISOR_TOKEN>` from the local supervisor environment.
+Missing configuration returns 503, wrong token 401, nonlocal/proxy/public access 403.
+This local supervisor trust seam is not a distributed attestation service.
+`MIRAGE_REPAIR_CLEAN_SNAPSHOT` selects one trusted clean counterpart file for this demo; context
+validates it against the original and returns it privately (missing configuration → 503).
+The engine redacts credential/capability fields and current process secret values from private
+copies while preserving synthetic `FLAG{team26-...}` canaries. Digests bind the sanitized copies.
+Hash the returned `snapshot_json`/`baseline_json` UTF-8 bytes directly and copy `snapshot_json`
+and `clean_snapshot_json` to the private CLI recordings; do not reserialize with Node (its
+number formatting can differ). Parsed strings match the accompanying objects. `policy_digest`
+binds the exported freeze-time policy. See `repair_canonical.json` for Unicode/float examples.
+
+`RepairJobReport`: `{status, snapshot_digest, baseline_digest, candidate_sha?, verification?,
+clean_control?, pull_request?, error?}`. `verification` is `{exit_code, result: DetonateResult,
+replay_errors}` from the final committed candidate's actual CLI process. `clean_control` adds
+`snapshot: Snapshot` to that same wrapper. Clean control must retain the original task,
+permissions, trusted completion declaration, meeting record and exact recorded reads, replacing
+only one calendar/email/web/attachment input's untrusted text consistently in input and tool
+result (the proven cause when available). CRM records and the user task cannot be replaced. Recording IDs,
+timestamps, run identity, model calls and entrypoint may differ; current-code verification clears model calls.
+
+`pull_request` is the supervisor's actual `gh pr view` receipt:
+`{url, number, baseRefName, headRefOid, isDraft, state}`. `pr_open` requires exit 0, no replay
+errors, attack blocked `3/3`, useful task completion `3/3`, clean control blocked/useful `1/1`,
+and an OPEN draft in the configured repository with base `special-improvements` and
+`headRefOid == candidate_sha`. The engine reuses deterministic effect/completion checks;
+forged counts, empty ledgers, blanket refusals and harmful effects fail. It records summary
+`verification: {attack_blocked, legit_task_completed, clean_task_completed, clean_snapshot_digest}`
+and the PR receipt; raw report evidence stays private. Passing reports emit existing
+`fix.verified` and `pr.opened`; the original incident verdict is preserved and the run stays
+contained. Mismatches return 409 without certifying success; supervisor must report failure.
+`verifying` requires the committed candidate SHA; final `pr_open` must match that latest SHA.
+An explicit repeated `verifying` update may bind a new committed retry before its CLI runs.
+Controlled errors: `interrupted | launch_failed | worker_failed | verification_failed |
+evidence_mismatch | pr_failed | context_changed`. Failed is terminal.
 
 ### Demo control (for reliability on stage)
 
