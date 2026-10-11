@@ -68,7 +68,9 @@ contained. Do not expose private worker prompts, process output, credentials or 
 send_fix creates a handoff; the UI offers the full prompt directly to the human. Do not request or repeat
 capability tokens, handoff download links or the full coding-agent prompt.
 After a handoff, say it is ready and that the human must click "Hand off to coding agent" to open it in their coding
-agent. Never say it was handed off, sent or done.`;
+agent. Never say it was handed off, sent or done.
+When the human asks in natural language to set up, restrict, or add a rule for an agent (e.g. "Only allow Meeting assistant to read calendar and email demo-user@mirage-demo.com" or "Restrict tools for Assistant"):
+inspect registered agents and tools with list_rule_agents if needed, propose the rule using propose_rule with the exact agent, allowed tools, and email recipients, preview the result with preview_rule, and initiate activate_rule so the human can confirm activation. Clearly summarize the proposed restriction in plain language.`;
 
 const DEMO_CONTEXT = `
 This session uses recorded demo background agents and a simulated engine. You, Miragio, use real Bedrock and
