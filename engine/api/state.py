@@ -12,7 +12,7 @@ NEXT_ACTION = {"open": "detonate", "confirmed": "find_cause", "root_caused": "se
 INCIDENT_STATUS = {"detonation.started": "detonating",
                    "bisection.step": "bisecting", "bisection.completed": "root_caused",
                    "handoff.created": "fix_pending", "fix.verified": "fix_verified",
-                   "pr.opened": "pr_open"}
+                   "pr.opened": "pr_open", "recovery.prepared": "merged"}
 
 
 def repair_jobs(events):
