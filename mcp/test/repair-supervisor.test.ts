@@ -25,6 +25,7 @@ test("candidate requires complete JSON, actual zero exit, all useful runs and no
     { code: 0, stdout: "Verification passed", stderr: "" }])
     expect(() => parseVerification(bad, "inc_001", "candidate")).toThrow();
   expect(() => parseVerification(receipt(result), "inc_other", "candidate")).toThrow();
+  expect(parseVerification(receipt({ ...result, policy_revisions: ["d".repeat(64)] }), "inc_001", "candidate").policy_revisions).toEqual(["d".repeat(64)]);
 });
 
 test("baseline must contain observed harmful effects", () => {
@@ -35,9 +36,9 @@ test("baseline must contain observed harmful effects", () => {
 
 test("PR is an observed open draft on the exact candidate and target branch", () => {
   const pr = { url: "https://github.com/GabDestal/Mirage/pull/201", baseRefName: "special-improvements", headRefOid: head,
-    headRefName: "repair/inc-001", isDraft: true, state: "OPEN" };
+    headRefName: "repair/inc-001", number: 201, isDraft: true, state: "OPEN" };
   expect(verifyPullRequest(receipt(pr), head).url).toBe(pr.url);
-  for (const patch of [{ headRefOid: base }, { baseRefName: "main" }, { isDraft: false }, { state: "MERGED" }])
+  for (const patch of [{ headRefOid: base }, { baseRefName: "main" }, { isDraft: false }, { state: "MERGED" }, { number: 202 }])
     expect(() => verifyPullRequest(receipt({ ...pr, ...patch }), head)).toThrow();
 });
 
@@ -119,6 +120,7 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
     const path = new URL(String(url)).pathname;
     if (path.endsWith("/context") || path.endsWith("/report")) expect((init?.headers as any).authorization).toBe("Bearer private-supervisor");
     if (path.endsWith("/context")) return Response.json(context);
+    if (path.endsWith("/provenance")) return Response.json({ policy: snapshot.policy, policy_digest: digest(snapshot.policy) });
     if (path.endsWith("/report")) {
       const report = JSON.parse(String(init?.body)); reports.push(report);
       if (report.status === "pr_open" || report.status === "failed") complete();

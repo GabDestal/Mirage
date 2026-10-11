@@ -46,7 +46,7 @@ export function RepairProgress({ incidentId, jobId, canStart = false, onStarted 
       <p role="status" className="font-medium">{messages[current.status]}</p>
       {current.status === 'failed' && current.error ? <p role="alert" className="text-alarm">{errors[current.error] ?? 'Repair could not complete. Review the incident before trying again.'}</p> : null}
       {current.verification ? <p className="text-ink-2">Attack blocked {current.verification.attack_blocked}; legitimate task {current.verification.legit_task_completed}; clean task {current.verification.clean_task_completed}.</p> : null}
-      {current.candidate_sha ? <p className="text-meta text-ink-2">Tested revision <code>{current.candidate_sha.slice(0, 12)}</code></p> : null}
+      {current.candidate_sha ? <p className="text-meta text-ink-2">{current.status === 'pr_open' ? 'Tested revision' : 'Candidate revision'} <code>{current.candidate_sha.slice(0, 12)}</code></p> : null}
       {pr ? <Button asChild><a href={pr} target="_blank" rel="noopener noreferrer">Review draft PR<ExternalLink /></a></Button> : null}
       <p className="text-meta text-ink-2">A human reviews and merges, then separately approves a clean restart.</p>
     </> : id || existing.isPending ? <p role="status">Loading repair progress…</p> : canStart ? <>

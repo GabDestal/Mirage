@@ -34,7 +34,7 @@ export const runCommand: CommandRunner = (command, args, options) => new Promise
 const effectSchema = z.object({ detonation_id: z.string(), run_index: z.number().int().positive(), step: z.number(),
   tool: z.string(), args: z.record(z.string(), z.unknown()), violates: z.array(z.string()), error: z.string().nullable().optional() });
 const verificationSchema = z.object({ incident_id: z.string(), attack_blocked: z.string(), legit_task_completed: z.string(),
-  passed: z.boolean(), effects: z.array(effectSchema) }).strict();
+  passed: z.boolean(), effects: z.array(effectSchema), policy_revisions: z.array(z.string()).optional() }).strict();
 export type Verification = z.infer<typeof verificationSchema>;
 
 /** Parse one complete CLI JSON document. A success sentence, partial JSON or failed process is never proof. */
@@ -58,12 +58,13 @@ export function parseVerification(receipt: CommandResult, incidentId: string, mo
 
 const sha = z.string().regex(/^[a-f0-9]{40}$/);
 const prSchema = z.object({ url: z.string().url(), baseRefName: z.literal("special-improvements"), headRefOid: sha,
-  headRefName: z.string(), isDraft: z.literal(true), state: z.literal("OPEN") });
+  headRefName: z.string(), number: z.number().int().positive(), isDraft: z.literal(true), state: z.literal("OPEN") });
 export function verifyPullRequest(receipt: CommandResult, head: string, repository?: string) {
   if (receipt.code !== 0) throw new Error("GitHub could not confirm the repair pull request.");
   const pr = prSchema.parse(JSON.parse(receipt.stdout));
   if (pr.headRefOid !== head || !/^https:\/\/github\.com\/[^/]+\/[^/]+\/pull\/\d+$/.test(pr.url))
     throw new Error("Pull request head does not match the verified candidate.");
+  if (Number(new URL(pr.url).pathname.split("/").at(-1)) !== pr.number) throw new Error("Pull request number does not match its observed URL.");
   if (repository && !new URL(pr.url).pathname.toLowerCase().startsWith(`/${repository.toLowerCase()}/pull/`))
     throw new Error("Pull request belongs to a different repository.");
   return pr;
@@ -108,6 +109,12 @@ export async function privateDirectory(prefix = "mirage-repair-") {
 export async function privateJson(path: string, value: unknown) {
   await writeFile(path, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
 }
+/** Preserve the engine's canonical numeric representation in a clean Snapshot evidence report. */
+export function serializeEvidenceReport(body: Record<string, unknown>, cleanJson: string): string {
+  return "{" + Object.entries(body).map(([key, value]) => JSON.stringify(key) + ":" +
+    (key === "clean_control" ? "{" + Object.entries(value as object).map(([field, item]) => JSON.stringify(field) + ":" +
+      (field === "snapshot" ? cleanJson : JSON.stringify(item))).join(",") + "}" : JSON.stringify(value))).join(",") + "}";
+}
 
 /** Export is synthetic, but still fail closed if credential-shaped material reaches a durable regression. */
 export function assertSanitized(value: unknown) {
@@ -146,7 +153,7 @@ type RepairContext = { job: RepairJob; snapshot: Record<string, any>; clean_snap
 
 /** Run the existing verifier in current code with fresh private state; no shared API checkout or database writes. */
 export async function verifyCurrentCode(config: Pick<RepairConfig, "python" | "run" | "env">, cwd: string, dir: string,
-  snapshot: Record<string, any>, mode: "baseline" | "candidate" | "clean", snapshotJson?: string) {
+  snapshot: Record<string, any>, mode: "baseline" | "candidate" | "clean", snapshotJson?: string, policyFile?: string) {
   const state = await privateDirectory("mirage-verification-");
   await mkdir(join(state, "snapshots"), { mode: 0o700 });
   if (snapshotJson) await writeFile(join(state, "snapshots", `${snapshot.incident_id}.json`), snapshotJson, { mode: 0o600 });
@@ -156,7 +163,8 @@ export async function verifyCurrentCode(config: Pick<RepairConfig, "python" | "r
   delete env.MIRAGE_REPAIR_SUPERVISOR_TOKEN;
   const runs = mode === "clean" ? 1 : 3;
   const receipt = await (config.run ?? runCommand)(config.python, ["-m", "engine.cli", "detonate", "--incident", snapshot.incident_id,
-    "--runs", String(runs), "--json", ...(mode === "baseline" ? ["--from-freeze"] : [])], { cwd, env, timeoutMs: 15 * 60_000 });
+    "--runs", String(runs), "--json", ...(mode === "baseline" ? ["--from-freeze"] : []),
+    ...(policyFile ? ["--policy-file", policyFile] : [])], { cwd, env, timeoutMs: 15 * 60_000 });
   await privateJson(join(dir, `${mode}-${digest(snapshot).slice(0, 12)}.json`), receipt);
   return parseVerification(receipt, snapshot.incident_id, mode === "baseline" ? "baseline" : "candidate", runs);
 }
@@ -219,10 +227,7 @@ export class RepairSupervisor implements RepairController {
   }
   private async report(job: RepairJob, status: RepairJob["status"], fields: Record<string, unknown> = {}, cleanJson?: string) {
     const body: Record<string, unknown> = { status, snapshot_digest: job.snapshot_digest, baseline_digest: job.baseline_digest, ...fields };
-    // Preserve Python's canonical numeric representation in the full clean Snapshot HTTP report.
-    const serialized = cleanJson ? "{" + Object.entries(body).map(([key, value]) => JSON.stringify(key) + ":" +
-      (key === "clean_control" ? "{" + Object.entries(value as object).map(([field, item]) => JSON.stringify(field) + ":" +
-        (field === "snapshot" ? cleanJson : JSON.stringify(item))).join(",") + "}" : JSON.stringify(value))).join(",") + "}" : body;
+    const serialized = cleanJson ? serializeEvidenceReport(body, cleanJson) : body;
     return this.call("POST", `/repair-jobs/${job.id}/report`, serialized, true);
   }
   private async execute(job: RepairJob) {
@@ -276,10 +281,17 @@ export class RepairSupervisor implements RepairController {
       const candidate = await inspectCandidate(this.run, cwd, job.base_sha);
       await this.checkRegression(cwd, job, context);
       await this.report(job, "verifying", { candidate_sha: candidate.head });
+      const provenance = await this.call<{ policy: Record<string, any>; policy_digest: string }>("GET", `/incidents/${job.incident_id}/recovery/provenance`, undefined, true);
+      const policyFile = join(dir, "effective-policy.json");
+      await privateJson(policyFile, provenance.policy);
       failure = "verification_failed";
-      const attack = await verifyCurrentCode(this.config, cwd, dir, context.snapshot, "candidate", context.snapshot_json);
-      const clean = await verifyCurrentCode(this.config, cwd, dir, context.clean_snapshot, "clean", context.clean_snapshot_json);
+      const attack = await verifyCurrentCode(this.config, cwd, dir, context.snapshot, "candidate", context.snapshot_json, policyFile);
+      const clean = await verifyCurrentCode(this.config, cwd, dir, context.clean_snapshot, "clean", context.clean_snapshot_json, policyFile);
+      if (provenance.policy.rule_revision && ![attack, clean].every((result) => result.policy_revisions?.includes(provenance.policy.rule_revision)))
+        throw new Error("Verification did not preserve the current activated rule revision.");
       if ((await inspectCandidate(this.run, cwd, job.base_sha)).head !== candidate.head) throw new Error("Candidate changed during verification.");
+      const latestPolicy = await this.call<{ policy_digest: string }>("GET", `/incidents/${job.incident_id}/recovery/provenance`, undefined, true);
+      if (latestPolicy.policy_digest !== provenance.policy_digest) throw new Error("Current policy changed during candidate verification.");
       await privateJson(join(dir, "attack-receipt.json"), attack); await privateJson(join(dir, "clean-receipt.json"), clean);
       failure = "pr_failed";
       await this.command("git", ["push", "-u", "origin", candidate.branch], { cwd });
@@ -292,11 +304,10 @@ export class RepairSupervisor implements RepairController {
         "--draft", "--title", `Repair demo agent for Mirage incident ${job.incident_id}`, "--body-file", body], { cwd });
       const receipt = await this.run("gh", ["pr", "view", url, "--repo", job.repository, "--json", "url,number,baseRefName,headRefName,headRefOid,isDraft,state"], { cwd });
       const pr = verifyPullRequest(receipt, candidate.head, job.repository);
-      const number = Number(new URL(pr.url).pathname.split("/").at(-1));
       await this.report(job, "pr_open", { candidate_sha: candidate.head,
         verification: { exit_code: 0, result: attack, replay_errors: 0 },
         clean_control: { snapshot: context.clean_snapshot, exit_code: 0, result: clean, replay_errors: 0 },
-        pull_request: { url: pr.url, number, baseRefName: pr.baseRefName, headRefOid: pr.headRefOid, isDraft: pr.isDraft, state: pr.state } }, context.clean_snapshot_json);
+        pull_request: { url: pr.url, number: pr.number, baseRefName: pr.baseRefName, headRefOid: pr.headRefOid, isDraft: pr.isDraft, state: pr.state } }, context.clean_snapshot_json);
     } catch (error) {
       const message = error instanceof z.ZodError ? "Local repair returned an invalid evidence shape." :
         error instanceof Error ? error.message : "Local repair failed.";
