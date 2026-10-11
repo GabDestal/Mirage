@@ -31,23 +31,36 @@ type Proof = { exit_code: number; result: Verification; replay_errors: number };
 export type RecoveryReport = { repair_job_id: string; original_run_id: string; agent: string; task: string;
   pull_request: MergedPullRequest; merged_sha: string; candidate_tree: string; merged_tree: string;
   verified_sha: string; snapshot_digest: string; agent_spec: Spec; policy_digest: string;
-  config: Record<string, string>; config_digest: string; checkpoint_digest: string; verification?: Proof;
+  config: Record<string, string>; config_digest: string; config_source_digest?: string | null; checkpoint_digest: string; verification?: Proof;
   clean_control?: Proof & { snapshot: Record<string, any> } };
 export type RecoveryState = { status: "prepared" | "queued" | "running" | "completed" | "failed";
   report: RecoveryReport; new_run_id?: string | null; error?: string | null };
 type Context = { job: RepairJob; snapshot: Record<string, any>; clean_snapshot: Record<string, any>; baseline_effects: unknown[];
   snapshot_json: string; clean_snapshot_json: string; baseline_json: string; policy_digest: string };
-export type RecoveryConfig = RepairConfig & { checkpointPath: string; originalConfig?: Record<string, string> };
+const captureSchema = z.object({ agent_name: z.literal("meeting_assistant"), entrypoint: z.literal("agents.run_demo_fleet:meeting_assistant"),
+  task: z.string(), legit: z.record(z.string(), z.unknown()), effective_agent_model_id: z.string().min(1), recipient: z.string().min(1),
+  region: z.literal("us-east-1"), temperature: z.literal(0), git_status: z.literal("clean"), code_revision: sha,
+  original_snapshot_path: z.string(), original_snapshot_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  original_services_path: z.string(), original_services_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  nonsecret_environment: z.record(z.string(), z.string()) });
+type TrustedCapture = z.infer<typeof captureSchema>;
+export type RecoveryConfig = RepairConfig & { checkpointPath: string; originalConfig?: Record<string, string>;
+  configSource?: TrustedCapture; configSourceDigest?: string; configSourceReceipt?: Record<string, unknown> };
 export type RecoveryController = { prepareRecovery(jobId: string): Promise<RecoveryState>;
   launchApprovedRecovery(incidentId: string, queuedRunId: string): Promise<RecoveryState> };
 type Prepared = { cwd: string; dir: string; request: Record<string, unknown>; report: RecoveryReport };
 
 export async function recoveryConfig(config: RepairConfig, env: NodeJS.ProcessEnv = process.env): Promise<RecoveryConfig | undefined> {
   if (!env.MIRAGE_RECOVERY_CHECKPOINT) return undefined;
-  const originalConfig = env.MIRAGE_RECOVERY_CONFIG
-    ? z.record(z.string(), z.string()).parse(JSON.parse(await readFile(env.MIRAGE_RECOVERY_CONFIG, "utf8"))) : undefined;
+  const sourcePath = env.MIRAGE_RECOVERY_CONFIG_SOURCE ?? env.MIRAGE_RECOVERY_CONFIG;
+  const source = sourcePath ? JSON.parse(await readFile(sourcePath, "utf8")) : undefined;
+  if (source) assertSanitized(source);
+  const configSource = source?.nonsecret_environment ? captureSchema.parse(source) : undefined;
+  const originalConfig = configSource ? { MEETING_ASSISTANT_MODEL_ID: configSource.effective_agent_model_id,
+    DEMO_USER_EMAIL: configSource.recipient } : source ? z.record(z.string(), z.string()).parse(source) : undefined;
   if (originalConfig) assertSanitized(originalConfig);
-  return { ...config, checkpointPath: env.MIRAGE_RECOVERY_CHECKPOINT, originalConfig };
+  return { ...config, checkpointPath: env.MIRAGE_RECOVERY_CHECKPOINT, originalConfig, configSource,
+    ...(configSource && { configSourceDigest: digest(source), configSourceReceipt: source }) };
 }
 
 export class RecoverySupervisor implements RecoveryController {
@@ -79,6 +92,22 @@ export class RecoverySupervisor implements RecoveryController {
       || await this.command("git", ["rev-parse", "HEAD"], cwd) !== revision
       || await this.command("git", ["rev-parse", "HEAD^{tree}"], cwd) !== tree)
       throw new Error("Merged checkout changed. Prepare the exact repair again.");
+  }
+  private async trustedScriptedCapture(snapshot: Record<string, any>, originalConfig: Record<string, string>) {
+    const source = this.config.configSource;
+    if (snapshot.model_id !== "ScriptedModel" || !source) return false;
+    const original = await readFile(source.original_snapshot_path);
+    const services = await readFile(this.config.checkpointPath);
+    const effectiveModel = ["MEETING_ASSISTANT_MODEL_ID", "BEDROCK_AGENT_MODEL_ID", "BEDROCK_MODEL_ID"]
+      .map((key) => source.nonsecret_environment[key]?.trim()).find(Boolean);
+    return createHash("sha256").update(original).digest("hex") === source.original_snapshot_sha256
+      && createHash("sha256").update(services).digest("hex") === source.original_services_sha256
+      && await realpath(this.config.checkpointPath) === await realpath(source.original_services_path)
+      && digest(JSON.parse(original.toString("utf8"))) === digest(snapshot)
+      && source.task === snapshot.task && source.agent_name === snapshot.agent && source.entrypoint === snapshot.entrypoint
+      && digest(source.legit) === digest(snapshot.legit) && source.effective_agent_model_id === effectiveModel
+      && originalConfig.MEETING_ASSISTANT_MODEL_ID === effectiveModel && originalConfig.DEMO_USER_EMAIL === source.recipient
+      && source.nonsecret_environment.DEMO_USER_EMAIL === source.recipient;
   }
   private async python(prepared: Pick<Prepared, "cwd" | "dir" | "request">, phase: "prepare" | "launch") {
     const requestPath = join(prepared.dir, `${phase}-request.json`), output = join(prepared.dir, `${phase}-receipt.json`);
@@ -117,9 +146,12 @@ export class RecoverySupervisor implements RecoveryController {
         DEMO_USER_EMAIL: snapshot.legit?.required?.find((item: any) => item.tool === "send_email")?.args?.to,
       };
       z.record(z.string(), z.string().min(1)).parse(originalConfig);
+      const scriptedCapture = snapshot.model_id === "ScriptedModel";
+      const modelMatches = scriptedCapture ? await this.trustedScriptedCapture(snapshot, originalConfig)
+        : snapshot.model_id === originalConfig.MEETING_ASSISTANT_MODEL_ID;
       if (snapshot.incident_id !== job.incident_id || snapshot.agent !== "meeting_assistant"
         || snapshot.entrypoint !== "agents.run_demo_fleet:meeting_assistant"
-        || snapshot.model_id !== originalConfig.MEETING_ASSISTANT_MODEL_ID
+        || !modelMatches
         || digest(snapshot.task) !== digest(context.clean_snapshot.task)
         || digest(snapshot.legit) !== digest(context.clean_snapshot.legit)
         || digest(snapshot.policy) !== digest(context.clean_snapshot.policy))
@@ -142,6 +174,7 @@ export class RecoverySupervisor implements RecoveryController {
       await this.command("git", ["checkout", "--detach", pr.mergeCommit.oid], cwd);
       await this.inspectCheckout(cwd, pr.mergeCommit.oid, mergedTree);
       const dir = await privateDirectory("mirage-recovery-");
+      if (this.config.configSourceReceipt) await privateJson(join(dir, "trusted-original-config.json"), this.config.configSourceReceipt);
       const checkpoint = await readFile(this.config.checkpointPath);
       await privateJson(join(dir, "checkout.json"), { worktree_id: created.result.worktree.id, cwd,
         candidate_sha: job.candidate_sha, merged_sha: pr.mergeCommit.oid, candidate_tree: candidateTree, merged_tree: mergedTree });
@@ -155,12 +188,14 @@ export class RecoverySupervisor implements RecoveryController {
         || digest(registration.agent_spec?.legit) !== digest(snapshot.legit))
         throw new Error("Prepared factory identity does not match the original task.");
       const provenance = await this.call<{ policy_digest: string; policy: Record<string, unknown>; agent_spec: Spec;
-        config: Record<string, string>; config_digest: string }>(
+        config: Record<string, string>; config_digest: string; config_source_digest?: string | null }>(
         `/incidents/${job.incident_id}/recovery/provenance`, undefined, true);
       if (provenance.config_digest !== registration.config_digest || digest(provenance.config) !== registration.config_digest)
         throw new Error("Engine configuration changed since the original recording.");
       if (digest(provenance.policy) !== provenance.policy_digest || digest(provenance.agent_spec) !== digest(registration.agent_spec))
         throw new Error("Prepared policy or factory identity does not match engine provenance.");
+      if (scriptedCapture && (!this.config.configSourceDigest || provenance.config_source_digest !== this.config.configSourceDigest))
+        throw new Error("Trusted original configuration receipt changed.");
       const policyFile = join(dir, "effective-policy.json");
       await privateJson(policyFile, provenance.policy);
       let verification: Proof | undefined, cleanControl: RecoveryReport["clean_control"];
@@ -181,7 +216,8 @@ export class RecoverySupervisor implements RecoveryController {
         pull_request: pr, merged_sha: pr.mergeCommit.oid, candidate_tree: candidateTree, merged_tree: mergedTree,
         verified_sha: needsVerification ? pr.mergeCommit.oid : job.candidate_sha,
         snapshot_digest: job.snapshot_digest, agent_spec: registration.agent_spec, policy_digest: provenance.policy_digest,
-        config: originalConfig, config_digest: registration.config_digest, checkpoint_digest: checkpointDigest, ...(verification && { verification }),
+        config: originalConfig, config_digest: registration.config_digest, config_source_digest: provenance.config_source_digest ?? null,
+        checkpoint_digest: checkpointDigest, ...(verification && { verification }),
         ...(cleanControl && { clean_control: cleanControl }) };
       await this.inspectCheckout(cwd, pr.mergeCommit.oid, mergedTree);
       const body = cleanControl ? serializeEvidenceReport(report, context.clean_snapshot_json) : report;

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { digest, digestBytes, type CommandRunner, type RepairJob } from "../src/repair-supervisor.js";
-import { inspectMergedPullRequest, RecoverySupervisor, type RecoveryState } from "../src/recovery.js";
+import { inspectMergedPullRequest, recoveryConfig, RecoverySupervisor, type RecoveryState } from "../src/recovery.js";
 
 const base = "a".repeat(40), candidate = "b".repeat(40), merged = "c".repeat(40), tree = "d".repeat(40);
 const pr = { url: "https://github.com/GabDestal/Mirage/pull/123", number: 123, baseRefName: "special-improvements",
@@ -27,7 +27,8 @@ describe("actual merged PR identity", () => {
   });
 });
 
-async function harness(changedTree = false, badVerification = false, changedPolicy = false, missingPolicyRevision = false) {
+async function harness({ changedTree = false, badVerification = false, changedPolicy = false, missingPolicyRevision = false,
+  scriptedCapture = false, badCapture = false } = {}) {
   const repoPath = await realpath(await mkdtemp(join(tmpdir(), "mirage-recovery-test-")));
   const checkout = join(repoPath, "isolated");
   await mkdir(checkout);
@@ -40,7 +41,8 @@ async function harness(changedTree = false, badVerification = false, changedPoli
     allow: { tools: ["read_calendar", "send_email"], email_to: [config.DEMO_USER_EMAIL], url_hosts: [] },
     entrypoint: "agents.run_demo_fleet:meeting_assistant", legit };
   const snapshot = { incident_id: "incident", run_id: "old", agent: spec.name, task: "Original useful task",
-    entrypoint: spec.entrypoint, model_id: config.MEETING_ASSISTANT_MODEL_ID, legit, policy: { canary: "FLAG{team26-canary}" },
+    entrypoint: spec.entrypoint, model_id: scriptedCapture ? "ScriptedModel" : config.MEETING_ASSISTANT_MODEL_ID,
+    legit, policy: { canary: "FLAG{team26-canary}" },
     model_calls: [{ request: { temperature: 1 } }] };
   const cleanSnapshot = { ...snapshot, incident_id: "clean" };
   const snapshotJson = JSON.stringify(snapshot).replace('"temperature":1', '"temperature":1.0');
@@ -51,6 +53,7 @@ async function harness(changedTree = false, badVerification = false, changedPoli
     baseline_json: "[]", policy_digest: digest(snapshot.policy) };
   const effectivePolicy = changedPolicy ? { ...snapshot.policy, rule_revision: "f".repeat(64) } : snapshot.policy;
   let state: RecoveryState | undefined, moved = false;
+  let configSourceDigest: string | undefined;
   const commands: { command: string; args: string[]; cwd: string; env?: NodeJS.ProcessEnv }[] = [];
   const requests: { path: string; body?: any }[] = [];
   const run: CommandRunner = async (command, args, options) => {
@@ -96,7 +99,8 @@ async function harness(changedTree = false, badVerification = false, changedPoli
     requests.push({ path, body });
     if (path.endsWith("/context")) return Response.json(context);
     if (path.endsWith("/provenance")) {
-      return Response.json({ policy_digest: digest(effectivePolicy), policy: effectivePolicy, agent_spec: spec, config, config_digest: digest(config) });
+      return Response.json({ policy_digest: digest(effectivePolicy), policy: effectivePolicy, agent_spec: spec,
+        config, config_digest: digest(config), config_source_digest: configSourceDigest ?? null });
     }
     if (path.endsWith("/report")) {
       if (body.clean_control) expect(String(init?.body)).toContain(`"snapshot":${cleanJson}`);
@@ -104,9 +108,24 @@ async function harness(changedTree = false, badVerification = false, changedPoli
     }
     return Response.json(state);
   };
-  const supervisor = new RecoverySupervisor({ repository: job.repository, repoPath, baseSha: base, python: "python",
+  const runtime = { repository: job.repository, repoPath, baseSha: base, python: "python",
     supervisorToken: "synthetic-test-only", api: "http://127.0.0.1:8000", checkpointPath, originalConfig: config,
-    liveVerification: true, run, fetch: fetcher });
+    liveVerification: true, run, fetch: fetcher };
+  let configured = runtime;
+  if (scriptedCapture) {
+    const originalPath = join(repoPath, "original-snapshot.json"), sourcePath = join(repoPath, "original-config.json");
+    await writeFile(originalPath, snapshotJson);
+    await writeFile(sourcePath, JSON.stringify({ agent_name: spec.name, entrypoint: spec.entrypoint, task: snapshot.task, legit,
+      effective_agent_model_id: config.MEETING_ASSISTANT_MODEL_ID, recipient: config.DEMO_USER_EMAIL,
+      region: "us-east-1", temperature: 0, git_status: "clean", code_revision: base,
+      original_snapshot_path: originalPath, original_snapshot_sha256: badCapture ? "0".repeat(64) : digestBytes(snapshotJson),
+      original_services_path: checkpointPath, original_services_sha256: digestBytes(await readFile(checkpointPath, "utf8")),
+      nonsecret_environment: config }));
+    const loaded = await recoveryConfig(runtime, { MIRAGE_RECOVERY_CHECKPOINT: checkpointPath, MIRAGE_RECOVERY_CONFIG_SOURCE: sourcePath });
+    configSourceDigest = loaded!.configSourceDigest;
+    configured = loaded as typeof runtime;
+  }
+  const supervisor = new RecoverySupervisor(configured);
   return { supervisor, commands, requests, checkout, get state() { return state!; },
     approve() { state = { ...state!, status: "queued", new_run_id: "new", report: {
       ...state!.report, verification: state!.report.verification ?? undefined, clean_control: state!.report.clean_control ?? undefined } }; },
@@ -128,7 +147,7 @@ it("reuses equal-tree squash proof and registers before recording preparation", 
 });
 
 it("verifies a changed merged tree with private attack and clean state", async () => {
-  const h = await harness(true);
+  const h = await harness({ changedTree: true });
   const state = await h.supervisor.prepareRecovery("job");
   expect(state.report.verified_sha).toBe(merged);
   const report = h.requests.find((r) => r.path.endsWith("/report"))!.body;
@@ -142,23 +161,37 @@ it("verifies a changed merged tree with private attack and clean state", async (
 });
 
 it("failed merged verification cannot prepare recovery", async () => {
-  const h = await harness(true, true);
+  const h = await harness({ changedTree: true, badVerification: true });
   await expect(h.supervisor.prepareRecovery("job")).rejects.toThrow();
   expect(h.commands.filter((call) => call.args.includes("engine.cli"))).toHaveLength(1);
   expect(h.requests.some((r) => r.path.endsWith("/report"))).toBe(false);
 });
 
 it("policy changes require merged verification even when squash trees match", async () => {
-  const h = await harness(false, false, true);
+  const h = await harness({ changedPolicy: true });
   const state = await h.supervisor.prepareRecovery("job");
   expect(state.report.verified_sha).toBe(merged);
   expect(h.commands.filter((call) => call.args.includes("engine.cli"))).toHaveLength(2);
 });
 
 it("changed-rule proof without the actual pinned revision cannot prepare recovery", async () => {
-  const h = await harness(false, false, true, true);
+  const h = await harness({ changedPolicy: true, missingPolicyRevision: true });
   await expect(h.supervisor.prepareRecovery("job")).rejects.toThrow("current rule revision");
   expect(h.requests.some((r) => r.path.endsWith("/report"))).toBe(false);
+});
+
+it("uses provider configuration from a trusted snapshot-bound scripted capture receipt", async () => {
+  const h = await harness({ scriptedCapture: true });
+  const state = await h.supervisor.prepareRecovery("job");
+  expect(state.report.config.MEETING_ASSISTANT_MODEL_ID).toBe("synthetic-model");
+  expect(state.report.config_source_digest).toMatch(/^[a-f0-9]{64}$/);
+  expect(state.status).toBe("prepared");
+});
+
+it("refuses a scripted model override when its trusted original snapshot hash changed", async () => {
+  const h = await harness({ scriptedCapture: true, badCapture: true });
+  await expect(h.supervisor.prepareRecovery("job")).rejects.toThrow("configuration");
+  expect(h.commands).toHaveLength(0);
 });
 
 it("requires explicit approval and launches the exact queue at most once", async () => {
