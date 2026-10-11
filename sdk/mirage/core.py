@@ -6,6 +6,7 @@ Sandbox: `sandbox.run` sets `_sandbox`; tools go to the engine's `call_tool`, no
 """
 
 import contextvars
+from contextlib import contextmanager
 import json
 import os
 
@@ -57,17 +58,33 @@ def register(name, tools, allow=None, entrypoint="", owner="unknown", *, legit=N
     _post("/agents", spec)
 
 
-def start(agent, task):
+def start(agent, task, *, restarted_from=None):
     """Start a run for this thread / task. Returns a token for `end`; None when nested."""
     if _sandbox or _run.get():  # invoke calls stream: one run, not two
         return None
-    return _run.set(open_run(agent, task))
+    return _run.set(open_run(agent, task, restarted_from=restarted_from))
 
 
-def open_run(agent, task):
+def open_run(agent, task, *, restarted_from=None):
     """Start a run and return its handle; for adapters whose hooks cannot share a contextvar."""
-    started = RunStarted.model_validate(_post("/runs", RunStart(agent=agent, task=task)))
+    started = RunStarted.model_validate(_post("/runs", RunStart(
+        agent=agent, task=task, restarted_from=restarted_from)))
     return {"id": started.run_id, "token": started.run_token}
+
+
+@contextmanager
+def recovery_run(agent, task, *, restarted_from):
+    """Claim one approved restart; a protected nested invoke shares this checked run."""
+    if not restarted_from or _sandbox or _run.get():
+        raise Blocked("Recovery requires an explicit original run and a fresh context.")
+    token = start(agent, task, restarted_from=restarted_from)
+    try:
+        yield _run.get()
+    except BaseException as error:
+        end(token, error)
+        raise
+    else:
+        end(token)
 
 
 def end(token, error=None):
