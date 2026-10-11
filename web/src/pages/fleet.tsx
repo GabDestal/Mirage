@@ -8,7 +8,7 @@ import { resetStream, useConnection, useNow } from '@/api/stream'
 import { CleanRestartButton, FreezeButton, ResumeButton, liveRunOwned, runControlNote, useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
-import { agentName, avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
+import { agentName, automaticClearanceText, avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
 import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, latestProductionRuns, sandboxStatus } from './fleet-presentation'
 import './fleet.css'
@@ -71,7 +71,9 @@ export function Fleet() {
       if (e.key === 'j') setSelected((i) => Math.min(i + 1, visibleRuns.length - 1))
       else if (e.key === 'k') setSelected((i) => Math.max(i - 1, 0))
       else if (e.key === 'Enter' && run) navigate(`/runs/${run.id}`)
-      else if (key === 'u' && run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection))) {
+      else if (key === 'u' && run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection))
+        && (!incidents.find((i) => i.id === run.incident_id)?.automatic_clearance
+          || incidents.find((i) => i.id === run.incident_id)?.automatic_clearance?.status === 'cleared')) {
         e.preventDefault()
         ask('unfreeze', run)
       } else if ((key === 'x' || (command && key === 'backspace')) && run && (isDemo || liveRunOwned(run, connection)) && (run.status === 'running' || run.status === 'frozen')) {
@@ -81,7 +83,7 @@ export function Fleet() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visibleRuns, selected, navigate, ask, connection])
+  }, [visibleRuns, selected, navigate, ask, connection, incidents])
 
   const stats = useMemo(() => {
     const active = agentCount(runs.filter((r) => r.status === 'running' && (isDemo || liveRunOwned(r, connection))))
@@ -166,7 +168,7 @@ export function Fleet() {
             <div className="fleet-stat-value" style={{ color: stats.frozen > 0 ? 'var(--fleet-alarm)' : 'inherit' }}>
               {stats.frozen}
             </div>
-            <div className="fleet-stat-sub">Held safely for human verification</div>
+            <div className="fleet-stat-sub">Held before production execution</div>
           </div>
 
           <div className="fleet-stat-card">
@@ -324,7 +326,7 @@ function AgentTableRow({
   const label = runLabel(run, runs)
   const connection = useConnection()
   const note = runControlNote(run, connection)
-  const sentence = note ?? (run.status === 'completed' ? 'Ready for the next task'
+  const sentence = note ?? automaticClearanceText(run, incident) ?? (run.status === 'completed' ? 'Ready for the next task'
     : run.status === 'running' ? run.task
     : run.status === 'frozen' ? 'Held before execution' : run.status === 'queued' ? 'Queued · awaiting owner start' : rowSentence(run, events).text)
   const when = run.ended_at ?? run.started_at

@@ -4,6 +4,9 @@ shortcut: reservations belong to this runtime; run the demo fleet through the SD
 and stop standalone dev/CLI processes before resetting their shared data directory.
 """
 
+import copy
+import json
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -72,7 +75,8 @@ def discard_stale(epoch):
                 _pending.pop(incident_id)
 
 
-def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queued=None):
+def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queued=None,
+           finished=None):
     """Reserve before auditing/starting; work(det_id) runs asynchronously, never in the gate."""
     global _pool
     from engine.gateway import gate
@@ -105,11 +109,18 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
                                     "detonation_id": det_id, "n_runs": n_runs,
                                     "removed_input_id": None, "purpose": purpose},
                                     incident_id=incident_id, env="mirage", expected_epoch=epoch)
-                    work(det_id)
+                    result = work(det_id)
                     _changed(incident_id, metadata, "completed", epoch)
+                if finished:
+                    finished(result, det_id, job)
             except events.StaleEpoch:
                 pass  # the replacement log owns all subsequent proof, even when ids repeat
             except Exception as error:  # noqa: BLE001 - preserve freeze; explicit retry only
+                if finished:
+                    try:
+                        finished(None, det_id, job)
+                    except Exception:  # noqa: BLE001, S110 - evidence failure cannot release
+                        pass
                 _failed(incident_id, det_id, purpose, error, n_runs=n_runs, epoch=epoch)
             finally:
                 with lock:
@@ -137,12 +148,61 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
 
 
 def automatic(incident_id, run):
-    """Exactly one attempt at the gate's new persisted incident; never release production."""
+    """One initial baseline; only conclusive medium proof may release its original call."""
+    from engine.detection import decision_model
     from engine.detonation import sandbox
+    from engine.gateway import gate
+
+    with lock:
+        call = run.calls.get(run.medium_call_id)
+        context = None
+        if call:
+            if (call.get("automatic_attempted") or run.status != "frozen"
+                    or run.incident_id != incident_id):
+                return
+            call["automatic_attempted"] = True
+            try:
+                recorded = snapshot_for(incident_id)
+            except Exception:  # noqa: BLE001 - a missing recording cannot establish clearance
+                gate.clearance(run, incident_id, call, "inconclusive", "snapshot_failed")
+                return
+            context = {"call": call, "call_id": run.medium_call_id, "token": run.token,
+                       "generation": run.containment_generation,
+                       "spec": copy.deepcopy(run.admitted_spec.model_dump(mode="json"))
+                               if run.admitted_spec else None,
+                       "policy": copy.deepcopy(run.policy), "snapshot": recorded,
+                       "tool": call["tool"], "args": _json(call["args"]), "task": run.task,
+                       "legit": copy.deepcopy(run.legit), "entrypoint": run.entrypoint,
+                       "epoch": events.read_batch()[0], "system": decision_model.SYSTEM,
+                       "model": os.getenv("BEDROCK_JUDGE_MODEL_ID", "").strip()}
+
+    def work(det_id):
+        specs = {} if context else None
+        proof = sandbox.detonate(incident_id, 3, detonation_id=det_id, emit_started=False,
+                                 **({"current_specs": specs} if context else {}))
+        return _clearance_reason(context, proof, specs, det_id) if context else None
+
+    def finished(reason, det_id, job):
+        with lock:
+            if (_pending.get(incident_id) is not job or job["epoch"] != context["epoch"]
+                    or events.read_batch()[0] != context["epoch"]):
+                return
+            metadata = job["metadata"]
+            if reason == "clean_baseline_and_semantics" and (
+                    _active is not job or metadata.id != det_id or metadata.purpose != "detonate"
+                    or metadata.status != "completed" or metadata.n_runs != 3
+                    or not _unchanged(run, incident_id, context)):
+                reason = "authority_changed"
+            if reason == "clean_baseline_and_semantics":
+                gate.clearance(run, incident_id, call, "cleared", reason, context["epoch"])
+                gate.set_status(run, "running", "system", "Automatically resumed after Mirage clearance.",
+                                expected_epoch=context["epoch"])
+            else:
+                gate.clearance(run, incident_id, call, "inconclusive",
+                               reason or "execution_failed", context["epoch"])
 
     try:
-        submit(incident_id, lambda det_id: sandbox.detonate(
-            incident_id, 3, detonation_id=det_id, emit_started=False),
+        submit(incident_id, work, finished=finished if context else None,
             queued=lambda: events.emit("run.status", {"from": "frozen", "to": "frozen",
                 "actor": "system", "reason": "Automatic sandbox detonation queued (3 replays)"},
                 run_id=run.id, incident_id=incident_id))
@@ -150,8 +210,94 @@ def automatic(incident_id, run):
         return
     except Busy as error:
         _failed(incident_id, "", "detonate", error)
-    except Exception:  # noqa: BLE001, S110 - submit logged failure; preserve freeze
-        pass  # submit already recorded the scheduling failure; the gate must stay frozen
+        if context:
+            gate.clearance(run, incident_id, call, "inconclusive", "scheduling_failed", context["epoch"])
+    except Exception:  # noqa: BLE001 - submit logged failure; preserve freeze
+        if context:
+            gate.clearance(run, incident_id, call, "inconclusive", "scheduling_failed", context["epoch"])
+
+
+def _json(value):
+    return json.dumps(value, sort_keys=True, ensure_ascii=False)
+
+
+def snapshot_for(incident_id):
+    from engine.detonation import snapshot
+    return snapshot.load(incident_id)
+
+
+def _unchanged(run, incident_id, context):
+    from engine.detection import decision_model
+    from engine.gateway import gate
+
+    spec = run.admitted_spec.model_dump(mode="json") if run.admitted_spec else None
+    current = gate.agents.get(run.agent)
+    held = [cid for cid, call in run.calls.items() if call["state"] == "held"]
+    return (not gate.STOP.is_set() and _accepting and gate.runs.get(run.id) is run
+            and run.status == "frozen" and not run.revoked_by_reset
+            and run.token == context["token"] and run.containment_generation == context["generation"]
+            and run.incident_id == incident_id and run.medium_call_id == context["call_id"]
+            and run.calls.get(context["call_id"]) is context["call"]
+            and held == [context["call_id"]] and not context["call"].get("released")
+            and context["call"]["generation"] == context["generation"]
+            and context["call"]["token"] == context["token"]
+            and context["call"]["tool"] == context["tool"]
+            and _json(context["call"]["args"]) == context["args"]
+            and run.task == context["task"] and _json(spec) == _json(context["spec"])
+            and _json(run.legit) == _json(context["legit"]) and run.entrypoint == context["entrypoint"]
+            and current is not None and _json(current.model_dump(mode="json")) == _json(spec)
+            and _json(run.policy) == _json(context["policy"]) == _json(gate.policy_for(run.agent))
+            and _json(snapshot_for(incident_id)) == _json(context["snapshot"])
+            and decision_model.SYSTEM == context["system"]
+            and os.getenv("BEDROCK_JUDGE_MODEL_ID", "").strip() == context["model"])
+
+
+def _clearance_reason(context, proof, specs, det_id):
+    from engine.detection import decision_model
+    from engine.gateway import gate
+
+    if not proof or context["spec"] is None:
+        return "incomplete_baseline"
+    snap, spec = context["snapshot"], context["spec"]
+    if (snap["runner"] != gate.SDK_RUNNER or snap["entrypoint"] != spec["entrypoint"]
+            or snap["agent"] != spec["name"] or snap["task"] != context["task"]
+            or _json(snap["policy"]) != _json(context["policy"])
+            or _json(snap["legit"]) != _json(spec["legit"])):
+        return "spec_changed"
+    detonation, verdict, result = proof
+    if (detonation.id != det_id or detonation.n_runs != 3 or detonation.removed_input_id is not None
+            or verdict.confirmed or not result.passed or result.attack_blocked != "3/3"
+            or result.legit_task_completed != "3/3"
+            or any(effect.error is not None or effect.violates for effect in result.effects)):
+        return "incomplete_baseline"
+    if set(specs) != {1, 2, 3} or any(_json(spec) != _json(context["spec"]) for spec in specs.values()):
+        return "spec_changed"
+    if any(not any(effect.run_index == index and effect.tool == context["tool"]
+                   and _json(effect.args) == context["args"] for effect in result.effects)
+           for index in (1, 2, 3)):
+        return "missing_original_call"
+    if not context["model"]:
+        return "classification_material"
+    calls = [(context["tool"], json.loads(context["args"]))] + [
+        (effect.tool, effect.args) for effect in result.effects
+        if decision_model.outbound(effect.tool, effect.args)]
+    seen = set()
+    for tool, args in calls:
+        material = json.dumps({"agent": context["spec"]["name"], "tool": tool, "args": args},
+                              ensure_ascii=False)
+        key = (tool, _json(args))
+        if len(material) > 6000:
+            return "classification_material"
+        if key in seen:
+            continue
+        seen.add(key)
+        answer = decision_model.classify(context["spec"]["name"], context["task"], tool, args,
+                                         context["model"], require_complete=True)
+        if "unavailable" in answer:
+            return "semantic_unavailable"
+        if answer.get("violates") is not False:
+            return "semantic_violation"
+    return "clean_baseline_and_semantics"
 
 
 @contextmanager

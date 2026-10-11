@@ -1,5 +1,7 @@
 """The JSON examples from CONTRACTS.md must parse and round-trip unchanged."""
 
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -57,12 +59,18 @@ INCIDENT = {
     "pr_url": None,
     "next_action": "send_fix",
     "sandbox_job": None,
+    "automatic_clearance": None,
 }
 
 
 def test_incident_round_trip():
     incident = Incident.model_validate(INCIDENT)
     assert incident.model_dump(mode="json") == INCIDENT
+    from engine.api.state import fold
+    fixture = Path(__file__).parents[1] / "contracts/fixtures/medium_clearance.jsonl"
+    runs, incidents = fold([Event.model_validate_json(line) for line in fixture.read_text().splitlines()])
+    assert runs["run_medium"].status == "frozen"
+    assert incidents["inc_medium"].automatic_clearance.status == "inconclusive"
 
 
 def test_run_and_event_parse():

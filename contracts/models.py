@@ -78,6 +78,11 @@ class SandboxJob(Model):
     error: str | None = None  # controlled category, never an exception body
 
 
+class AutomaticClearance(Model):
+    status: Literal["checking", "cleared", "inconclusive"]
+    reason: str = Field(max_length=160)  # controlled category, never model or exception text
+
+
 class GateDecision(Model):
     call_id: str
     tool: str
@@ -153,6 +158,7 @@ class Incident(Model):
     inputs: list[Input] = []
     verdict: Verdict | None = None
     sandbox_job: SandboxJob | None = None
+    automatic_clearance: AutomaticClearance | None = None
     bisection: list[BisectionRow] = []
     cause_input_id: str | None = None
     pr_url: str | None = None

@@ -109,6 +109,16 @@ export function rowSentence(run: Run, events: MirageEvent[]): { text: string; to
   }
 }
 
+/** Clearance is historical evidence; the current run state determines what we can say now. */
+export function automaticClearanceText(run: Run | undefined, incident: Incident | undefined) {
+  const status = incident?.automatic_clearance?.status
+  if (!run || run.incident_id !== incident?.id || !status) return null
+  if (run.status === 'frozen') return status === 'checking' ? 'Checking in Mirage'
+    : status === 'inconclusive' ? 'Still frozen' : null
+  if (status === 'cleared' && ['running', 'completed'].includes(run.status)) return 'Automatically resumed'
+  return null
+}
+
 /** The header status sentence: the status, in words (DESIGN.md §7). */
 export function fleetSentence(runs: Run[]) {
   if (!runs.length) return 'No agents are running.'
@@ -139,6 +149,8 @@ const CONFIRMED = ['confirmed', 'bisecting', 'root_caused', 'fix_pending', 'fix_
 /** A halted run that was not restarted yet can be resumed. Returns why the Resume button is disabled, or null. */
 export function resumeBlock(run: Run, incidents: Incident[]) {
   const incident = incidents.find((i) => i.id === run.incident_id)
+  if (incident?.automatic_clearance && incident.automatic_clearance.status !== 'cleared')
+    return 'Automatic clearance was not established. Approve a clean restart when ready.'
   if (incident?.status === 'detonating') return 'Detonation is running. Wait for the verdict.'
   if (incident && (CONFIRMED.includes(incident.status) || incident.verdict?.confirmed))
     return 'Detonation confirmed this run is compromised. Fix it, then approve a clean restart.'

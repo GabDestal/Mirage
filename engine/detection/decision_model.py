@@ -2,7 +2,8 @@
 
 gpt-oss-safeguard-20b reads the policy pack (P1-P6), the user's task and the call, and answers
 {violates, policy_id, p, reason}. The gate freezes when violates and p >= MIRAGE_GATE_THRESHOLD
-(default 0.7), and holds the call for a human (approval queue) when MIRAGE_GATE_REVIEW (0.4) <= p. It only decides freezes: the detonation verdict stays code (AGENTS.md).
+(default 0.7), and holds medium suspicion for automatic sandbox clearance when
+MIRAGE_GATE_REVIEW (0.4) <= p. The detonation verdict stays code (AGENTS.md).
 Thresholds are validated at startup and stay fixed until the process restarts.
 Only outbound calls are judged (a destination argument, or a send/export/share... tool), so reads
 stay instant. The call's arguments may hold attacker text: they are fenced as data.
@@ -102,10 +103,16 @@ def parse(text):
     return answer
 
 
-def classify(agent, task, tool, args, model_id=None):
+def classify(agent, task, tool, args, model_id=None, *, require_complete=False):
     """A validated {violates, policy_id, p, reason}, or a sanitized {unavailable} category."""
     try:
-        call = json.dumps({"agent": agent, "tool": tool, "args": args}, ensure_ascii=False)[:6000]
+        call = json.dumps({"agent": agent, "tool": tool, "args": args}, ensure_ascii=False)
+        if require_complete:
+            call = re.sub(r"</?call", "&lt;call", call, flags=re.IGNORECASE)
+            if len(call) > 6000:
+                return {"unavailable": "incomplete_call_material"}
+        else:
+            call = call[:6000]
         response = _converse(
             modelId=model_id or os.getenv("BEDROCK_GATE_MODEL_ID", "openai.gpt-oss-safeguard-20b"),
             system=[{"text": SYSTEM}],
@@ -115,9 +122,14 @@ def classify(agent, task, tool, args, model_id=None):
     except Exception as e:  # noqa: BLE001 - layer 2 must never break the gate
         return {"unavailable": type(e).__name__}
     try:
+        if require_complete and response.get("stopReason") != "end_turn":
+            return {"unavailable": "incomplete_provider_response"}
         content = response["output"]["message"]["content"]
         if not isinstance(content, list) or not content:
             raise ValueError("Expected content blocks")
+        if require_complete and any(not isinstance(b, dict) or set(b) != {"text"}
+                                    or not isinstance(b["text"], str) for b in content):
+            raise ValueError("Unsupported content blocks")
         text = "".join(b.get("text", "") for b in content)
     except Exception:  # noqa: BLE001 - never expose provider payloads or exception messages
         return {"unavailable": "invalid_provider_response"}

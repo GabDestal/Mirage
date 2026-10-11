@@ -9,7 +9,7 @@ import { AgentAvatar } from '@/agents/avatars'
 import { ACTOR, CleanRestartButton, HumanReasonDialog, ResumeButton, liveRunOwned, useAsk } from '@/components/actions'
 import { HandoffDrawer } from '@/components/handoff-drawer'
 import { Button } from '@/components/ui/button'
-import { avatarState, callPhrase, runLabel, steps } from '@/lib/runs'
+import { automaticClearanceText, avatarState, callPhrase, runLabel, steps } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
 import { baselineEvidence, currentSandboxJob, INCIDENT_ACTIONS, incidentEvents, isIncidentAction, latestFailure, recordedHandoff, requestFinished, safeLink, sandboxJobError, verificationEvidence, type IncidentAction } from './incident-data'
 import './incident.css'
@@ -101,7 +101,11 @@ export function IncidentPage() {
     submitting.current = true
     act.mutate({ kind: 'send_fix', reason: INCIDENT_ACTIONS.send_fix.reason, target: id })
   }
-  const canUnfreeze = run?.status === 'frozen' && ['open', 'false_positive'].includes(incident.status) && !busy
+  const clearanceText = run && (isDemo || liveRunOwned(run, connection))
+    ? automaticClearanceText(run, incident) : null
+  const mediumPending = !!incident.automatic_clearance && incident.automatic_clearance.status !== 'cleared'
+  const canUnfreeze = !mediumPending && run?.status === 'frozen' && (['open', 'false_positive'].includes(incident.status)
+    || (incident.status === 'closed' && incident.automatic_clearance?.status === 'cleared')) && !busy
 
   return (
     <article className="incident-page">
@@ -122,6 +126,13 @@ export function IncidentPage() {
       {isDemo && <Notice>Recorded demonstration: this incident, sandbox proof, cause tests and fix evidence are recorded or simulated.</Notice>}
       {detail.isError && <Notice tone="alarm">The incident could not refresh: {detail.error.message} <Button onClick={refresh}>Retry</Button></Notice>}
       {runError && <Notice>Run status is unavailable. Secondary actions will appear when it loads. <Button onClick={refresh}>Retry</Button></Notice>}
+      {clearanceText && <Notice tone={clearanceText === 'Still frozen' ? 'alarm' : 'mirage'}>
+        <strong>{clearanceText}.</strong> {clearanceText === 'Checking in Mirage'
+          ? 'Production is held while three fresh replays and a stronger model check the original call.'
+          : clearanceText === 'Automatically resumed'
+            ? 'The initial replays completed the task, captured the exact original call and found no deterministic harm; the stronger model classified the held and outbound calls as safe.'
+            : 'The initial proof did not establish safe automatic clearance. Review the evidence, then kill this run and approve a clean restart when ready.'}
+      </Notice>}
       <StorySection number="1" title="What happened">
         <p className="incident-section-intro">The gate held this call before execution. This records the attempted action; sandbox proof comes next.</p>
         {recent.length > 0 && <ul className="incident-recent">{recent.map((s) => <li key={s.callId}><code>{s.tool}</code><span>{s.blocked ? 'Held by the gate' : 'Requested'}</span></li>)}</ul>}
@@ -138,7 +149,7 @@ export function IncidentPage() {
         {detonationError && <Notice tone="alarm">Detonation failed: {detonationError}. No new proof was established. Use the available next action to retry.</Notice>}
         {baseline?.diagnostics.map((message, index) => <Notice key={index} tone="alarm">{message}</Notice>)}
         {verdict ? <div className="incident-proof">
-          <h3><ShieldAlert size={18} />{isDemo ? (verdict.confirmed ? 'Recorded compromise verdict' : 'Recorded clean verdict') : (verdict.confirmed ? 'Compromise confirmed' : 'No compromise found in replay')}</h3>
+          <h3><ShieldAlert size={18} />{isDemo ? (verdict.confirmed ? 'Recorded compromise verdict' : 'Recorded clean verdict') : (verdict.confirmed ? 'Compromise confirmed' : 'No deterministic harm found in replay')}</h3>
           <p>{baseline?.resultIsPrevious && 'Earlier baseline proof: '}<strong>{verdict.compromised_runs}</strong> replays compromised. Determined by code from the effects ledger.</p>
           <p>{verdict.blast_radius.summary}</p>
           <dl className="incident-blast"><div><dt>Records at risk</dt><dd>{verdict.blast_radius.records}</dd></div><div><dt>Recipients</dt><dd>{verdict.blast_radius.recipients.join(', ') || 'None recorded'}</dd></div><div><dt>Secrets in effects</dt><dd>{verdict.blast_radius.secrets.join(', ') || 'None recorded'}</dd></div></dl>
@@ -171,8 +182,8 @@ export function IncidentPage() {
         {!pr && !prompt && <p className="incident-muted">No pull request has been reported yet. A human reviews and merges the PR.</p>}
       </StorySection>
       <footer className="incident-actions">
-        <div className="incident-action-main">{busy ? <><Button variant="primary" disabled>Waiting for results…</Button><span role="status">Updates arrive from the engine.</span><Button onClick={refresh}>Refresh</Button></> : primary && action && isIncidentAction(action) ? <Button variant="primary" onClick={() => { act.reset(); if (action === 'send_fix') handOff(); else setConfirm(action) }}>{primary.label}<ArrowRight /></Button> : action === 'open_pr' && pr ? <Button variant="primary" asChild><a href={pr} target="_blank" rel="noopener noreferrer">Open PR<ExternalLink /></a></Button> : action === 'open_pr' ? <span>Waiting for a valid PR link.</span> : <span><Check size={16} />{incident.status === 'false_positive' ? 'Review the replay, then unfreeze if appropriate.' : 'No further action requested.'}</span>}</div>
-        {run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection)) && <div className="incident-secondary"><Button variant="ghost" disabled={!canUnfreeze} title={!canUnfreeze ? 'Unfreeze is available only before confirmation or after a false positive.' : undefined} onClick={() => ask('unfreeze', run)}>Unfreeze</Button><Button variant="destructive" disabled={busy} onClick={() => ask('kill', run)}>Kill</Button></div>}
+        <div className="incident-action-main">{busy ? <><Button variant="primary" disabled>Waiting for results…</Button><span role="status">Updates arrive from the engine.</span><Button onClick={refresh}>Refresh</Button></> : primary && action && isIncidentAction(action) ? <Button variant="primary" onClick={() => { act.reset(); if (action === 'send_fix') handOff(); else setConfirm(action) }}>{primary.label}<ArrowRight /></Button> : action === 'open_pr' && pr ? <Button variant="primary" asChild><a href={pr} target="_blank" rel="noopener noreferrer">Open PR<ExternalLink /></a></Button> : action === 'open_pr' ? <span>Waiting for a valid PR link.</span> : <span><Check size={16} />{incident.automatic_clearance ? clearanceText ?? 'Automatic clearance recorded. Check the current run status.' : incident.status === 'false_positive' ? 'Review the replay, then unfreeze if appropriate.' : 'No further action requested.'}</span>}</div>
+        {run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection)) && <div className="incident-secondary">{!mediumPending && <Button variant="ghost" disabled={!canUnfreeze} title={!canUnfreeze ? 'Unfreeze is available only before confirmation or after a false positive.' : undefined} onClick={() => ask('unfreeze', run)}>Unfreeze</Button>}<Button variant="destructive" onClick={() => ask('kill', run)}>Kill</Button></div>}
         {run?.status === 'halted' && <div className="incident-secondary"><ResumeButton run={run} /></div>}
         {!isDemo && run && ['killed', 'halted', 'failed'].includes(run.status) && <div className="incident-secondary"><CleanRestartButton run={run} /></div>}
       </footer>

@@ -175,7 +175,7 @@ def blast_radius(snap, bad, n_compromised, n):
 
 
 def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, log=print,
-             verify=False, emit_started=True):
+             verify=False, emit_started=True, current_specs=None):
     """Replay the incident's snapshot n_runs times. Returns (Detonation, Verdict, DetonateResult).
 
     Default (operator): continue from the freeze; emits verdict.ready for a full replay.
@@ -203,7 +203,7 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
     workers = max(1, min(n_runs, int(os.getenv("MIRAGE_PARALLEL", "1"))))
     def paced(snap):
         current = {}
-        out = run_once(snap, current_spec=current) if verify else run_once(snap)
+        out = run_once(snap, current_spec=current) if verify or current_specs is not None else run_once(snap)
         if workers == 1:
             time.sleep(1)  # sequential: keep the ~1 request/s pace between replays
         return (*out, current)
@@ -218,6 +218,8 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
                 raw, error, current = [], type(exc).__name__, {}
             finished.append((futures[f], raw, error, current))
     for k, raw, error, current in sorted(finished):
+        if current_specs is not None:
+            current_specs[k] = current
         run_policies = policies + ([current_policy(snap["agent"], current)] if current else [])
         effects = [Effect(detonation_id=det_id, run_index=k, step=e["step"], tool=e["tool"],
                           args=e["args"], error=e.get("error"),

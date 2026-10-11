@@ -2,6 +2,14 @@
 
 Status: draft, 2026-10-10. Read with `PRODUCT.md`.
 
+Live medium suspicion now uses an incident and automatic initial sandbox clearance.
+`Incident.automatic_clearance` is optional/null for existing/high incidents; otherwise
+it is `{status: "checking" | "cleared" | "inconclusive", reason: string}` (bounded system category).
+Only the initial three full baselines may clear: all must finish useful work without errors or
+deterministic harm and capture the exact held call; the configured stronger judge must classify
+the held and actual outbound calls SAFE. This is model-assisted evidence, not universal proof.
+Live approvals are empty; inconclusive medium cannot unfreeze. High/hard-rule recovery stays human.
+
 ## 1. Team split
 
 Two people. Two roles. One contract between them.

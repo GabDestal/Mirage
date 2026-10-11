@@ -157,15 +157,15 @@ def test_human_containment_survives_failed_audit_write(api, monkeypatch, action)
     assert resumed == (action == "kill")
 
 
-@pytest.mark.parametrize("action", ["unfreeze", "approve"])
+@pytest.mark.parametrize("action", ["unfreeze", "high_unfreeze"])
 @pytest.mark.parametrize("failed_event", ["human.action", "run.status"])
 def test_release_requires_durable_human_audit(api, monkeypatch, action, failed_event):
     run_id, auth = start(api)
-    if action == "approve":
+    if action == "high_unfreeze":
         monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
-            "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
-        held = check(api, run_id, auth, "send_email", to=USER).json()
-        path = f"/approvals/{held['call_id']}/approve"
+            "review": False, "policy_id": "P5", "p": 0.9, "explanation": "Synthetic high suspicion"})
+        check(api, run_id, auth, "send_email", to=USER)
+        path = f"/runs/{run_id}/unfreeze"
     else:
         assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
         path = f"/runs/{run_id}/unfreeze"
@@ -183,11 +183,11 @@ def test_release_requires_durable_human_audit(api, monkeypatch, action, failed_e
     assert not gate.runs[run_id].resume.is_set()
 
 
-def test_reject_revokes_even_when_human_audit_fails(api, monkeypatch):
+def test_medium_kill_revokes_even_when_human_audit_fails(api, monkeypatch):
     run_id, auth = start(api)
     monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
         "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
-    held = check(api, run_id, auth, "send_email", to=USER).json()
+    check(api, run_id, auth, "send_email", to=USER)
     original = gate.emit
 
     def fail(kind, *args, **kwargs):
@@ -197,7 +197,7 @@ def test_reject_revokes_even_when_human_audit_fails(api, monkeypatch):
 
     with monkeypatch.context() as fault:
         fault.setattr(gate, "emit", fail)
-        assert api.post(f"/approvals/{held['call_id']}/reject", json=HUMAN).status_code == 500
+        assert api.post(f"/runs/{run_id}/kill", json=HUMAN).status_code == 500
     assert gate.runs[run_id].status == "killed"
     effects = []
     assert protected(handle(run_id, auth), USER, effects) == "blocked"

@@ -53,8 +53,9 @@ for p in (0, 0.3999, 0.4, 0.55, 0.6999, 0.7, 0.75, 1):
     else:
         assert decision["decision"] == "freeze" and decision["layer"] == "decision_model"
         assert decision["policy_id"] == "P6" and gate.runs[run_id].status == "frozen"
-        if decision["rule_id"] == "NEEDS_APPROVAL":
-            assert gate.runs[run_id].incident_id is None
+        if decision["rule_id"] == "SANDBOX_REVIEW":
+            assert gate.runs[run_id].incident_id is not None
+            assert client.get("/approvals").json() == []
             actions.append("hold")
         else:
             assert gate.runs[run_id].incident_id is not None

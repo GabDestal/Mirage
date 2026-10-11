@@ -258,7 +258,7 @@ export interface paths {
         };
         /**
          * Approvals
-         * @description Calls layer 2 held for a human (medium risk). Oldest first.
+         * @description Legacy recorded approvals. Live medium suspicion uses automatic sandbox clearance.
          */
         get: operations["approvals_approvals_get"];
         put?: never;
@@ -408,8 +408,8 @@ export interface paths {
         put?: never;
         /**
          * Restart
-         * @description A human approves a clean restart of a killed or halted run. The new run is created
-         *     `queued` with `restarted_from`; the agent's next start (SDK `POST /runs`) takes it over.
+         * @description A human approves one clean restart of a killed, halted or failed run. It is created
+         *     `queued` with `restarted_from`; a matching agent/task/spec SDK start claims it once.
          *     The engine does not launch it (resume does).
          */
         post: operations["restart_runs__run_id__restart_post"];
@@ -690,6 +690,16 @@ export interface components {
              */
             ts: string;
         };
+        /** AutomaticClearance */
+        AutomaticClearance: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "checking" | "cleared" | "inconclusive";
+            /** Reason */
+            reason: string;
+        };
         /** BisectionRow */
         BisectionRow: {
             /** Input Id */
@@ -828,6 +838,7 @@ export interface components {
             inputs: components["schemas"]["Input"][];
             verdict?: components["schemas"]["Verdict"] | null;
             sandbox_job?: components["schemas"]["SandboxJob"] | null;
+            automatic_clearance?: components["schemas"]["AutomaticClearance"] | null;
             /**
              * Bisection
              * @default []

@@ -1,7 +1,7 @@
 /// <reference types="node" />
 // Run: node --experimental-strip-types src/lib/runs.selfcheck.ts
 import assert from 'node:assert/strict'
-import { canResume, resumeAllOn, resumeBlock, stopOn } from './runs.ts'
+import { automaticClearanceText, canResume, resumeAllOn, resumeBlock, stopOn } from './runs.ts'
 import type { Incident, MirageEvent, Run } from '../api/client'
 const ev = (type: string) => ({ type } as MirageEvent)
 const run = (id: string, status: Run['status'], extra: Partial<Run> = {}) => ({ id, status, incident_id: null, ...extra } as Run)
@@ -22,4 +22,14 @@ assert.equal(resumeAllOn([old], [], []), true)
 assert.equal(resumeAllOn([old], bad, []), false)
 assert.equal(resumeAllOn([old], bad, [ev('global.stop')]), true)
 assert.equal(resumeAllOn([run('run_4', 'running')], [], []), false)
+const medium = { id: 'inc_1', automatic_clearance: { status: 'checking', reason: 'initial_baseline' } } as Incident
+assert.equal(automaticClearanceText(run('run_1', 'frozen', { incident_id: 'inc_1' }), medium), 'Checking in Mirage')
+medium.automatic_clearance!.status = 'inconclusive'
+assert.equal(automaticClearanceText(run('run_1', 'frozen', { incident_id: 'inc_1' }), medium), 'Still frozen')
+assert.match(resumeBlock(old, [medium])!, /clean restart/)
+medium.automatic_clearance!.status = 'cleared'
+assert.equal(automaticClearanceText(run('run_1', 'frozen', { incident_id: 'inc_1' }), medium), null)
+assert.equal(automaticClearanceText(run('run_1', 'running', { incident_id: 'inc_1' }), medium), 'Automatically resumed')
+assert.equal(automaticClearanceText(run('run_1', 'halted', { incident_id: 'inc_1' }), medium), null)
+assert.equal(automaticClearanceText(run('run_2', 'running'), medium), null)
 console.log('runs selfcheck ok')

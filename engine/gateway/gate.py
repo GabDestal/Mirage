@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from contracts.models import AgentSpec, GateDecision, HumanAction, Run
+from contracts.models import AgentSpec, AutomaticClearance, GateDecision, HumanAction, Run
 from engine.config import MODE
 from engine.detection import decision_model
 from engine.detection.rules import POLICY, hard_rule
@@ -63,6 +63,7 @@ class LiveRun:
     tool_results: list = field(default_factory=list)  # snapshot material
     calls: dict = field(default_factory=dict)  # checked call identity and admission/result state
     containment_generation: int = 0
+    medium_call_id: str | None = None
     revoked_by_reset: bool = False  # fences pending checks after incident ids are reused
     check_lock: Any = field(default_factory=threading.Lock)  # serialize this run only
     resume: threading.Event = field(default_factory=threading.Event)  # set = not frozen
@@ -150,14 +151,16 @@ def _apply_status(run, to, reason):
     return previous
 
 
-def _emit_status(run, previous, to, actor, reason):
+def _emit_status(run, previous, to, actor, reason, expected_epoch=None):
     emit("run.status", {"from": previous, "to": to, "actor": actor, "reason": reason},
-         run_id=run.id, incident_id=run.incident_id)
+         run_id=run.id, incident_id=run.incident_id, expected_epoch=expected_epoch)
 
 
-def set_status(run, to, actor, reason):
+def set_status(run, to, actor, reason, *, expected_epoch=None):
     if to == "running":
-        _emit_status(run, run.status, to, actor, reason)
+        _emit_status(run, run.status, to, actor, reason, expected_epoch)
+        if expected_epoch is not None and events.read_batch()[0] != expected_epoch:
+            raise events.StaleEpoch("Recovery evidence belongs to a replaced stream")
         # Install release authority after durable evidence, before waking any waiter.
         for call in run.calls.values():
             if call["state"] == "held" and call["generation"] == run.containment_generation:
@@ -165,7 +168,15 @@ def set_status(run, to, actor, reason):
         _apply_status(run, to, reason)
     else:
         previous = _apply_status(run, to, reason)
-        _emit_status(run, previous, to, actor, reason)
+        _emit_status(run, previous, to, actor, reason, expected_epoch)
+
+
+def clearance(run, incident_id, call, status, reason, epoch=None):
+    evidence = AutomaticClearance(status=status, reason=reason)
+    emit("agent.message", {"role": "system", "text": f"Automatic clearance {status}.",
+         "automatic_clearance": evidence.model_dump()}, run_id=run.id,
+         incident_id=incident_id, env="mirage", expected_epoch=epoch)
+    call["automatic_status"] = status
 
 
 def _human(actor, action, target, reason):
@@ -180,6 +191,11 @@ def _control(run_id, to, action, actor, reason, call_id=None):
         if (run.status not in allowed or run.revoked_by_reset
                 or (to == "running" and STOP.is_set())):
             raise ValueError(f"Cannot {action} a run that is {run.status} or revoked.")
+        medium = run.calls.get(run.medium_call_id)
+        if to == "running" and medium and not medium.get("released"):
+            raise CallAuthorityError("Medium suspicion requires conclusive initial sandbox clearance.")
+        if action == "approve":
+            raise CallAuthorityError("Live medium approvals have been replaced by sandbox clearance.")
         if action in ("approve", "reject"):
             pending = [cid for cid, call in run.calls.items()
                        if call["state"] == "held" and not call["released"]
@@ -286,7 +302,7 @@ def _check(run, tool, args) -> GateDecision:
         judged = decision_model.judge(run.agent, run.task, tool, args)
         if judged and "policy_id" in judged and not judged["review"]:
             hit = (None, judged["explanation"])
-    review = judged if judged and judged.get("review") else None  # medium risk: ask a human
+    review = judged if judged and judged.get("review") else None
     with jobs.lock:
         if STOP.is_set() or run.status in ("killed", "halted", "completed", "failed"):
             hit = None
@@ -312,23 +328,24 @@ def _check(run, tool, args) -> GateDecision:
             decision, rule = "block", ("RUN_FROZEN", "This call was not evaluated while frozen.")
         elif hit:
             decision, rule = "freeze", hit
-        elif review:  # held like a freeze (the SDK waits), but no incident: a human decides
-            decision, rule = "freeze", ("NEEDS_APPROVAL", (f"Waiting for a human to approve "
+        elif review:
+            decision, rule = "freeze", ("SANDBOX_REVIEW", (f"Checking in Mirage "
                                         f"({review['policy_id']}, p={review['p']}): "
                                         f"{review['explanation']}"))
         else:
             decision, rule = "allow", (None, "No rule matched." + (
                 f" Layer 2 unavailable: {judged['unavailable']}" if judged else ""))
 
-        held = decision == "freeze" and rule[0] == "NEEDS_APPROVAL"
+        held = decision == "freeze" and rule[0] == "SANDBOX_REVIEW"
         by_model = bool((hit or held) and judged and "policy_id" in judged)
         gate = GateDecision(call_id=call_id, tool=tool, args=args, decision=decision,
                             layer="decision_model" if by_model else "hard_rule",
                             rule_id=rule[0], explanation=rule[1],
                             policy_id=judged["policy_id"] if by_model else None,
                             p=judged["p"] if by_model else None)
-        if hit:
+        if hit or held:
             run.incident_id = next_id("incident")
+            run.medium_call_id = call_id if held else None
         # Reset revokes the old run while a decision is pending; don't write its old ids into
         # the new log. STOP/kill on an existing run still get their normal decision evidence.
         if run.revoked_by_reset:
@@ -337,7 +354,7 @@ def _check(run, tool, args) -> GateDecision:
         if hit or held:
             set_status(run, "frozen", "gate", rule[1])
         emit("gate.decision", gate.model_dump(mode="json"), run_id=run.id,
-             incident_id=run.incident_id if hit else None)
+             incident_id=run.incident_id if hit or held else None)
         if decision == "allow" and is_known(policy, tool):
             call["state"] = "admitted"
         elif decision == "freeze":
@@ -345,7 +362,7 @@ def _check(run, tool, args) -> GateDecision:
             call.update(state="held" if is_known(policy, tool) else "revoked",
                         generation=run.containment_generation, was_held=True,
                         released=False, rule_id=rule[0])
-        if hit:
+        if hit or held:
             spec = run.admitted_spec
             try:
                 snap = snapshot.save(run, run.incident_id, policy,
@@ -355,6 +372,8 @@ def _check(run, tool, args) -> GateDecision:
                 emit("incident.opened", {"incident_id": run.incident_id,
                                          "trigger_call_id": call_id},
                      run_id=run.id, incident_id=run.incident_id)
+                if held:
+                    clearance(run, run.incident_id, call, "inconclusive", "snapshot_failed")
                 emit("detonation.failed", {"incident_id": run.incident_id, "detonation_id": "",
                      "error": f"Snapshot persistence failed ({type(error).__name__}); "
                               "production remains frozen. Repair the snapshot before retrying."},
@@ -363,6 +382,8 @@ def _check(run, tool, args) -> GateDecision:
             emit("incident.opened", {"incident_id": run.incident_id, "trigger_call_id": call_id,
                                      "inputs": [i.model_dump() for i in snapshot.inputs(snap)]},
                  run_id=run.id, incident_id=run.incident_id)
+            if held:
+                clearance(run, run.incident_id, call, "checking", "initial_baseline")
             if MODE == "live":
                 jobs.automatic(run.incident_id, run)
         return gate
