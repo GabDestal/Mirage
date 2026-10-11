@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { registerHooks } from 'node:module'
 import { afterEach, beforeEach, test } from 'node:test'
+import { createElement } from 'react'
+import { renderToString } from 'react-dom/server'
+import { QueryClientProvider } from '@tanstack/react-query'
 
 // Node strips TS; Vite's extensionless local import needs the same resolution here.
 registerHooks({ resolve(specifier, context, next) {
@@ -10,7 +13,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context)
 } })
 const { connect, disconnect, resetStream } = await import('../src/api/stream.ts')
-const { queryClient } = await import('../src/api/client.ts')
+const { queryClient, useApprovals, useServiceView } = await import('../src/api/client.ts')
 const originalFetch = globalThis.fetch
 const originalSource = globalThis.EventSource
 const originalInvalidate = queryClient.invalidateQueries
@@ -18,7 +21,7 @@ let requests, sources, invalidations
 let respond
 let runtime
 const metadata = (epoch = 'epoch-1', last_seq = 0) => ({ engine_mode: 'live',
-  instance_id: 'synthetic-instance', stream_epoch: epoch, last_seq, revision: null, owned_run_ids: [] })
+  instance_id: 'synthetic-instance', stream_epoch: epoch, last_seq, revision: null, owned_run_ids: ['synthetic-run'] })
 
 class StubSource {
   static CONNECTING = 0
@@ -35,7 +38,7 @@ class StubSource {
   runtime(info = runtime) { this.listeners.get('runtime')?.({ data: JSON.stringify(info) }) }
 }
 const event = (seq, type = 'run.status') => ({ seq, ts: '2026-10-11T08:00:00Z', type,
-  run_id: 'synthetic-run', agent_id: 'synthetic-agent', env: 'prod', payload: {} })
+  run_id: 'synthetic-run', incident_id: null, env: 'prod', payload: {} })
 const flush = async () => { for (let i = 0; i < 30; i++) await Promise.resolve() }
 const events = () => queryClient.getQueryData(['events']) ?? []
 const health = () => queryClient.getQueryData(['connection'])
@@ -86,6 +89,12 @@ test('poll errors are visible and retain the last successful wall-clock sync', a
   assert.equal(health().state, 'disconnected')
   assert.match(health().error, /Engine unavailable/)
   assert.equal(health().lastSync, synced)
+  assert.equal(health().runtime, null, 'Unavailable sync cannot claim live ownership')
+  respond = () => Response.json([])
+  t.mock.timers.tick(1000); await flush()
+  assert.equal(health().state, 'polling')
+  assert.equal(health().error, null)
+  assert.deepEqual(health().runtime.owned_run_ids, ['synthetic-run'])
 })
 
 test('OPEN recovers from fallback, refreshes current state, and stops event polling', async (t) => {
@@ -107,6 +116,7 @@ test('disconnect closes SSE, cancels delayed refreshes, and ignores queued callb
   late({ data: JSON.stringify(event(2)) })
   t.mock.timers.tick(20_000); await flush()
   assert.ok(sources[0].closed)
+  assert.equal(health().runtime, null, 'Disconnected consumers must lose ownership')
   assert.deepEqual(events().map((e) => e.seq), [1])
   assert.equal(invalidations.length, 0)
   assert.equal(eventReads().length, 0)
@@ -170,6 +180,7 @@ test('an unresolved poll does not overlap and times out visibly before retrying'
   t.mock.timers.tick(4000); await flush()
   assert.equal(eventReads()[0].init.signal.aborted, true)
   assert.match(health().error, /timed out/)
+  assert.equal(health().runtime, null)
   t.mock.timers.tick(1000); await flush()
   assert.ok(eventReads().length > 1)
 })
@@ -258,3 +269,59 @@ test('a stale runtime probe cannot reset the new generation after local reset', 
   assert.deepEqual(events().map((e) => e.seq), [1])
   assert.equal(health().runtime.stream_epoch, 'new-epoch')
 })
+
+test('reconnecting loses ownership until fresh metadata arrives', () => {
+  sources[0].error()
+  assert.equal(health().runtime, null)
+  sources[0].readyState = StubSource.OPEN
+  sources[0].onopen()
+  assert.equal(health().runtime, null)
+  sources[0].runtime()
+  assert.deepEqual(health().runtime.owned_run_ids, ['synthetic-run'])
+})
+
+test('invalid named runtime metadata clears ownership and fences business events', () => {
+  sources[0].open()
+  sources[0].runtime({ ...runtime, owned_run_ids: null })
+  assert.equal(health().state, 'disconnected')
+  assert.equal(health().runtime, null)
+  sources[0].message(event(99))
+  assert.deepEqual(events(), [])
+  sources[0].runtime()
+  sources[0].message(event(1))
+  assert.deepEqual(events().map((e) => e.seq), [1])
+})
+
+test('invalid runtime GET clears ownership and a later healthy read recovers', async (t) => {
+  runtime = { ...runtime, engine_mode: 'unknown' }
+  t.mock.timers.tick(5000); await flush()
+  assert.equal(health().state, 'disconnected')
+  assert.equal(health().runtime, null)
+  assert.match(health().error, /runtime metadata/)
+  runtime = metadata()
+  t.mock.timers.tick(5000); await flush()
+  assert.equal(health().error, null)
+  assert.deepEqual(health().runtime.owned_run_ids, ['synthetic-run'])
+})
+
+for (const [key, hook] of [
+  [['approvals'], useApprovals],
+  [['services', 'outbox', 'prod'], () => useServiceView('outbox', 'prod')],
+]) {
+  test(`${key[0]} hook read aborts on disconnect and rejects a late result`, async () => {
+    let resolve
+    respond = () => new Promise((r) => { resolve = r })
+    function View() { hook(); return null }
+    renderToString(createElement(QueryClientProvider, { client: queryClient }, createElement(View)))
+    const query = queryClient.getQueryCache().find({ queryKey: key, exact: true })
+    const read = queryClient.fetchQuery(query.options).catch(() => {})
+    await flush()
+    const request = requests.at(-1)
+    assert.ok(request.url.startsWith(`/api/${key[0]}`))
+    disconnect()
+    assert.equal(request.init?.signal?.aborted, true, 'The actual hook must forward cancellation')
+    resolve(Response.json({ stale: true }))
+    await read; await flush()
+    assert.equal(queryClient.getQueryData(key), undefined)
+  })
+}

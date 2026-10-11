@@ -43,12 +43,10 @@ function adoptRuntime(info: RuntimeInfo) {
   if (runtime && (runtime.stream_epoch !== info.stream_epoch || runtime.instance_id !== info.instance_id)) {
     resetStream()
     runtime = info
-    status({ runtime: info })
     void catchUp()
     return false
   }
   runtime = info
-  status({ runtime: info })
   return true
 }
 
@@ -88,7 +86,7 @@ async function catchUp(includeEvents = true) {
     controller.abort()
     inflight = null
     syncTimeout = null
-    status({ state: 'disconnected', error: 'Engine sync timed out; retrying' })
+    status({ state: 'disconnected', error: 'Engine sync timed out; retrying', runtime: null })
   }, 5000)
   syncTimeout = timer
   try {
@@ -106,10 +104,10 @@ async function catchUp(includeEvents = true) {
       refreshState()
     }
     status({ state: poll ? 'polling' : source?.readyState === EventSource.OPEN ? 'streaming' : 'connecting',
-      lastSync: Date.now(), error: null })
+      lastSync: Date.now(), error: null, runtime })
   } catch (error) {
     if (valid()) {
-      status({ state: 'disconnected', error: error instanceof Error ? error.message : 'Engine sync failed' })
+      status({ state: 'disconnected', error: error instanceof Error ? error.message : 'Engine sync failed', runtime: null })
     }
   } finally {
     clearTimeout(timer)
@@ -122,7 +120,6 @@ async function catchUp(includeEvents = true) {
 
 function startPolling() {
   if (poll) return
-  status({ state: 'connecting' })
   poll = setInterval(() => {
     if (!source) openSource()
     void catchUp()
@@ -163,7 +160,7 @@ function openSource() {
       receive(parseEvents([JSON.parse(message.data)]))
       status({ lastSync: Date.now(), error: null })
     } catch {
-      status({ error: 'Unreadable engine event; refreshing current state' })
+      status({ state: 'disconnected', error: 'Unreadable engine event; refreshing current state', runtime: null })
       startPolling()
     }
   }
@@ -173,20 +170,24 @@ function openSource() {
       const info = parseRuntime(JSON.parse((message as MessageEvent).data))
       if (!adoptRuntime(info)) return
       streamEpoch = info.stream_epoch
+      status({ runtime: info })
       if (stream.readyState === EventSource.OPEN) recovered()
     } catch (error) {
-      status({ state: 'disconnected', error: error instanceof Error ? error.message : 'Invalid engine runtime' })
+      streamEpoch = null
+      status({ state: 'disconnected', error: error instanceof Error ? error.message : 'Invalid engine runtime', runtime: null })
       startPolling()
     }
   })
   stream.onerror = () => {
     if (!valid()) return
     streamEpoch = null
+    status({ runtime: null })
     if (stream.readyState === EventSource.CLOSED) {
       stream.close()
       source = null
       if (fallback) clearTimeout(fallback)
       fallback = null
+      status({ state: 'connecting' })
       startPolling()
     } else {
       if (!poll) status({ state: 'connecting' })
@@ -222,7 +223,7 @@ export function disconnect() {
   inflight = null
   clockOffset = 0
   void queryClient.cancelQueries(engineQueries)
-  status({ state: 'disconnected' })
+  status({ state: 'disconnected', runtime: null })
 }
 
 /** A successful reset replaces event history; old work cannot update the new cache. */

@@ -47,11 +47,11 @@ export const useIncidents = () =>
 
 // These views are folded from events. Read-only polling also catches decisions made in MCP.
 export const useApprovals = () => useQuery({
-  queryKey: ['approvals'], queryFn: () => api<Approval[]>('/approvals'), refetchInterval: 2_000,
+  queryKey: ['approvals'], queryFn: ({ signal }) => api<Approval[]>('/approvals', undefined, signal), refetchInterval: 2_000,
 })
 export const useServiceView = (service: ServiceView['service'], env: ServiceView['env']) => useQuery({
   queryKey: ['services', service, env],
-  queryFn: () => api<ServiceView>(`/services/${service}?env=${env}`), refetchInterval: 2_000,
+  queryFn: ({ signal }) => api<ServiceView>(`/services/${service}?env=${env}`, undefined, signal), refetchInterval: 2_000,
 })
 
 // Events live in the query cache under ['events'], filled by the stream (stream.ts), never fetched.
