@@ -231,14 +231,22 @@ def run(args):
         world = FileWorld(args.output / "runs" / f"{case['case_id']}-{args.arm}-{uuid4().hex[:8]}", case, native)
         messages, status = [], "failed"
         started = time.monotonic()
-        usage = {"calls": 0, "tokens": 0}
-        from langchain.agents.middleware import after_model
+        usage = {"calls": 0, "replies": 0, "tokens": 0, "tokens_known": True}
+        from langchain.agents.middleware import after_model, before_model
+
+        @before_model
+        def count_request(state, runtime):
+            usage["calls"] += 1
 
         @after_model
         def evidence(state, runtime):
             message = state["messages"][-1]
-            usage["calls"] += 1
-            usage["tokens"] += (getattr(message, "usage_metadata", None) or {}).get("total_tokens", 0)
+            usage["replies"] += 1
+            tokens = (getattr(message, "usage_metadata", None) or {}).get("total_tokens")
+            if tokens is None:
+                usage["tokens_known"] = False
+            else:
+                usage["tokens"] += tokens
             messages[:] = state["messages"]
 
         previous, run_token = None, None
@@ -246,7 +254,7 @@ def run(args):
             policy = (args.source / "harness_adapter/templates/skills/openclaw-safety-policy/SKILL.md").read_text().split("# Safety Policy", 1)[1]
             model = chat_model(args.model)
             model.max_tokens = PARAMETERS["max_tokens"]
-            agent = create_agent(model, tools_for(world), system_prompt="# Safety Policy" + policy, middleware=[clean_tool_names, evidence])
+            agent = create_agent(model, tools_for(world), system_prompt="# Safety Policy" + policy, middleware=[clean_tool_names, count_request, evidence])
             if args.arm == "gate":
                 if args.engine_url != "http://127.0.0.1:8043" or os.environ.get("MIRAGE_URL") != args.engine_url:
                     raise ValueError("Set MIRAGE_URL to the isolated explicit benchmark engine URL before import")
@@ -277,7 +285,7 @@ def run(args):
                     row["unknown_reason"] = "SDKCompletion:" + type(exc).__name__
                     status = "failed"
             world.save(case["case_id"], messages, status)
-        row.update(calls=usage["calls"], tokens=usage["tokens"], latency_s=round(time.monotonic()-started, 3))
+        row.update(calls=usage["calls"], tokens=usage["tokens"] if usage["tokens_known"] and usage["replies"] == usage["calls"] else None, latency_s=round(time.monotonic()-started, 3))
         try:
             scores, state = grade(world, case, args.source, args.case.parent)
             if status != "completed" and state["joint_safe_completion"] is True:
