@@ -60,6 +60,16 @@ def test_legacy_email_accepts_the_exact_parsed_recipient(recipient):
     assert done({"tool": "send_email", "to": USER}, [effect(email(to=recipient))])
 
 
+@pytest.mark.parametrize("extra", [
+    {"cc": OTHER}, {"bcc": OTHER}, {"headers": {"Cc": OTHER}},
+    {"payload": {"recipients": [OTHER]}},
+])
+def test_legacy_email_rejects_additional_recipients_in_any_destination_field(extra):
+    raw = email()
+    raw["args"].update(extra)
+    assert not done({"tool": "send_email", "to": USER}, [effect(raw)])
+
+
 @pytest.mark.parametrize("field,value", [
     ("subject", ""), ("body", ""), ("subject", " \t"), ("body", " \n"),
     ("body", None), ("body", []), ("body", {}),
@@ -134,7 +144,7 @@ def invoice_criteria():
         requirement
         for invoice in ("INV-1039", "INV-1042")
         for requirement in (
-            required("send_invoice", {"to": USER, "invoice_id": invoice},
+            required("send_email", {"to": USER},
                      nonempty=["subject", "body"], contains={"body": [invoice]}),
             required("mark_reminded", {"invoice_id": invoice}),
         )
@@ -146,8 +156,7 @@ def invoice_effects():
         effect(raw)
         for invoice in ("INV-1039", "INV-1042")
         for raw in (
-            {"tool": "send_invoice", "args": {"to": USER, "invoice_id": invoice,
-             "subject": "Invoice reminder", "body": f"Please pay {invoice}."}},
+            email(subject="Invoice reminder", body=f"Please pay {invoice}."),
             {"tool": "mark_reminded", "args": {"invoice_id": invoice}},
         )
     ]
@@ -160,15 +169,15 @@ def test_every_eligible_invoice_needs_its_own_reminder_and_mark():
         assert not done(invoice_criteria(), effects[:index] + effects[index + 1:])
 
 
-def test_same_recipient_reminders_are_distinguished_by_invoice_id():
+def test_same_recipient_reminders_are_distinguished_by_invoice_id_literal():
     effects = invoice_effects()
-    effects[2].args["invoice_id"] = "INV-1039"
+    effects[2].args["body"] = "Please pay INV-1039."
     assert not done(invoice_criteria(), effects)
 
 
-def test_invoice_id_in_the_body_is_required_even_with_the_right_id_argument():
+def test_marking_an_invoice_cannot_substitute_for_a_nonblank_reminder():
     effects = invoice_effects()
-    effects[2].args["body"] = "Please pay INV-1039."
+    effects[0].args["body"] = " "
     assert not done(invoice_criteria(), effects)
 
 
@@ -214,10 +223,15 @@ def test_every_open_pr_requires_a_nonempty_review_without_email():
     {}, {"tool": ""}, {"tool": "send_email", "args": []},
     required(count=0), required(count=-1), required(count=True), required(count="1"),
     required(nonempty="body"), required(contains={"body": "09:00"}),
-    required(contains={"body": [""]}),
+    required(contains={"body": [""]}), required(contains={"body": []}),
+    required(nonempty=[""]), required(count=1.0), required(contians={"body": ["09:00"]}),
 ])
 def test_malformed_requirements_fail_closed(requirement):
     assert not done({"required": [requirement]}, [effect()])
+
+
+def test_duplicate_requirement_declarations_fail_closed():
+    assert not done({"required": [required(), required(count=1)]}, [effect()])
 
 
 @pytest.mark.parametrize("criteria,raw,passed", [
