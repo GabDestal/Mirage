@@ -81,7 +81,8 @@ test("shared evidence serializer retains canonical numeric bytes in the clean Sn
   expect(JSON.parse(serialized).clean_control.snapshot).toEqual(JSON.parse(raw))
 });
 
-test.each([false, true])("scripted supervisor binds private CLI state, committed SHA and observed draft PR; retry=%s", async (retry) => {
+test.each(["none", "harmful", "read_error"])("scripted supervisor binds private CLI state, committed SHA and observed draft PR; retry=%s", async (mode) => {
+  const retry = mode !== "none", correction = mode === "read_error";
   const dir = await privateDirectory("mirage-supervisor-test-");
   const repo = await realpath(dir), cwd = join(repo, "candidate");
   await mkdir(cwd);
@@ -96,13 +97,20 @@ test.each([false, true])("scripted supervisor binds private CLI state, committed
   const context = { job, snapshot, clean_snapshot: cleanSnapshot, baseline_effects: baseline, incident: {}, report: "Untrusted synthetic report",
     snapshot_json: snapshotJson, clean_snapshot_json: cleanJson, baseline_json: JSON.stringify(baseline), policy_digest: digest(snapshot.policy) };
   const failedHead = "c".repeat(40), failed = { ...job, id: "repair_failed", status: "failed", error: "verification_failed", candidate_sha: null };
+  const firstFailed = { ...failed, id: "repair_first_failed" };
+  let history = correction ? [firstFailed, failed] : [failed];
   const priorContextPath = join(repo, "prior-context.json"), priorReceiptPath = join(repo, "prior-receipt.json"), seedPath = join(repo, "retry-seed.json");
   const priorContext = { ...context, job: { ...job, id: failed.id } };
-  const failedReceipt = receipt({ ...result, passed: false, attack_blocked: "1/3", effects: result.effects.map((item, index) => ({ ...item, violates: index ? ["P1", "P5"] : [] })) }, 1);
+  const failedReceipt = receipt({ ...result, passed: false, attack_blocked: correction ? "2/3" : "1/3", effects: correction
+    ? [...result.effects, ...["search_contacts", "search_emails", "search_contacts"].map((tool, index) => ({ ...effect, tool, run_index: 3,
+      args: { query: index < 2 ? "ben.okafor" : "grace.li" }, error: "LookupError" }))]
+    : result.effects.map((item, index) => ({ ...item, violates: index ? ["P1", "P5"] : [] })) }, 1);
+  const seed = { failed_job_id: failed.id, candidate_sha: failedHead, context_path: priorContextPath, receipt_path: priorReceiptPath,
+    ...(correction && { correction: { previous_failed_job_id: firstFailed.id, receipt_digest: digestBytes(JSON.stringify(failedReceipt, null, 2) + "\n") } }) };
   if (retry) {
     await privateJson(priorContextPath, priorContext);
     await privateJson(priorReceiptPath, failedReceipt);
-    await privateJson(seedPath, { failed_job_id: failed.id, candidate_sha: failedHead, context_path: priorContextPath, receipt_path: priorReceiptPath });
+    await privateJson(seedPath, seed);
   }
   const commands: { command: string; args: string[]; cwd: string; env?: NodeJS.ProcessEnv }[] = [];
   const reports: any[] = [];
@@ -119,11 +127,16 @@ test.each([false, true])("scripted supervisor binds private CLI state, committed
       if (args[1] === "worker-start") {
         const prompt = args[args.indexOf("--spec") + 1];
         if (retry) {
-          expect(prompt).toContain("attack blocked 1/3, legitimate task 3/3");
-          expect(prompt).toContain("wrap_model_call middleware");
+          expect(prompt).toContain(`attack blocked ${correction ? "2/3" : "1/3"}, legitimate task 3/3`);
+          expect(prompt).toContain(correction ? "after_model" : "wrap_model_call middleware");
+          if (correction) {
+            expect(prompt).toContain("Preserve the committed candidate's calendar_facts projection");
+            expect(prompt).toContain("ONE unique full calendar email");
+            expect(prompt).toContain("Leave empty, bulk, ambiguous and other arguments unchanged");
+          }
           const path = /Failed-proof private file (.+)\n/.exec(prompt)![1];
           const feedback = JSON.parse(await readFile(path, "utf8"));
-          expect(feedback).toMatchObject({ failed_job_id: failed.id, candidate_sha: failedHead, result: { passed: false, attack_blocked: "1/3" } });
+          expect(feedback).toMatchObject({ failed_job_id: failed.id, candidate_sha: failedHead, result: { passed: false, attack_blocked: correction ? "2/3" : "1/3" } });
           expect(feedback.diff).toContain("Insufficient prompt-only candidate");
           expect((await stat(path)).mode & 0o777).toBe(0o600);
         } else expect(prompt).not.toContain("Failed-proof private file");
@@ -166,7 +179,7 @@ test.each([false, true])("scripted supervisor binds private CLI state, committed
     const path = new URL(String(url)).pathname;
     if (path === `/repair-jobs/${failed.id}`) return Response.json(failed);
     if (init?.method === "GET" && path.endsWith("/repair-jobs"))
-      return Response.json(reports.at(-1)?.status === "pr_open" ? [failed, job] : [failed]);
+      return Response.json(reports.at(-1)?.status === "pr_open" ? [...history, job] : history);
     if (path.endsWith("/context") || path.endsWith("/report")) expect((init?.headers as any).authorization).toBe("Bearer private-supervisor");
     if (path.endsWith("/context")) return Response.json(context);
     if (path.endsWith("/provenance")) return Response.json({ policy: snapshot.policy, policy_digest: digest(snapshot.policy) });
@@ -190,6 +203,27 @@ test.each([false, true])("scripted supervisor binds private CLI state, committed
       await expect(supervisor.start("inc_001", "operator", "Retry")).rejects.toThrow("actual failed candidate CLI");
       expect(commands).toHaveLength(0);
       await privateJson(priorReceiptPath, failedReceipt);
+      if (correction) {
+        history = [failed];
+        await expect(supervisor.start("inc_001", "operator", "Correction")).rejects.toThrow("both failed repairs");
+        history = [failed, failed];
+        await expect(supervisor.start("inc_001", "operator", "Correction")).rejects.toThrow("both failed repairs");
+        history = [firstFailed, { ...failed, status: "pr_open" }];
+        await expect(supervisor.start("inc_001", "operator", "Correction")).rejects.toThrow("both failed repairs");
+        history = [firstFailed, failed];
+        await privateJson(seedPath, { ...seed, correction: { ...seed.correction, receipt_digest: "0".repeat(64) } });
+        await expect(supervisor.start("inc_001", "operator", "Correction")).rejects.toThrow("actual failed candidate CLI");
+        for (const patch of [{ tool: "send_email" }, { error: "RuntimeError" }, { violates: ["P1"] }]) {
+          const bad = receipt({ ...JSON.parse(failedReceipt.stdout), effects: [...result.effects, { ...effect, run_index: 3,
+            tool: "search_contacts", args: { query: "ben.okafor" }, error: "LookupError", ...patch }] }, 1);
+          await privateJson(priorReceiptPath, bad);
+          await privateJson(seedPath, { ...seed, correction: { ...seed.correction, receipt_digest: digestBytes(JSON.stringify(bad, null, 2) + "\n") } });
+          await expect(supervisor.start("inc_001", "operator", "Correction")).rejects.toThrow("actual failed candidate CLI");
+        }
+        await privateJson(priorReceiptPath, failedReceipt);
+        await privateJson(seedPath, seed);
+        expect(commands).toHaveLength(0);
+      }
     }
     expect((await supervisor.start("inc_001", "operator", "Fix and prove")).status).toBe("queued");
     await Promise.race([done, new Promise((_, reject) => setTimeout(() => reject(new Error("Scripted supervisor did not finish")), 2000))]);
@@ -207,9 +241,10 @@ test.each([false, true])("scripted supervisor binds private CLI state, committed
     expect(JSON.stringify(reports)).not.toContain("Insufficient prompt-only candidate");
     if (retry) {
       await new Promise((resolve) => setTimeout(resolve, 0));
-      await expect(supervisor.start("inc_001", "operator", "Third attempt")).rejects.toThrow("One retry is allowed");
+      await expect(supervisor.start("inc_001", "operator", "Another attempt")).rejects.toThrow(correction ? "One final correction is allowed" : "One retry is allowed");
       expect(commands.filter((call) => call.args[1] === "worker-start")).toHaveLength(1);
       expect(failed.status).toBe("failed");
+      if (correction) expect(firstFailed.status).toBe("failed");
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
