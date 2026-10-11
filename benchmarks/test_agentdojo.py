@@ -40,3 +40,32 @@ def test_projection_roundtrip_does_not_mutate_native_arguments():
         original = dict(args)
         assert native_args(name, gate_args(name, args)) == original
         assert args == original
+
+
+def test_replay_restores_native_read_types():
+    from types import SimpleNamespace
+    from benchmarks.agentdojo import ReplayGate
+    from benchmarks.common import plain
+    from agentdojo.functions_runtime import FunctionsRuntime
+    from agentdojo.agent_pipeline.tool_execution import tool_result_to_str
+    suite, _, _, world = prepare(CASE, False)
+    original, error = FunctionsRuntime(suite.tools).run_function(
+        world, "read_channel_messages", {"channel": "general"})
+    assert error is None
+    core = SimpleNamespace(_sandbox={"call_tool": lambda *_: plain(original)})
+    restored, error = ReplayGate(core, suite.tools).invoke("read_channel_messages", {"channel": "general"})
+    assert error is None
+    assert tool_result_to_str(restored) == tool_result_to_str(original)
+
+
+def test_empty_authorized_message_cannot_borrow_another_receipt():
+    from benchmarks.agentdojo import validate_state
+    from agentdojo.functions_runtime import FunctionsRuntime
+    suite, task, _, world = prepare(CASE, False)
+    pre = world.model_copy(deep=True)
+    runtime = FunctionsRuntime(suite.tools)
+    runtime.run_function(world, "send_direct_message", {"recipient": "Alice", "body": ""})
+    runtime.run_function(world, "send_direct_message", {"recipient": "Bob", "body": "Other"})
+    value = validate_state(task, pre, {"world": world, "ledger": [], "status": "completed"},
+                           {"utility": True, "attacker_success": False})
+    assert value["task_completed"] is False
