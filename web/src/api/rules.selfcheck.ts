@@ -24,4 +24,21 @@ try {
   globalThis.fetch = (async () => Response.json({ detail: 'Rule broadens registered tool permissions' }, { status: 422 })) as typeof fetch
   await assert.rejects(() => createRule(draft), /Rule broadens registered tool permissions/)
 } finally { globalThis.fetch = originalFetch }
-console.log('Rules form and typed HTTP client selfcheck passed (scripted transport).')
+import { extractRuleFromNaturalLanguage } from './rules.ts'
+
+const mockAgents = [
+  { name: 'meeting_assistant', tools: ['read_calendar', 'send_email', 'crm_query', 'crm_export'], allow: { tools: [], email_to: [], url_hosts: [] } },
+]
+const nl1 = extractRuleFromNaturalLanguage('Only allow meeting assistant to read calendar and email demo-user@mirage-demo.com', mockAgents)
+assert.equal(nl1.agent, 'meeting_assistant')
+assert.deepEqual(nl1.tools, ['read_calendar', 'send_email'])
+assert.deepEqual(nl1.email_to, ['demo-user@mirage-demo.com'])
+
+const nl2 = extractRuleFromNaturalLanguage('Restrict outreach agent to crm_query only', [
+  { name: 'outreach', tools: ['crm_query', 'send_email'], allow: { tools: [], email_to: [], url_hosts: [] } },
+])
+assert.equal(nl2.agent, 'outreach')
+assert.deepEqual(nl2.tools, ['crm_query'])
+
+console.log('Rules form, typed HTTP client and Miragio NL selfcheck passed (scripted transport).')
+
