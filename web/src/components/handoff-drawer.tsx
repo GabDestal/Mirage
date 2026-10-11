@@ -20,6 +20,7 @@ async function copy(prompt: string, agent?: string) {
 
 export function HandoffDrawer({ open, onClose, prompt, error }: { open: boolean; onClose: () => void; prompt?: string; error?: string }) {
   const handoffPrompt = prompt && isDemo ? `Recorded demo handoff: the evidence below is recorded or simulated. It does not provide a live executable snapshot or establish real fix acceptance. Obtain a live incident before validating a real fix.\n\n${prompt}` : prompt
+  const ready = !!prompt?.trim() && !error
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <Dialog.Portal>
@@ -29,14 +30,14 @@ export function HandoffDrawer({ open, onClose, prompt, error }: { open: boolean;
             <div className="flex flex-col gap-1.5">
               <Dialog.Title className="text-title font-semibold">{isDemo ? 'Demo handoff to coding agent' : 'Hand off to coding agent'}</Dialog.Title>
               <Dialog.Description className="text-ink-2 text-pretty">
-                {isDemo ? 'This recorded handoff demonstrates the workflow. It does not provide a live executable snapshot or verify a real fix. Use a live incident for real fix validation.' : <>Mirage doesn’t write the fix. Your coding agent does, then proves it with <code className="font-mono text-meta">mirage detonate</code> against this snapshot. You merge the PR.</>}
+                {isDemo ? 'This recorded handoff demonstrates the workflow. It does not provide a live executable snapshot or verify a real fix. Use a live incident for real fix validation.' : <>Mirage doesn’t write the fix. Your coding agent does, then tests it with <code className="font-mono text-meta">mirage detonate</code> against this snapshot.</>}{' '}A human reviews and merges the PR, then approves a clean restart.
               </Dialog.Description>
             </div>
             <Dialog.Close asChild><Button variant="ghost" aria-label="Close" className="px-2"><X /></Button></Dialog.Close>
           </div>
           <div className="grid grid-cols-2 gap-2">
             {AGENTS.map((agent) => (
-              <Button key={agent.name} variant="primary" disabled={!prompt} onClick={() => {
+              <Button key={agent.name} variant="primary" disabled={!ready} onClick={() => {
                 // Open first, inside the click, so the new tab is not treated as a popup.
                 window.open(agent.url, '_blank', 'noopener,noreferrer')
                 void copy(handoffPrompt!, agent.name)
@@ -45,8 +46,8 @@ export function HandoffDrawer({ open, onClose, prompt, error }: { open: boolean;
           </div>
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-meta text-ink-2">{isDemo ? 'This prompt is a recorded example. It does not grant live incident access.' : 'This prompt includes access scoped to this incident. Share it only with your coding agent.'}</p>
-              <Button disabled={!prompt} onClick={() => void copy(handoffPrompt!)}><Copy />Copy prompt</Button>
+              <p className="text-meta text-ink-2">{isDemo ? 'This prompt is a recorded example. It does not grant live incident access.' : 'This prompt provides incident context and local verification paths. Your coding agent needs the checkout and snapshot, or a connected, reachable Mirage deployment. Links don’t transfer files or connect Mirage.'}</p>
+              <Button disabled={!ready} onClick={() => void copy(handoffPrompt!)}><Copy />Copy prompt</Button>
             </div>
             {error ? <p role="alert" className="text-alarm">{error}</p>
               : <pre tabIndex={0} aria-label="Handoff prompt" className="min-h-0 flex-1 overflow-auto rounded-control border border-line bg-paper-2 p-3 font-mono text-meta whitespace-pre-wrap text-ink outline-none focus-visible:border-ink">{handoffPrompt ?? 'Loading prompt…'}</pre>}
