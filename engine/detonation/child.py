@@ -9,9 +9,11 @@ so a crash still leaves the evidence.
 """
 
 import builtins
+import hashlib
 import importlib
 import json
 import os
+import sys
 from pathlib import Path, PurePosixPath
 
 from contracts.models import ToolResult
@@ -108,11 +110,54 @@ class NativeFileWorld:
 
 
 def main():
-    snap = json.loads(Path(os.environ["MIRAGE_SNAPSHOT"]).read_text(encoding="utf-8"))
+    raw_snapshot = Path(os.environ["MIRAGE_SNAPSHOT"]).read_bytes()
+    snap = json.loads(raw_snapshot)
     effects = Path(os.environ["MIRAGE_EFFECTS"])
     step = 0
     current_spec = None
     consumed = set()
+    from engine.detonation import snapshot as snapshots
+
+    envelope = snapshots.native_fixture(snap)
+    world, prefix, prefix_index, frozen_reached, prefix_failed = None, [], 0, False, False
+    if envelope is not None:
+        snapshot_hash = hashlib.sha256(raw_snapshot).hexdigest()
+        if snapshot_hash != os.environ.get("MIRAGE_NATIVE_SNAPSHOT_SHA256"):
+            raise ValueError("Native child snapshot transport hash mismatch")
+        mode = os.environ["MIRAGE_NATIVE_START"]
+        if mode not in {"replay", "frozen", "initial"}:
+            raise ValueError("Invalid native start mode")
+        data = envelope["data"]
+        world = snapshots.native_world(data[("frozen" if mode == "frozen" else "initial") + "_world"])
+        prefix = data["callbacks"] if mode == "replay" else []
+        frozen_reached = mode == "frozen"
+        final_path = Path(os.environ["MIRAGE_NATIVE_FINAL"])
+
+    def persist_native(completed=False, error="incomplete"):
+        if world is None:
+            return
+        state = world.snapshot()
+        payload = {"version": 1, "snapshot_sha256": snapshot_hash,
+                   "fixture_sha256": envelope["sha256"], **state,
+                   "state_sha256": snapshots.native_hash(state), "start_mode": mode,
+                   "replayed_callbacks": prefix_index, "frozen_reached": frozen_reached,
+                   "completed": completed, "error": error}
+        entrypoint = sys.modules.get(snap["entrypoint"].split(":")[0])
+        payload["entrypoint_sha256"] = (hashlib.sha256(Path(entrypoint.__file__).read_bytes()).hexdigest()
+                                       if entrypoint and entrypoint.__file__ else None)
+        if trace := getattr(call_tool, "native_trace", None):
+            payload["native_trace"] = trace
+            payload["native_trace_sha256"] = snapshots.native_hash(trace)
+        temporary = final_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload), encoding="utf-8")
+        os.replace(temporary, final_path)
+
+    def check_frozen():
+        nonlocal frozen_reached
+        if world is not None and mode == "replay" and prefix_index == len(prefix) and not frozen_reached:
+            if world.snapshot() != data["frozen_world"]:
+                raise ValueError("Native replay did not reach the frozen world")
+            frozen_reached = True
 
     def record(tool, args, error=None):
         nonlocal step
@@ -136,6 +181,7 @@ def main():
             current_spec = spec
 
     def call_tool(tool, args):
+        nonlocal prefix_index, prefix_failed
         error = None
         known = (current_spec["tools"] if current_spec is not None
                  else snap.get("_current_tools", snap.get("policy", {}).get("known_tools")))
@@ -146,7 +192,8 @@ def main():
         recorded = match[1] if match is not None else None
         if error is None and match is not None:
             consumed.add(match[0])
-        if error is None and recorded is not None and recorded.get("error") is not None:
+        playback = world is None or (mode == "replay" and prefix_index < len(prefix))
+        if playback and error is None and recorded is not None and recorded.get("error") is not None:
             failure = recorded["error"]
             kind = getattr(builtins, failure.partition(":")[0], None)
             error = (kind.__name__ if isinstance(kind, type) and issubclass(kind, Exception)
@@ -154,17 +201,57 @@ def main():
         declared = (known if known is not None else snap.get("policy", {}).get("agents", {})
                     .get(snap["agent"], {}).get("tools", []))
         write = tool in declared and (tool.startswith(WRITE_PREFIXES) or tool in WRITE_TOOLS)
-        if error is None and not write and recorded is None:
+        value = None
+        if world is not None:
+            expected = prefix[prefix_index] if mode == "replay" and prefix_index < len(prefix) else None
+            if expected is not None and (expected["tool"] != tool or expected["args"] != args
+                                         or match is None or match[0] != prefix_index):
+                prefix_failed, error = True, "LookupError"
+            if expected is None and not prefix_failed:
+                try:
+                    check_frozen()
+                except ValueError:
+                    prefix_failed, error = True, "RuntimeError"
+            if tool not in FILE_TOOLS:
+                error = "LookupError"
+            if error is None:
+                try:
+                    value = world.call(tool, args)
+                except Exception as exc:  # noqa: BLE001 - callback returns only a safe category
+                    error = type(exc).__name__
+            if expected is not None and not prefix_failed:
+                recorded_error = expected["error"]
+                kind = getattr(builtins, str(recorded_error).partition(":")[0], None)
+                expected_error = (kind.__name__ if isinstance(kind, type) and issubclass(kind, Exception)
+                                  else "ToolError") if recorded_error is not None else None
+                if error != expected_error or (error is None and snapshots.native_recorded_value(value) != expected["result"]):
+                    prefix_failed, error = True, "RuntimeError"
+                else:
+                    prefix_index += 1
+        elif error is None and not write and recorded is None:
             error = "LookupError"
         record(tool, args, error)
+        persist_native()
         if error is not None:
             return ToolResult(call_id=f"sandbox_call_{step}", tool=tool, error=error)
-        return {"status": "ok"} if write else recorded["result"]
+        return value if world is not None else {"status": "ok"} if write else recorded["result"]
 
     call_tool.register_spec = register_spec
+    if world is not None:
+        call_tool.native_context = {"agent": snap["agent"], "system": data["system"],
+                                    "model_id": data["model_id"], "owner_messages": data["owner_messages"],
+                                    "owner_index": data["owner_index"], "start_mode": mode}
+    persist_native()
     module, function = (snap.get("runner") or snap["entrypoint"]).split(":")
     try:
         getattr(importlib.import_module(module), function)(snap, call_tool)
+        check_frozen()
+        if world is not None and (prefix_failed or (mode == "replay" and prefix_index != len(prefix))):
+            raise ValueError("Native recorded prefix did not complete")
+        persist_native(completed=True, error=None)
+    except BaseException as exc:
+        persist_native(error=type(exc).__name__)
+        raise
     finally:
         if path := os.environ.get("MIRAGE_CURRENT_SPEC"):
             Path(path).write_text(json.dumps(current_spec), encoding="utf-8")
