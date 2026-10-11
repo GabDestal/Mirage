@@ -177,7 +177,8 @@ def test_tool_recording_outage_preserves_original_exception(offline, method, mon
 
 
 @pytest.mark.parametrize("method", ["invoke", "stream"])
-def test_human_block_is_not_reported_as_completion_or_model_failure(offline, method, monkeypatch):
+def test_block_reports_failure_without_replacing_original_or_running_tool(
+        offline, method, monkeypatch):
     failure = mirage.Blocked("Run offline_1 is killed.")
 
     def killed(*args):
@@ -188,7 +189,8 @@ def test_human_block_is_not_reported_as_completion_or_model_failure(offline, met
     with pytest.raises(mirage.Blocked) as caught:
         run(graph, method)
     assert caught.value is failure
-    assert terminal(offline) == []
+    assert terminal(offline) == [("/runs/offline_1/complete", {"error": "Blocked"},
+                                 "Bearer synthetic-token")]
     assert sent == []
     assert core._run.get() is None
 

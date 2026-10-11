@@ -71,8 +71,6 @@ def end(token, error=None):
         return
     run = _run.get()
     _run.reset(token)
-    if isinstance(error, Blocked):
-        return  # the engine already owns the human stop/kill status
     if error is None:
         complete(run)
     else:
