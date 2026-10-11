@@ -16,7 +16,7 @@ from engine.api.server import app
 from engine.gateway import gate
 from engine.store import events
 
-USER, ATTACKER = "demo-user@mirage-demo.com", "attacker@evil-corp-demo.com"
+USER, ATTACKER = "demo-user@northwind.example", "attacker@evil-corp-demo.com"
 sent = []
 
 

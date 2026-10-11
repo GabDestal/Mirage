@@ -9,6 +9,7 @@ import { AgentAvatar } from '@/agents/avatars'
 import { ACTOR, CleanRestartButton, HumanReasonDialog, ResumeButton, liveRunOwned, useAsk } from '@/components/actions'
 import { HandoffDrawer } from '@/components/handoff-drawer'
 import { RepairProgress } from '@/components/repair-progress'
+import { RecoveryPanel } from '@/components/recovery-panel'
 import { Button } from '@/components/ui/button'
 import { avatarState, callPhrase, runLabel, steps } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
@@ -172,12 +173,13 @@ export function IncidentPage() {
         {incident.pr_url && !pr && <Notice tone="alarm">The server returned an invalid PR link. Open the incident again after the link is corrected.</Notice>}
         {prompt && <div className="incident-handoff"><Button onClick={handOff}>Hand off to coding agent<ArrowRight /></Button></div>}
         {!pr && !prompt && <p className="incident-muted">No pull request has been reported yet. A human reviews and merges the PR.</p>}
+        {!!incident.verdict?.confirmed && run && <RecoveryPanel key={`recovery-${id}`} incidentId={id} run={run} />}
       </StorySection>
       <footer className="incident-actions">
         <div className="incident-action-main">{busy ? <><Button variant="primary" disabled>Waiting for results…</Button><span role="status">Updates arrive from the engine.</span><Button onClick={refresh}>Refresh</Button></> : primary && action && isIncidentAction(action) ? <Button variant="primary" onClick={() => { act.reset(); if (action === 'send_fix') handOff(); else setConfirm(action) }}>{primary.label}<ArrowRight /></Button> : action === 'open_pr' && pr ? <Button variant="primary" asChild><a href={pr} target="_blank" rel="noopener noreferrer">Open PR<ExternalLink /></a></Button> : action === 'open_pr' ? <span>Waiting for a valid PR link.</span> : <span><Check size={16} />{incident.status === 'false_positive' ? 'Review the replay, then unfreeze if appropriate.' : 'No further action requested.'}</span>}</div>
         {run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection)) && <div className="incident-secondary"><Button variant="ghost" disabled={!canUnfreeze} title={!canUnfreeze ? 'Unfreeze is available only before confirmation or after a false positive.' : undefined} onClick={() => ask('unfreeze', run)}>Unfreeze</Button><Button variant="destructive" disabled={busy} onClick={() => ask('kill', run)}>Kill</Button></div>}
         {run?.status === 'halted' && <div className="incident-secondary"><ResumeButton run={run} /></div>}
-        {!isDemo && run && ['killed', 'halted', 'failed'].includes(run.status) && <div className="incident-secondary"><CleanRestartButton run={run} /></div>}
+        {!isDemo && !incident.verdict?.confirmed && run && ['killed', 'halted', 'failed'].includes(run.status) && <div className="incident-secondary"><CleanRestartButton run={run} /></div>}
       </footer>
       {confirm && <HumanReasonDialog key={`${id}:${confirm}`} open title={`${INCIDENT_ACTIONS[confirm].label}?`} effect={INCIDENT_ACTIONS[confirm].effect} reasons={[INCIDENT_ACTIONS[confirm].reason]} verb={INCIDENT_ACTIONS[confirm].label} onClose={() => setConfirm(null)} onSubmit={submit} busy={act.isPending} error={act.error?.message} />}
       <HandoffDrawer open={drawer && !!prompt} onClose={() => setDrawer(false)} prompt={prompt} />
