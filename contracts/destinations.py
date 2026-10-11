@@ -106,4 +106,3 @@ def destinations(args):
     elif isinstance(args, list):
         for value in args:
             yield from destinations(value)
-

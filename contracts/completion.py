@@ -114,4 +114,3 @@ def matches_requirements(legit: dict, effects: list[dict]) -> bool:
         if matched != count:
             return False
     return positive
-
