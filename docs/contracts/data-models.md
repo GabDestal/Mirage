@@ -112,6 +112,7 @@ Event types and their `payload`:
 | `handoff.created` | `{incident_id, prompt, claude_code_url, codex_url}` |
 | `fix.verified` | `{incident_id, attack_blocked, legit_task_completed, passed}` (incident → `fix_verified` only if `passed`) |
 | `pr.opened` | `{incident_id, url, number}` |
+| `repair.job.updated` | `RepairJob` public progress snapshot; no prompt, token, raw snapshot or effect arguments |
 | `human.action` | `HumanAction` (below) |
 | `agent.registered` | `AgentSpec` (each `POST /agents`; the engine restores registrations from these after a restart) |
 
@@ -251,7 +252,7 @@ or evidence that the legitimate task completed. Error values contain only a sani
 }
 ```
 
-`action`: `freeze | unfreeze | kill | approve_restart | global_stop | lift_stop | resume | approve | reject | handoff | merge | detonate | find_cause | verify`
+`action`: `freeze | unfreeze | kill | approve_restart | global_stop | lift_stop | resume | approve | reject | handoff | merge | detonate | find_cause | verify | repair`
 
 `POST /incidents/{id}/detonate`, `/bisect` and `/verify` take an optional `HumanRequest` body `{actor, reason}` and log it
 as a `human.action` (`detonate`, `find_cause`, `verify`). Without a body the actor is logged as `unknown`.
