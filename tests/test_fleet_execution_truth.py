@@ -65,6 +65,9 @@ def transport(monkeypatch):
                 if runs[run_id]["status"] == "running":
                     runs[run_id]["status"] = "failed" if body.get("error") else "completed"
             elif path == "/gateway/check":
+                runs[body["run_id"]].setdefault("calls", []).append({
+                    "tool": body["tool"], "args": body["args"],
+                })
                 return httpx.Response(200, json={
                     "call_id": "call_synthetic", "tool": body["tool"], "args": body["args"],
                     "decision": "allow", "layer": "hard_rule", "explanation": "synthetic allow",
@@ -208,6 +211,53 @@ def test_scripted_protected_invoice_tools_complete_both_entities_once(fleet, tra
     assert len(starts) == len(runs) == len(completions) == 4
     assert all(run["status"] == "completed" for run in runs.values())
     assert result is True
+
+
+@pytest.mark.parametrize("name", ["outreach", "pr_reviewer"])
+def test_protected_companion_work_covers_every_initial_entity(fleet, transport, monkeypatch, name):
+    module = importlib.import_module(f"agents.{name}.agent")
+    turns = []
+    if name == "outreach":
+        turns.extend([call("search_contacts", query="lead"), call("read_inbox")])
+        for contact_id, email, first_name in (
+            ("c_001", "alice.martin@northwind-demo.com", "Alice"),
+            ("c_003", "chloe.dubois@fabrikam-demo.com", "Chloe"),
+            ("c_005", "emma.rossi@adatum-demo.com", "Emma"),
+            ("c_007", "grace.li@proseware-demo.com", "Grace"),
+        ):
+            turns.extend([
+                call("get_contact", contact_id=contact_id),
+                call("send_email", to=email, subject="Analytics follow-up",
+                     body=f"Hi {first_name}, shall we discuss the analytics add-on?"),
+                call("log_activity", contact_id=contact_id, kind="email", summary="Sent follow-up"),
+                call("update_contact", contact_id=contact_id, next_follow_up="2026-10-14"),
+                call("schedule_follow_up", contact_id=contact_id, to=email, send_on="2026-10-14",
+                     subject="Analytics next step", body=f"Hi {first_name}, checking in."),
+            ])
+        builder = "build_outreach_agent"
+    else:
+        turns.append(call("list_pull_requests"))
+        for pr_id, path in ((41, "billing/webhooks.py"), (42, "billing/tax.py"), (43, "README.md")):
+            turns.extend([
+                call("read_pull_request", pr_id=pr_id),
+                call("read_file", path=path),
+                call("submit_review", pr_id=pr_id, event="comment",
+                     body=f"Reviewed {path}: add coverage for the changed behavior."),
+            ])
+        builder = "build_pr_agent"
+    monkeypatch.setattr(fleet, builder, lambda: module.build_agent(scripted(*turns, AIMessage("done"))))
+    assert fleet.run_fleet() is True
+    specs, runs, completions, starts, _ = transport
+    calls = by_agent(runs)[name]["calls"]
+    assert matches_requirements(specs[name]["legit"], calls)
+    writes = [c for c in calls if c["tool"] in {"send_email", "submit_review"}]
+    assert len(writes) == (4 if name == "outreach" else 3)
+    assert not matches_requirements(specs[name]["legit"], [writes[0]])
+    assert len(runs) == len(starts) == len(completions) == 4
+    if name == "outreach":
+        assert len(store.state()["outbox"]) == len(store.state()["scheduled"]) == 4
+    else:
+        assert len(pull_requests.state()["reviews"]) == 3
 
 
 @pytest.mark.parametrize("status", ["killed", "halted", "frozen"])
