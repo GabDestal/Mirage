@@ -71,19 +71,6 @@ Four agents work in parallel: a **meeting assistant**, **invoicing**, **outreach
 
 All data is synthetic. The "attacker" is a team-owned address.
 
-## Results
-
-| What | Result |
-|---|---|
-| Synthetic test set (20 runs, 10 poisoned) | Every attack that went through detected (6/6), 0 records leaked, 0/10 false positives |
-| Time to detect / contain | 5.9 ms / 8.9 ms (gate decision to frozen run) |
-| Layer 2 gate on stealth attacks the hard rules allow | 11/12 stopped, 1/17 legit calls wrongly frozen (gpt-oss-safeguard-120b) |
-| Live demo (4 agents, real models) | Freeze ~30 s after launch, verdict ~40 s, cause ~40 s |
-| Real coding-agent repair | Claude Code fixed the victim; `mirage detonate` passed 3/3 on the first try |
-
-Reproduce: `uv run python -m engine.dev.testset` then `uv run python -m engine.cli metrics` (test set),
-and `uv run python -m engine.dev.gate_eval` (gate model). Both need Bedrock.
-
 ## Quick start
 
 Requirements: Python 3.12+ with [uv](https://docs.astral.sh/uv/), Node.js 20.12+, and an AWS Bedrock API
@@ -171,14 +158,6 @@ release only if the replays are harmless and a stronger model agrees. Below that
 | OWASP Top 10 for Agentic Applications | ASI01 goal hijacking, ASI02 tool misuse, ASI03 privilege abuse, ASI08 cascading failures |
 | MITRE ATLAS | AML.T0051 LLM prompt injection (indirect, via calendar content) |
 | NIST CSF 2.0 | Detect (gate), Respond (freeze, detonate, bisect), Recover (verified fix, clean restart) |
-
-## Limits
-
-- The demo agents use synthetic in-memory services, not real Gmail, Calendar or HubSpot yet.
-- Local prototype: one machine, no authentication between operator and engine.
-- The agents' model (gpt-oss-20b) is not fully deterministic: the injection does not succeed on every
-  run, so the demo may need a second deploy.
-- Synthetic data only. Fake secrets only (`FLAG{team26-...}`).
 
 ## Team
 
