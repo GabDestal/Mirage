@@ -116,8 +116,7 @@ def is_probe(policy, tool):
 
 
 def set_status(run, to, actor, reason):
-    emit("run.status", {"from": run.status, "to": to, "actor": actor, "reason": reason},
-         run_id=run.id, incident_id=run.incident_id)
+    previous = run.status
     run.status = to
     if to in ("completed", "killed", "halted"):
         run.ended_at = datetime.now(UTC)
@@ -125,6 +124,8 @@ def set_status(run, to, actor, reason):
         run.resume.clear()
     else:
         run.resume.set()
+    emit("run.status", {"from": previous, "to": to, "actor": actor, "reason": reason},
+         run_id=run.id, incident_id=run.incident_id)
 
 
 def _human(actor, action, target, reason):
@@ -253,19 +254,29 @@ def _check(run, tool, args) -> GateDecision:
         # the new log. STOP/kill on an existing run still get their normal decision evidence.
         if run.revoked_by_reset:
             return gate
+        # Containment is authority, not evidence: a failed write must never leave it running.
+        if hit or held:
+            set_status(run, "frozen", "gate", rule[1])
         emit("gate.decision", gate.model_dump(mode="json"), run_id=run.id,
              incident_id=run.incident_id if hit else None)
-        if held:
-            set_status(run, "frozen", "gate", rule[1])
         if hit:
             spec = agents.get(run.agent)
-            snap = snapshot.save(run, run.incident_id, policy,
-                                 entrypoint=spec.entrypoint if spec else "",
-                                 runner=SDK_RUNNER if spec else None)
+            try:
+                snap = snapshot.save(run, run.incident_id, policy,
+                                     entrypoint=spec.entrypoint if spec else "",
+                                     runner=SDK_RUNNER if spec else None)
+            except Exception as error:  # noqa: BLE001 - containment survives persistence failure
+                emit("incident.opened", {"incident_id": run.incident_id,
+                                         "trigger_call_id": call_id},
+                     run_id=run.id, incident_id=run.incident_id)
+                emit("detonation.failed", {"incident_id": run.incident_id, "detonation_id": "",
+                     "error": f"Snapshot persistence failed ({type(error).__name__}); "
+                              "production remains frozen. Repair the snapshot before retrying."},
+                     run_id=run.id, incident_id=run.incident_id, env="mirage")
+                return gate
             emit("incident.opened", {"incident_id": run.incident_id, "trigger_call_id": call_id,
                                      "inputs": [i.model_dump() for i in snapshot.inputs(snap)]},
                  run_id=run.id, incident_id=run.incident_id)
-            set_status(run, "frozen", "gate", rule[1])
             if os.getenv("MIRAGE_MODE", "live") != "replay":
                 jobs.automatic(run.incident_id, run)
         return gate
