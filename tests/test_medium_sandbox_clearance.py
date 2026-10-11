@@ -242,6 +242,11 @@ def test_semantically_harmful_or_unavailable_clean_baseline_stays_frozen(api, mo
         assert run.status == "frozen" and not run.resume.is_set()
         assert effects == [] and not pending.done()
         assert api.get("/approvals").json() == []
+        call_id = incident["trigger"]["call_id"]
+        assert api.post(f"/approvals/{call_id}/approve", json=HUMAN).status_code == 404
+        assert api.post(f"/runs/{run.id}/unfreeze", json=HUMAN).status_code == 409
+        with pytest.raises(ValueError):
+            gate.unfreeze(run.id, HUMAN["actor"], HUMAN["reason"])
 
 
 @pytest.mark.parametrize("case", [
@@ -356,8 +361,12 @@ def test_manual_proof_retry_cannot_release_medium_call(api, monkeypatch, action)
             "automatic_clearance"]["status"] == "inconclusive"
 
 
-def test_absent_stronger_model_configuration_cannot_clear(api, monkeypatch):
-    monkeypatch.delenv("BEDROCK_JUDGE_MODEL_ID", raising=False)
+@pytest.mark.parametrize("material", ["absent_model", "truncated_call"])
+def test_insufficient_semantic_classification_material_cannot_clear(api, monkeypatch, material):
+    if material == "absent_model":
+        monkeypatch.delenv("BEDROCK_JUDGE_MODEL_ID", raising=False)
+    else:
+        monkeypatch.setitem(ARGS, "body", ARGS["body"] + "." * 7000)
     monkeypatch.setenv("MIRAGE_PARALLEL", "3")
     monkeypatch.setattr(sandbox, "run_once", lambda *a, **k: ([raw_effect()], None))
     with pending_effect(api, monkeypatch) as (run, _, pending, effects):
