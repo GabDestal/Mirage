@@ -8,6 +8,7 @@ import { resetStream, useConnection, useNow } from '@/api/stream'
 import { CleanRestartButton, FreezeButton, ResumeButton, liveRunOwned, runControlNote, useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
+import { ExposureSummary } from '@/components/exposure-panel'
 import { agentName, automaticClearanceText, avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
 import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, latestProductionRuns, sandboxStatus } from './fleet-presentation'
@@ -191,6 +192,8 @@ export function Fleet() {
             <div className="fleet-stat-sub">Pre-execution policy checks</div>
           </div>
         </div>
+
+        <ExposureSummary />
 
         {/* Toolbar & Filter Tabs */}
         <div className="fleet-toolbar">
