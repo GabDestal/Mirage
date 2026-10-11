@@ -103,7 +103,9 @@ export function IncidentPage() {
   }
   const clearanceText = run && (isDemo || liveRunOwned(run, connection))
     ? automaticClearanceText(run, incident) : null
-  const canUnfreeze = !incident.automatic_clearance && run?.status === 'frozen' && ['open', 'false_positive'].includes(incident.status) && !busy
+  const mediumPending = !!incident.automatic_clearance && incident.automatic_clearance.status !== 'cleared'
+  const canUnfreeze = !mediumPending && run?.status === 'frozen' && (['open', 'false_positive'].includes(incident.status)
+    || (incident.status === 'closed' && incident.automatic_clearance?.status === 'cleared')) && !busy
 
   return (
     <article className="incident-page">
@@ -181,7 +183,7 @@ export function IncidentPage() {
       </StorySection>
       <footer className="incident-actions">
         <div className="incident-action-main">{busy ? <><Button variant="primary" disabled>Waiting for results…</Button><span role="status">Updates arrive from the engine.</span><Button onClick={refresh}>Refresh</Button></> : primary && action && isIncidentAction(action) ? <Button variant="primary" onClick={() => { act.reset(); if (action === 'send_fix') handOff(); else setConfirm(action) }}>{primary.label}<ArrowRight /></Button> : action === 'open_pr' && pr ? <Button variant="primary" asChild><a href={pr} target="_blank" rel="noopener noreferrer">Open PR<ExternalLink /></a></Button> : action === 'open_pr' ? <span>Waiting for a valid PR link.</span> : <span><Check size={16} />{incident.automatic_clearance ? clearanceText ?? 'Automatic clearance recorded. Check the current run status.' : incident.status === 'false_positive' ? 'Review the replay, then unfreeze if appropriate.' : 'No further action requested.'}</span>}</div>
-        {run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection)) && <div className="incident-secondary">{!incident.automatic_clearance && <Button variant="ghost" disabled={!canUnfreeze} title={!canUnfreeze ? 'Unfreeze is available only before confirmation or after a false positive.' : undefined} onClick={() => ask('unfreeze', run)}>Unfreeze</Button>}<Button variant="destructive" onClick={() => ask('kill', run)}>Kill</Button></div>}
+        {run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection)) && <div className="incident-secondary">{!mediumPending && <Button variant="ghost" disabled={!canUnfreeze} title={!canUnfreeze ? 'Unfreeze is available only before confirmation or after a false positive.' : undefined} onClick={() => ask('unfreeze', run)}>Unfreeze</Button>}<Button variant="destructive" onClick={() => ask('kill', run)}>Kill</Button></div>}
         {run?.status === 'halted' && <div className="incident-secondary"><ResumeButton run={run} /></div>}
         {!isDemo && run && ['killed', 'halted', 'failed'].includes(run.status) && <div className="incident-secondary"><CleanRestartButton run={run} /></div>}
       </footer>

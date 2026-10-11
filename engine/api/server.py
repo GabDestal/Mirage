@@ -483,7 +483,10 @@ def unfreeze(run_id: str, body: HumanRequest) -> Run:
                 raise HTTPException(409, "Medium suspicion requires conclusive initial sandbox clearance.")
             if inc and (inc.status == "detonating" or (not REPLAY and jobs.running(inc.id))):
                 raise HTTPException(409, "Cannot unfreeze: detonation is running. Wait for the verdict.")
-            if _compromised(inc):
+            cleared_medium = (inc and inc.status == "closed" and inc.automatic_clearance
+                              and inc.automatic_clearance.status == "cleared"
+                              and inc.verdict and not inc.verdict.confirmed)
+            if _compromised(inc) and not cleared_medium:
                 raise HTTPException(409, "Cannot unfreeze: detonation confirmed this run is compromised. "
                                          "Kill it and approve a clean restart.")
         return _act(run_id, body, "unfreeze", ("frozen",))

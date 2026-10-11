@@ -28,6 +28,7 @@ medium.automatic_clearance!.status = 'inconclusive'
 assert.equal(automaticClearanceText(run('run_1', 'frozen', { incident_id: 'inc_1' }), medium), 'Still frozen')
 assert.match(resumeBlock(old, [medium])!, /clean restart/)
 medium.automatic_clearance!.status = 'cleared'
+assert.equal(automaticClearanceText(run('run_1', 'frozen', { incident_id: 'inc_1' }), medium), null)
 assert.equal(automaticClearanceText(run('run_1', 'running', { incident_id: 'inc_1' }), medium), 'Automatically resumed')
 assert.equal(automaticClearanceText(run('run_1', 'halted', { incident_id: 'inc_1' }), medium), null)
 assert.equal(automaticClearanceText(run('run_2', 'running'), medium), null)

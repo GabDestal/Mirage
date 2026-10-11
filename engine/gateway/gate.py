@@ -345,8 +345,7 @@ def _check(run, tool, args) -> GateDecision:
                             p=judged["p"] if by_model else None)
         if hit or held:
             run.incident_id = next_id("incident")
-        if held:
-            run.medium_call_id = call_id
+            run.medium_call_id = call_id if held else None
         # Reset revokes the old run while a decision is pending; don't write its old ids into
         # the new log. STOP/kill on an existing run still get their normal decision evidence.
         if run.revoked_by_reset:

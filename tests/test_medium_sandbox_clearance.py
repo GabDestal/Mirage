@@ -243,6 +243,11 @@ def test_safe_medium_resumes_original_protected_effect_once_without_human(api, m
             jobs.automatic(incident_id, gate.runs[run_id])
             idle(incident_id)
             assert len(replays) == 3 and effects == [ARGS]
+            assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
+            assert api.post(f"/runs/{run_id}/unfreeze", json=HUMAN).status_code == 200
+            assert api.get(f"/runs/{run_id}/wait", headers=auth,
+                           params={"call_id": original_call, "timeout": 0}).status_code == 409
+            assert effects == [ARGS] and len(replays) == 3
         finally:
             release.set()
             if gate.runs[run_id].status in ("running", "frozen"):
@@ -348,6 +353,19 @@ def test_revocation_during_clean_baseline_prevents_release(api, monkeypatch, con
 
 @pytest.mark.parametrize("tier", ["high", "hard", "escalation"])
 def test_human_only_tiers_stay_frozen_after_clean_baselines(api, monkeypatch, tier):
+    monkeypatch.setenv("MIRAGE_PARALLEL", "3")
+    monkeypatch.setattr(sandbox, "run_once", replayed)
+    run_id, auth = start(api)
+    # A previously cleared medium call must not suppress this later human-only incident's proof.
+    medium = check(api, run_id, auth, "send_email", **ARGS).json()
+    run = gate.runs[run_id]
+    idle(run.incident_id)
+    assert run.status == "running"
+    assert api.get(f"/runs/{run_id}/wait", headers=auth,
+                   params={"timeout": 0, "call_id": medium["call_id"]}).json() == {"status": "running"}
+    assert api.post(f"/runs/{run_id}/tool-results", headers=auth, json={
+        "call_id": medium["call_id"], "tool": "send_email", "result": {"status": "sent"}}
+    ).status_code == 204
     if tier == "high":
         original = decision_model._converse
 
@@ -360,9 +378,6 @@ def test_human_only_tiers_stay_frozen_after_clean_baselines(api, monkeypatch, ti
             return response
 
         monkeypatch.setattr(decision_model, "_converse", high)
-    monkeypatch.setenv("MIRAGE_PARALLEL", "3")
-    monkeypatch.setattr(sandbox, "run_once", replayed)
-    run_id, auth = start(api)
     if tier == "hard":
         decision = check(api, run_id, auth, "send_email", **{**ARGS, "to": ATTACKER}).json()
     elif tier == "escalation":

@@ -136,7 +136,7 @@ def test_freeze_survives_event_persistence_failure(api, monkeypatch, event_type)
     automatic.assert_not_called()
 
 
-def test_approval_hold_precedes_fallible_gate_decision_write(api, monkeypatch):
+def test_medium_hold_precedes_fallible_gate_decision_write(api, monkeypatch):
     run_id, auth = start(api)
     original = gate.emit
     monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
@@ -151,7 +151,9 @@ def test_approval_hold_precedes_fallible_gate_decision_write(api, monkeypatch):
         fault.setattr(gate, "emit", fail)
         assert check(api, run_id, auth, "send_email", to=USER).status_code == 500
     assert_contained(api, run_id, auth)
-    assert gate.runs[run_id].incident_id is None
+    assert gate.runs[run_id].incident_id is not None
+    assert api.get("/approvals").json() == []
+    assert api.post(f"/runs/{run_id}/unfreeze", json=HUMAN).status_code == 409
 
 
 @pytest.mark.parametrize("action", ["unfreeze", "kill", "stop", "reset"])

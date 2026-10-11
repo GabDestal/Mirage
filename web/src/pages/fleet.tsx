@@ -72,7 +72,8 @@ export function Fleet() {
       else if (e.key === 'k') setSelected((i) => Math.max(i - 1, 0))
       else if (e.key === 'Enter' && run) navigate(`/runs/${run.id}`)
       else if (key === 'u' && run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection))
-        && !incidents.find((i) => i.id === run.incident_id)?.automatic_clearance) {
+        && (!incidents.find((i) => i.id === run.incident_id)?.automatic_clearance
+          || incidents.find((i) => i.id === run.incident_id)?.automatic_clearance?.status === 'cleared')) {
         e.preventDefault()
         ask('unfreeze', run)
       } else if ((key === 'x' || (command && key === 'backspace')) && run && (isDemo || liveRunOwned(run, connection)) && (run.status === 'running' || run.status === 'frozen')) {

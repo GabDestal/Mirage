@@ -113,7 +113,8 @@ export function rowSentence(run: Run, events: MirageEvent[]): { text: string; to
 export function automaticClearanceText(run: Run | undefined, incident: Incident | undefined) {
   const status = incident?.automatic_clearance?.status
   if (!run || run.incident_id !== incident?.id || !status) return null
-  if (run.status === 'frozen') return status === 'checking' ? 'Checking in Mirage' : 'Still frozen'
+  if (run.status === 'frozen') return status === 'checking' ? 'Checking in Mirage'
+    : status === 'inconclusive' ? 'Still frozen' : null
   if (status === 'cleared' && ['running', 'completed'].includes(run.status)) return 'Automatically resumed'
   return null
 }
