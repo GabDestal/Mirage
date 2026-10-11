@@ -93,6 +93,56 @@ Full field definitions, JSON examples and event payloads:
 
 [Full definition and rules](docs/contracts/data-models.md#sandboxjob).
 
+### Fleet exposure (M4, additive)
+
+`CreateExposureJob` is `{agent_names: string[], actor: string, reason: string}` (1..8 distinct
+nonempty names). POST `/incidents/{id}/exposure-jobs` returns 202 with `ExposureJob`;
+GET `/exposure-jobs/{job_id}` reads it, and GET `/exposure-jobs?incident_id={id}` lists newest
+first for reload/fleet summaries. GET `/incidents/{id}/exposure-candidates` returns
+`ExposureCandidate[]`: `{agent_name, role, status: unassessed | not_applicable |
+could_not_evaluate, reason}`. Capability match is unassessed, never vulnerability proof.
+
+`ExposureJob` is `{id, incident_id, agent_names, status: queued | running | completed |
+failed, results: ExposureResult[], error: execution_failed | stopped | interrupted | null}`.
+State is persisted in existing `agent.message` payloads as `exposure_job`; it does not emit
+detonation/verdict events or replace the original incident proof. Job completion means the
+assessment finished, including explicit incompatible or unavailable results. Interrupted
+jobs fail without resuming; STOP refuses new work and stops starting additional candidates.
+Requests log `human.action` with action `assess_exposure`, job target, actor/reason and time.
+All work reuses the existing one-worker sandbox queue and its reset/shutdown/epoch fencing;
+an isolated status observer emits exposure metadata instead of incident sandbox metadata.
+In recording mode POST returns 409, candidate/job lists are empty, and individual jobs 404;
+live files and receipts are never presented as part of a selected recording.
+
+`ExposureResult` is `{agent_name, status: vulnerable | blocked | not_applicable |
+could_not_evaluate, reason, snapshot_id?, snapshot_revision?, attack_snapshot_revision?,
+clean_snapshot_revision?, code_revision?, policy_revision?, replay_kind: scripted |
+model_backed | unknown, attack: ExposureObservation | null, clean: ExposureObservation | null}`.
+Observation is `{compromised_runs: "0/1" | "1/1", attack_blocked: "0/1" | "1/1",
+legit_task_completed: "0/1" | "1/1", completed: boolean, error: replay_failed | tool_error |
+null, effects: Effect[]}`. Failed reads/calls or crashes never certify blocked/useful work.
+A deterministic prohibited effect already observed still proves vulnerable after a later error.
+Blocked requires useful, safe completion of attack and clean variants. Specific captured or
+registered absence of `read_calendar` is not_applicable; unsupported adapters/context or
+missing exact recordings are could_not_evaluate. Role/tool matching alone is never proof.
+
+The operator supplies `MIRAGE_EXPOSURE_CANDIDATES`, a local JSON array of
+`{agent_name, role, tools?, snapshot_path?, snapshot_revision?, code_root?, code_revision?, replay_kind?}`.
+Only the controlled `meeting_assistant` adapter executes, with at most one compatible
+sibling per job. Browser requests cannot supply paths, snapshots, code or permissions.
+The source incident must have a causal calendar input. Only that item is appended to the
+sibling's unique matching untrusted read collection. Its own clean items, task, system,
+exact tool arguments/read recordings, permissions and trusted completion criteria remain;
+both variants clear recorded model replies. Reads/writes still use the existing jailed child.
+`run_once(..., repo_root=...)` selects a trusted executable checkout without changing globals.
+
+`snapshot_revision` is SHA256 of the original sibling file bytes; attack/clean/policy
+revisions hash canonical JSON (sorted keys, compact separators). `code_revision` is only
+published after verifying that the same clean exact-HEAD checkout supplied both children
+and remained clean/unchanged afterwards. `replay_kind` is captured operator recording
+metadata, never inferred from tool/model matching. Ratios are observed 1/1 only. The
+illustrative wire fixture is `contracts/fixtures/exposure_demo.json`, not live-model evidence.
+
 ### Run
 
 [Full definition and rules](docs/contracts/data-models.md#run).
