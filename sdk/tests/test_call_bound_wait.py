@@ -28,11 +28,18 @@ def api(monkeypatch):
     monkeypatch.setattr(server, "REPLAY", None)
     monkeypatch.setattr(core, "_sandbox", None)
     monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
-        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
+        "review": False, "policy_id": "P5", "p": 0.9, "explanation": "Synthetic high suspicion"})
     gate.reset()
     with TestClient(server.app, raise_server_exceptions=False) as client:
-        monkeypatch.setattr(core, "_http", client)
-        yield client
+        def request(req):
+            response = client.request(req.method, str(req.url), content=req.content,
+                                      headers=dict(req.headers))
+            return httpx.Response(response.status_code, content=response.content)
+
+        with httpx.Client(base_url="http://synthetic-engine",
+                          transport=httpx.MockTransport(request)) as sdk_client:
+            monkeypatch.setattr(core, "_http", sdk_client)
+            yield client
     gate.reset()
 
 
@@ -92,9 +99,10 @@ def held(demo, api, monkeypatch):
         try:
             assert entered.wait(3)
             (run,) = gate.runs.values()
-            (approval,) = api.get("/approvals").json()
+            assert api.get("/approvals").json() == []
+            (decision,) = [e.payload for e in events.read() if e.type == "gate.decision"]
             assert run.status == "frozen" and effects == []
-            yield run, approval["call_id"], result, release, effects, polls, mode
+            yield run, decision["call_id"], result, release, effects, polls, mode
         finally:
             if run is not None and run.status in ("frozen", "running"):
                 api.post(f"/runs/{run.id}/kill", json=HUMAN)
@@ -111,11 +119,10 @@ def denied(result, mode):
     assert "Synthetic" not in str(error)  # no server error body in the public denial
 
 
-@pytest.mark.parametrize("action", ["approve", "unfreeze"])
+@pytest.mark.parametrize("action", ["unfreeze"])
 def test_exact_human_grant_executes_the_original_callback_once(held, api, action):
     run, call_id, result, release, effects, polls, _ = held
-    path = (f"/approvals/{call_id}/approve" if action == "approve" else
-            f"/runs/{run.id}/unfreeze")
+    path = f"/runs/{run.id}/{action}"
     assert api.post(path, json=HUMAN).status_code == 200
     assert effects == []  # approval still precedes the real callback
     release.set()
@@ -134,13 +141,14 @@ def test_exact_human_grant_executes_the_original_callback_once(held, api, action
 def test_containment_and_later_freeze_generation_never_release_callback(held, api, action):
     run, call_id, result, release, effects, polls, mode = held
     if action in ("freeze", "stale-grant"):
-        assert api.post(f"/approvals/{call_id}/approve", json=HUMAN).status_code == 200
+        assert api.post(f"/runs/{run.id}/unfreeze", json=HUMAN).status_code == 200
         assert api.post(f"/runs/{run.id}/freeze", json=HUMAN).status_code == 200
         if action == "stale-grant":
-            assert api.post(f"/runs/{run.id}/unfreeze", json=HUMAN).status_code == 200
+            gate.unfreeze(run.id, HUMAN["actor"], HUMAN["reason"])
     else:
-        path = (f"/approvals/{call_id}/reject" if action == "reject" else
-                "/stop" if action == "stop" else f"/runs/{run.id}/kill")
+        if action == "reject":
+            assert api.post(f"/approvals/{call_id}/reject", json=HUMAN).status_code == 404
+        path = "/stop" if action == "stop" else f"/runs/{run.id}/kill"
         assert api.post(path, json=HUMAN).status_code == 200
     release.set()
     result.exception(timeout=3)
@@ -152,7 +160,7 @@ def test_containment_and_later_freeze_generation_never_release_callback(held, ap
     assert run.status == expected
 
 
-def test_sibling_approval_never_releases_the_original_callback(held, api):
+def test_sibling_high_unfreeze_never_releases_the_original_callback(held, api):
     run, call_id, result, release, effects, _, mode = held
     sibling = api.post("/runs", json={"agent": run.agent, "task": "Synthetic sibling"}).json()
     auth = {"Authorization": f"Bearer {sibling['run_token']}"}
@@ -160,7 +168,7 @@ def test_sibling_approval_never_releases_the_original_callback(held, api):
         "run_id": sibling["run_id"], "tool": "send_email",
         "args": {"to": langgraph.USER, "body": "Synthetic sibling"}}).json()
     assert other["decision"] == "freeze" and other["call_id"] != call_id
-    assert api.post(f"/approvals/{other['call_id']}/approve", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{sibling['run_id']}/unfreeze", json=HUMAN).status_code == 200
     assert run.status == "frozen" and effects == []
     assert api.get(f"/runs/{run.id}/wait", headers={"Authorization": f"Bearer {run.token}"},
                    params={"timeout": 0, "call_id": call_id}).json() == {"status": "frozen"}
@@ -197,7 +205,7 @@ def test_denied_sibling_cannot_cancel_the_exact_human_grant(held, api, monkeypat
         blocked = pool.submit(sibling)
         try:
             assert entered.wait(3)
-            assert api.post(f"/approvals/{call_id}/approve", json=HUMAN).status_code == 200
+            assert api.post(f"/runs/{run.id}/unfreeze", json=HUMAN).status_code == 200
             sibling_release.set()
             assert isinstance(blocked.exception(timeout=3), mirage.Blocked)
             assert run.status == "running" and sibling_effects == []
@@ -212,7 +220,7 @@ def test_denied_sibling_cannot_cancel_the_exact_human_grant(held, api, monkeypat
 @pytest.mark.parametrize("identity", ["unknown", "other-run", "consumed"])
 def test_invalid_bound_wait_is_a_safe_denial_before_callback(held, api, monkeypatch, identity):
     run, call_id, result, release, effects, _, mode = held
-    assert api.post(f"/approvals/{call_id}/approve", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run.id}/unfreeze", json=HUMAN).status_code == 200
     if identity == "consumed":
         auth = {"Authorization": f"Bearer {run.token}"}
         assert api.get(f"/runs/{run.id}/wait", headers=auth,
@@ -246,10 +254,10 @@ def test_invalid_bound_wait_is_a_safe_denial_before_callback(held, api, monkeypa
 
 def test_denial_reporting_outage_preserves_blocked_and_never_runs_callback(
         held, api, monkeypatch):
-    run, call_id, result, release, effects, _, mode = held
-    assert api.post(f"/approvals/{call_id}/approve", json=HUMAN).status_code == 200
-    assert api.post(f"/runs/{run.id}/freeze", json=HUMAN).status_code == 200
+    run, _call_id, result, release, effects, _, mode = held
     assert api.post(f"/runs/{run.id}/unfreeze", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run.id}/freeze", json=HUMAN).status_code == 200
+    gate.unfreeze(run.id, HUMAN["actor"], HUMAN["reason"])
 
     def unavailable(*args, **kwargs):
         raise OSError("Synthetic private failure-reporting outage")
