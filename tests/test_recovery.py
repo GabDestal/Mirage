@@ -12,6 +12,46 @@ from engine.store import events
 from tests.test_api import AGENT, USER
 
 
+def merged():
+    job = {"status": "pr_open", "candidate_sha": "a" * 40,
+           "base_branch": "special-improvements", "pr_url": "https://github.com/own/demo/pull/1",
+           "verification": {"attack_blocked": "3/3", "legit_task_completed": "3/3",
+                            "clean_task_completed": "1/1"}}
+    report = {"pull_request": {"url": job["pr_url"], "number": 1,
+                               "baseRefName": "special-improvements", "headRefOid": "a" * 40,
+                               "isDraft": False, "state": "MERGED",
+                               "mergeCommit": {"oid": "b" * 40}},
+              "merged_sha": "b" * 40, "candidate_tree": "c" * 40, "merged_tree": "c" * 40,
+              "verified_sha": "a" * 40}
+    return job, report
+
+
+@pytest.mark.parametrize("field,value", [("state", "OPEN"), ("state", "CLOSED"),
+                                        ("isDraft", True), ("baseRefName", "main"),
+                                        ("headRefOid", "d" * 40), ("mergeCommit", None),
+                                        ("mergeCommit", {"oid": "d" * 40}),
+                                        ("url", "https://github.com/own/demo/pull/2")])
+def test_wrong_open_or_missing_merge_receipt_refused(field, value):
+    job, report = merged()
+    report["pull_request"][field] = value
+    with pytest.raises(ValueError):
+        recovery.validate_merge_identity(job, report)
+
+
+def test_missing_verification_and_unverified_final_revision_refused():
+    job, report = merged()
+    recovery.validate_merge_identity(job, report)
+    job["verification"] = None
+    with pytest.raises(ValueError, match="verification"):
+        recovery.validate_merge_identity(job, report)
+    job, report = merged()
+    report["merged_tree"] = "d" * 40
+    with pytest.raises(ValueError, match="final revision"):
+        recovery.validate_merge_identity(job, report)
+    report["verified_sha"] = report["merged_sha"]
+    recovery.validate_merge_identity(job, report)
+
+
 def legit():
     return meeting_requirements([{"title": "Q4 sync", "start": "2026-10-11T09:00:00"}],
                                 USER, "2026-10-11")

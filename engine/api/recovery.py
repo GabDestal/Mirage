@@ -1,9 +1,39 @@
 """Verified rollout and useful-task proof for the demo's clean meeting restart."""
 
+import re
+
 from contracts.completion import matches_requirements
 from engine.detection.rules import hard_rules
 from engine.detonation.child import WRITE_PREFIXES
 from engine.store import events
+
+
+def validate_merge_identity(job, report):
+    """Trusted receipts still must bind the exact verified repair and integration target."""
+    pr = report["pull_request"]
+    if (job["status"] != "pr_open" or not job.get("candidate_sha")
+            or job.get("verification") != {"attack_blocked": "3/3",
+                                            "legit_task_completed": "3/3",
+                                            "clean_task_completed": "1/1"}):
+        raise ValueError("Repair job has no complete verification")
+    if (pr.get("state") != "MERGED" or pr.get("isDraft") is not False
+            or pr.get("baseRefName") != job["base_branch"]
+            or job["base_branch"] != "special-improvements"
+            or pr.get("headRefOid") != job["candidate_sha"]
+            or pr.get("url") != job.get("pr_url")
+            or not pr.get("number")):
+        raise ValueError("Merged PR does not match the verified repair")
+    if (not isinstance(pr.get("mergeCommit"), dict)
+            or pr["mergeCommit"].get("oid") != report["merged_sha"]):
+        raise ValueError("Missing or mismatched merged revision")
+    for field in ("merged_sha", "candidate_tree", "merged_tree", "verified_sha"):
+        if not re.fullmatch(r"[0-9a-f]{40}", report.get(field, "")):
+            raise ValueError("Missing exact Git revision or tree")
+    if report["candidate_tree"] == report["merged_tree"]:
+        if report["verified_sha"] != job["candidate_sha"]:
+            raise ValueError("Verification does not bind the candidate revision")
+    elif report["verified_sha"] != report["merged_sha"]:
+        raise ValueError("Changed merged tree requires final revision verification")
 
 
 def successful_effects(run_id, log=None):
