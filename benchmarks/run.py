@@ -40,14 +40,16 @@ def main():
 
     signal.signal(signal.SIGALRM, deadline)
     signal.setitimer(signal.ITIMER_REAL, manifest["timeout_s"])
+    observation = {}
     try:
         try:
             result = execute(suite, task, world, model, manifest["parameters"], manifest["max_steps"],
                              gate=gate, max_tools=manifest["max_tool_steps"],
-                             timeout_s=manifest["timeout_s"])
+                             timeout_s=manifest["timeout_s"], observation=observation)
         except Exception as exc:
             # Tool/gateway/deadline failures retain the partial native world; no clean claim.
             result = {"world": world, "ledger": [], "traces": [], "messages": [], "output": "",
+                      **observation,
                       "status": "unknown", "unknown_reason": type(exc).__name__,
                       "latency_s": None}
     finally:
