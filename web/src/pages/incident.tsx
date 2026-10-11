@@ -4,8 +4,9 @@ import { useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { api, ApiError, queryClient, useEvents, useRuns, type HumanRequest, type Incident } from '@/api/client'
+import { useConnection } from '@/api/stream'
 import { AgentAvatar } from '@/agents/avatars'
-import { ACTOR, CleanRestartButton, HumanReasonDialog, ResumeButton, useAsk } from '@/components/actions'
+import { ACTOR, CleanRestartButton, HumanReasonDialog, ResumeButton, liveRunOwned, useAsk } from '@/components/actions'
 import { HandoffDrawer } from '@/components/handoff-drawer'
 import { Button } from '@/components/ui/button'
 import { avatarState, callPhrase, runLabel, steps } from '@/lib/runs'
@@ -19,6 +20,7 @@ export function IncidentPage() {
   const detail = useQuery({ queryKey: ['incidents', id], queryFn: () => api<Incident>(`/incidents/${encodeURIComponent(id)}`) })
   const { data: runs = [], error: runError, refetch: refetchRuns } = useRuns()
   const { data: events = [] } = useEvents()
+  const connection = useConnection()
   const ask = useAsk()
   const [confirm, setConfirm] = useState<IncidentAction | null>(null)
   const [accepted, setAccepted] = useState<{ id: string; kind: IncidentAction; after: number; previousJobId?: string } | null>(null)
@@ -170,7 +172,7 @@ export function IncidentPage() {
       </StorySection>
       <footer className="incident-actions">
         <div className="incident-action-main">{busy ? <><Button variant="primary" disabled>Waiting for results…</Button><span role="status">Updates arrive from the engine.</span><Button onClick={refresh}>Refresh</Button></> : primary && action && isIncidentAction(action) ? <Button variant="primary" onClick={() => { act.reset(); if (action === 'send_fix') handOff(); else setConfirm(action) }}>{primary.label}<ArrowRight /></Button> : action === 'open_pr' && pr ? <Button variant="primary" asChild><a href={pr} target="_blank" rel="noopener noreferrer">Open PR<ExternalLink /></a></Button> : action === 'open_pr' ? <span>Waiting for a valid PR link.</span> : <span><Check size={16} />{incident.status === 'false_positive' ? 'Review the replay, then unfreeze if appropriate.' : 'No further action requested.'}</span>}</div>
-        {run?.status === 'frozen' && <div className="incident-secondary"><Button variant="ghost" disabled={!canUnfreeze} title={!canUnfreeze ? 'Unfreeze is available only before confirmation or after a false positive.' : undefined} onClick={() => ask('unfreeze', run)}>Unfreeze</Button><Button variant="destructive" disabled={busy} onClick={() => ask('kill', run)}>Kill</Button></div>}
+        {run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection)) && <div className="incident-secondary"><Button variant="ghost" disabled={!canUnfreeze} title={!canUnfreeze ? 'Unfreeze is available only before confirmation or after a false positive.' : undefined} onClick={() => ask('unfreeze', run)}>Unfreeze</Button><Button variant="destructive" disabled={busy} onClick={() => ask('kill', run)}>Kill</Button></div>}
         {run?.status === 'halted' && <div className="incident-secondary"><ResumeButton run={run} /></div>}
         {!isDemo && run && ['killed', 'halted'].includes(run.status) && <div className="incident-secondary"><CleanRestartButton run={run} /></div>}
       </footer>

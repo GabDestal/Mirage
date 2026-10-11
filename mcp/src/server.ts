@@ -307,9 +307,9 @@ export function createServer(opts: Options = {}) {
   // --- Level 1: real effects, typed human confirmation, fail closed -----------------------
 
   const MESSAGE = {
-    unfreeze: (run: Run) => `Unfreeze ${run.id} (${run.agent}) and resume it in production. The action it was stopped on goes through the gate again.`,
+    unfreeze: (run: Run) => `Unfreeze ${run.id} (${run.agent}). The held call may execute in production when you release it. Later tool calls remain gated.`,
     kill: (run: Run) => `Kill ${run.id} (${run.agent}). It stops for good and cannot be resumed.`,
-    resume: (run: Run) => `Resume ${run.id} (${run.agent}). It restarts its task from the beginning in production; every action goes through the gate.`,
+    resume: (run: Run) => `Resume ${run.id} (${run.agent}). A new run is queued to start the task from the beginning in production. A queued run waits for its owner to start it. New actions go through the gate.`,
   };
   const runAct = (action: keyof typeof MESSAGE, allowed: string[]) => safe<{ run_id: string; reason: string }>(
     async ({ run_id, reason }) => {
@@ -325,7 +325,9 @@ export function createServer(opts: Options = {}) {
       if (!ok) return refuse(NOT_CONFIRMED);
       const after = await call<Run>("POST", `/runs/${run_id}/${action}`, { actor: actor(), reason: ok });
       return text(action === "resume"
-        ? `Done: ${agentName(run.agent)} restarts as ${after.id} (${after.status}). ${run_id} stays halted. Logged as "${actor()}", reason "${ok}".`
+        ? `Done: ${agentName(run.agent)} recovery run ${after.id} (${after.status}). ` +
+          (after.status === "queued" ? "Waiting for the owner to start it. " : "") +
+          `${run_id} stays halted. Logged as "${actor()}", reason "${ok}".`
         : `Done: ${run_id} is now ${after.status}. Logged as "${actor()}", reason "${ok}".`, { run: after });
     });
 
@@ -348,8 +350,8 @@ export function createServer(opts: Options = {}) {
   server.registerTool("resume", {
     title: "Resume halted run",
     description: demo ? "Unsupported for recorded demo runs. Use resume_all to resume paused recording, with human confirmation; no agent is launched." :
-      "Restart one run halted by Stop all: a new run starts the task from the beginning, and every " +
-      "action goes through the gate. Lifts Stop all if it is on. Needs human confirmation. Refused if detonation " +
+      "Queue a new run for one task halted by Stop all, starting from the beginning. A queued run waits for its owner to start it; new " +
+      "actions go through the gate. Lifts Stop all if it is on. Needs human confirmation. Refused if detonation " +
       "confirmed the compromise.",
     inputSchema: runArgs, annotations: act,
   }, runAct("resume", ["halted"]));
@@ -358,7 +360,7 @@ export function createServer(opts: Options = {}) {
     title: demo ? "Resume recording" : "Resume all agents",
     description: demo ? "Lift Stop all and resume paused recording from its paused position, restoring prior recorded run states. " +
       "No agents or providers are launched. Needs human confirmation." :
-      "Lift Stop all and restart every halted run from the beginning; every action goes through the gate. " +
+      "Lift Stop all and queue eligible halted tasks to start from the beginning. A queued run waits for its owner to start it; new actions go through the gate. " +
       "Runs detonation confirmed compromised (or still detonating) stay halted. Needs human confirmation.",
     inputSchema: { reason: runArgs.reason }, annotations: act,
   }, safe<{ reason: string }>(async ({ reason }) => {
@@ -371,17 +373,18 @@ export function createServer(opts: Options = {}) {
     const resume = halted.filter((r) => !blocked(r)), skip = halted.filter(blocked);
     const ok = await confirm(demo ? "Resume paused recording. Stop all is lifted and prior recorded run states are restored. " +
       "The recording continues from its paused position; no agents or providers are launched." : `Resume all agents. Stop all is lifted. ` +
-      (resume.length ? `Restarts from the beginning: ${names(resume)}. ` : "No halted agent to restart. ") +
+      (resume.length ? `Queue new runs for: ${names(resume)}. A queued run waits for its owner to start it. ` : "No eligible halted task to queue. ") +
       (skip.length ? `Stays stopped (compromised or detonating): ${names(skip)}. ` : "") +
-      "Every action goes through the gate.", "resume all", reason);
+      "New actions go through the gate.", "resume all", reason);
     if (!ok) return refuse(NOT_CONFIRMED);
     const r = await call<{ resumed: Run[]; skipped: { run_id: string; reason: string }[] }>("POST", "/resume-all",
       { actor: actor(), reason: ok });
     if (demo) return text(`Done: Recording resumed from its paused position and prior recorded run states restored. ` +
       `No agents or providers launched. Logged as "${actor()}", reason "${ok}".`, r);
-    return text(`Done: Stop all is lifted. ${r.resumed.length} resumed` +
-      (r.resumed.length ? ` (${r.resumed.map((n) => `${n.restarted_from} restarts as ${n.id}`).join(", ")})` : "") +
+    return text(`Done: Stop all is lifted. ${r.resumed.length} recovery runs` +
+      (r.resumed.length ? ` (${r.resumed.map((n) => `${n.restarted_from} → ${n.id} (${n.status})`).join(", ")})` : "") +
       `, ${r.skipped.length} skipped${r.skipped.length ? ` (${r.skipped.map((k) => `${k.run_id}: ${k.reason}`).join("; ")})` : ""}. ` +
+      (r.resumed.some((n) => n.status === "queued") ? "Queued runs are waiting for their owner to start them. " : "") +
       `Logged as "${actor()}", reason "${ok}".`, r);
   }));
 

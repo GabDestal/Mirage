@@ -21,6 +21,9 @@ try {
   const run = { id: 'run/one', agent: 'meeting_assistant', env: 'prod', task: 'Synthetic test', status: 'running',
     started_at: '2026-10-11T00:00:00Z', tool_calls: 0 }
   const cache = client.queryClient
+  cache.setQueryData(['connection'], { state: 'streaming', lastSync: Date.now(), error: null,
+    runtime: { engine_mode: demo ? 'replay' : 'live', instance_id: 'synthetic-engine', stream_epoch: 'synthetic-epoch',
+      last_seq: 0, revision: null, owned_run_ids: [run.id] } })
   const render = (component, props = {}) => renderToStaticMarkup(h(QueryClientProvider, { client: cache },
     h(MemoryRouter, {}, h(actions.ActionsProvider, {}, h(component, props)))))
   const capture = (hook, ...args) => {

@@ -4,15 +4,15 @@ import { Link, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { ArrowRight, Bot, CheckCircle2, ChevronRight, Play, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { api, useEvents, useIncidents, useRuns, type Incident, type MirageEvent, type Run } from '@/api/client'
-import { resetStream, useNow } from '@/api/stream'
-import { CleanRestartButton, FreezeButton, ResumeButton, useAsk } from '@/components/actions'
+import { resetStream, useConnection, useNow } from '@/api/stream'
+import { CleanRestartButton, FreezeButton, ResumeButton, liveRunOwned, runControlNote, useAsk } from '@/components/actions'
 import { EngineApprovals } from '@/components/engine-approvals'
 import { ServiceEvidence } from '@/components/service-evidence'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
 import { agentName, avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
-import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, sandboxStatus } from './fleet-presentation'
+import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, latestProductionRuns, sandboxStatus } from './fleet-presentation'
 import './fleet.css'
 
 export function Fleet() {
@@ -20,6 +20,7 @@ export function Fleet() {
   const { data: events = [] } = useEvents()
   const { data: incidents = [] } = useIncidents()
   const now = useNow()
+  const connection = useConnection()
   const navigate = useNavigate()
   const ask = useAsk()
 
@@ -72,25 +73,25 @@ export function Fleet() {
       if (e.key === 'j') setSelected((i) => Math.min(i + 1, visibleRuns.length - 1))
       else if (e.key === 'k') setSelected((i) => Math.max(i - 1, 0))
       else if (e.key === 'Enter' && run) navigate(`/runs/${run.id}`)
-      else if (key === 'u' && run?.status === 'frozen') {
+      else if (key === 'u' && run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection))) {
         e.preventDefault()
         ask('unfreeze', run)
-      } else if ((key === 'x' || (command && key === 'backspace')) && run && (run.status === 'running' || run.status === 'frozen')) {
+      } else if ((key === 'x' || (command && key === 'backspace')) && run && (isDemo || liveRunOwned(run, connection)) && (run.status === 'running' || run.status === 'frozen')) {
         e.preventDefault()
         ask('kill', run)
       } else if (e.key === 'Escape') setSelected(-1)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [visibleRuns, selected, navigate, ask])
+  }, [visibleRuns, selected, navigate, ask, connection])
 
   const stats = useMemo(() => {
-    const active = agentCount(runs.filter((r) => r.status === 'running'))
+    const active = agentCount(runs.filter((r) => r.status === 'running' && (isDemo || liveRunOwned(r, connection))))
     const frozen = runs.filter((r) => r.status === 'frozen').length
-    const healthy = healthyAgents(runs)
+    const healthy = healthyAgents(latestProductionRuns(runs).filter((r) => isDemo || r.status !== 'running' || liveRunOwned(r, connection)))
     const toolCalls = runs.reduce((acc, r) => acc + (r.tool_calls || 0), 0)
     return { active, frozen, healthy, toolCalls, total: runs.length }
-  }, [runs])
+  }, [runs, connection])
 
   const handleStartDemo = async () => {
     setStartingDemo(true)
@@ -278,7 +279,7 @@ export function Fleet() {
                         <th colSpan={5} scope="rowgroup">
                           <button type="button" className="fleet-group-toggle" aria-expanded={open} onClick={() => toggle(agent)}>
                             <ChevronRight size={14} className="fleet-group-chevron" aria-hidden="true" />
-                            <AgentAvatar agent={agent} state={avatarState(agentRuns[0])} size={24} />
+                            <AgentAvatar agent={agent} state={runControlNote(agentRuns[0], connection) ? 'idle' : avatarState(agentRuns[0])} size={24} />
                             <span className="fleet-group-name">{agentName(agent)}</span>
                             <span className="fleet-group-count">{agentRuns.length} {agentRuns.length === 1 ? 'run' : 'runs'}</span>
                           </button>
@@ -326,21 +327,23 @@ function AgentTableRow({
   const navigate = useNavigate()
   const ask = useAsk()
   const label = runLabel(run, runs)
-  const sentence = run.status === 'completed' ? 'Ready for the next task'
+  const connection = useConnection()
+  const note = runControlNote(run, connection)
+  const sentence = note ?? (run.status === 'completed' ? 'Ready for the next task'
     : run.status === 'running' ? run.task
-    : run.status === 'frozen' ? 'Held before execution' : rowSentence(run, events).text
+    : run.status === 'frozen' ? 'Held before execution' : run.status === 'queued' ? 'Queued · awaiting owner start' : rowSentence(run, events).text)
   const when = run.ended_at ?? run.started_at
   const isFrozen = run.status === 'frozen'
 
   return (
     <tr
-      className={`fleet-row ${selected ? 'selected' : ''} ${isFrozen ? 'row-frozen' : ''}`}
+      className={`fleet-row ${selected ? 'selected' : ''} ${isFrozen && !note ? 'row-frozen' : ''}`}
       onClick={() => navigate(`/runs/${run.id}`)}
     >
       {/* Agent Avatar & Task */}
       <td>
         <div className="fleet-agent-cell">
-          <AgentAvatar agent={run.agent} state={avatarState(run)} size={32} />
+          <AgentAvatar agent={run.agent} state={note ? 'idle' : avatarState(run)} size={32} />
           <div className="fleet-agent-info">
             <Link
               to={`/runs/${run.id}`}
@@ -360,9 +363,9 @@ function AgentTableRow({
       <td>
         <span
           className={`fleet-status-pill ${
-            isFrozen
+            isFrozen && !note
               ? 'pill-frozen'
-              : run.status === 'running'
+              : run.status === 'running' && !note
               ? 'pill-running'
               : run.status === 'completed'
               ? 'pill-completed'
@@ -371,7 +374,7 @@ function AgentTableRow({
               : 'pill-killed'
           }`}
         >
-          {fleetStatus(run)}
+          {note ? `Recorded ${run.status}` : fleetStatus(run)}
         </span>
       </td>
 
@@ -389,7 +392,7 @@ function AgentTableRow({
           <Button asChild variant="secondary" onClick={(e) => e.stopPropagation()}>
             <Link to={`/incidents/${run.incident_id}`}>Review Incident</Link>
           </Button>
-        ) : isFrozen && run.env === 'prod' && !isDemo ? (
+        ) : isFrozen && liveRunOwned(run, connection) ? (
           <div className="fleet-inline-controls">
             <Button onClick={(e) => { e.stopPropagation(); ask('unfreeze', run) }}>Unfreeze</Button>
             <Button variant="destructive" onClick={(e) => { e.stopPropagation(); ask('kill', run) }}>Kill</Button>

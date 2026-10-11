@@ -4,7 +4,8 @@ import { ArrowRight, OctagonAlert, Play, Search, ShieldOff, Snowflake } from 'lu
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { useEvents, useIncidents, useRuns } from '@/api/client'
-import { useAsk } from '@/components/actions'
+import { useConnection } from '@/api/stream'
+import { liveRunOwned, useAsk } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { avatarState, canResume, resumeAllOn, resumeBlock, runLabel, stopOn } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
@@ -15,6 +16,8 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
   const { data: runs = [] } = useRuns()
   const { data: incidents = [] } = useIncidents()
   const { data: events = [] } = useEvents()
+  const connection = useConnection()
+  const controlled = runs.filter((r) => isDemo || liveRunOwned(r, connection))
   const resumable = isDemo ? stopOn(events) : resumeAllOn(runs, incidents, events)
   const run = (fn: () => void) => () => {
     onOpenChange(false)
@@ -37,12 +40,12 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
         <Command.Empty className="px-2 py-6 text-center text-ink-2">Nothing matches.</Command.Empty>
 
         <Command.Group heading="Actions">
-          {runs.filter((r) => r.status === 'frozen').map((r) => (
+          {controlled.filter((r) => r.status === 'frozen').map((r) => (
             <Item key={`u${r.id}`} icon={<Snowflake />} onSelect={run(() => ask('unfreeze', r))} hint="⌘U">
               Unfreeze {runLabel(r, runs)}
             </Item>
           ))}
-          {runs.filter((r) => r.status === 'frozen' || r.status === 'running').map((r) => (
+          {controlled.filter((r) => r.status === 'frozen' || r.status === 'running').map((r) => (
             <Item key={`k${r.id}`} icon={<ShieldOff />} onSelect={run(() => ask('kill', r))} hint="⌘⌫">
               Kill {runLabel(r, runs)}
             </Item>

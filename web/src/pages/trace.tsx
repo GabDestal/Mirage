@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, ArrowUpRight, Calendar, Check, ChevronRight, Circle, Clock, Mail, Pause, Search, ShieldAlert, Wrench } from 'lucide-react'
 import { useEvents, useRuns, type Run } from '@/api/client'
-import { useNow } from '@/api/stream'
-import { ResumeButton } from '@/components/actions'
+import { useConnection, useNow } from '@/api/stream'
+import { ResumeButton, runControlNote } from '@/components/actions'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
 import { avatarState, relTime, runLabel } from '@/lib/runs'
@@ -41,6 +41,7 @@ function RunWorkflow({ id }: { id: string | undefined }) {
   const { data: runs = [], isPending, isError, refetch } = useRuns()
   const { data: events = [] } = useEvents()
   const now = useNow()
+  const connection = useConnection()
   const run = runs.find((r) => r.id === id)
   const [selection, setSelection] = useState<{ stageId: string; callId: string } | null>(null)
   const traceCalls = useMemo(() => buildTraceCalls(events, id ?? ''), [events, id])
@@ -64,14 +65,17 @@ function RunWorkflow({ id }: { id: string | undefined }) {
   </div></div>
 
   const chooseStage = (stage: typeof stages[number]) => setSelection({ stageId: stage.id, callId: stage.calls.at(-1)!.callId })
+  const controlNote = runControlNote(run, connection)
+  const working = run.status === 'running' && !controlNote
+  const status = controlNote ? `Recorded ${run.status}` : STATUS[run.status]
   return <div className="trace-page" aria-label={`Activity for ${runLabel(run, runs)}`}><div className="trace-container">
     <Link to="/fleet" className="trace-nav-back"><ArrowLeft size={16} /> Back to Fleet</Link>
     <header className="trace-header">
       <div className="trace-header-left">
-        <AgentAvatar agent={run.agent} state={avatarState(run)} size={40} />
+        <AgentAvatar agent={run.agent} state={controlNote ? 'idle' : avatarState(run)} size={40} />
         <div className="trace-header-title">
           <div className="trace-title-line"><h1>{runLabel(run, runs)}</h1>
-            <span className={`trace-status ${run.status === 'frozen' || run.status === 'failed' ? 'trace-status--paused' : ''}`}>{STATUS[run.status]}</span>
+            <span className={`trace-status ${!controlNote && (run.status === 'frozen' || run.status === 'failed') ? 'trace-status--paused' : ''}`}>{status}</span>
           </div><p>{run.task}</p>
         </div>
       </div>
@@ -85,13 +89,14 @@ function RunWorkflow({ id }: { id: string | undefined }) {
     </header>
     {isError ? <p className="trace-notice" role="status">Latest run status is unavailable. Showing the last received activity. <button onClick={() => void refetch()}>Try again</button></p> : null}
     {run.status === 'failed' ? <p className="trace-notice" role="status">{run.status_reason || 'This run failed.'}</p> : null}
-    {run.status === 'frozen' ? <div className="trace-pause-note"><Pause size={16} aria-hidden="true" />
+    {controlNote ? <p className="trace-notice" role="status">{controlNote}</p> : null}
+    {run.status === 'frozen' && !controlNote ? <div className="trace-pause-note"><Pause size={16} aria-hidden="true" />
       <p><strong>Paused for human review.</strong> Review its activity below{run.incident_id ? ' or open the incident to decide what happens next.' : '.'}</p>
     </div> : null}
     <section className="trace-workflow" aria-labelledby="workflow-title">
       <div className="trace-section-heading"><div><h2 id="workflow-title">The work so far</h2>
-        <p>{stages.length ? 'Grouped by activity. The assistant can return to any stage.' : EMPTY[run.status]}</p>
-      </div><span className="trace-following">{selection ? 'Reviewing selected activity' : run.status === 'running' ? 'Watching current activity' : 'Recorded activity'}</span></div>
+        <p>{stages.length ? 'Grouped by activity. The assistant can return to any stage.' : controlNote ?? EMPTY[run.status]}</p>
+      </div><span className="trace-following">{selection ? 'Reviewing selected activity' : working ? 'Watching current activity' : 'Recorded activity'}</span></div>
       {stages.length ? <ul className="trace-stages">{stages.map((stage) => {
         const state = stageState(stage, run.status)
         const selected = selectedStage?.id === stage.id
@@ -112,13 +117,13 @@ function RunWorkflow({ id }: { id: string | undefined }) {
       <div className="trace-current" aria-live="polite" aria-atomic="true">{latestCall ? <>
         <StateIcon state={activityState(latestCall, run.status)} /><span>
           {run.status === 'failed' ? 'Run failed.' : run.status === 'completed' ? 'Run finished.' : run.status === 'killed' || run.status === 'halted' ? 'Run stopped.' : 'Latest activity:'} {actionSummary(latestCall)} · {activityLabels[activityState(latestCall, run.status)]}
-        </span></> : <span>{STATUS[run.status]}</span>}
+        </span></> : <span>{status}</span>}
       </div>
     </section>
     {selectedStage && activeCall ? <section id="workflow-detail" className="trace-detail" aria-labelledby="detail-title">
       <div className="trace-section-heading"><div><h2 id="detail-title">{selectedStage.title}</h2>
         <p>{selectedStage.calls.length === 1 ? 'One recorded action' : `${selectedStage.calls.length} actions, in recorded order`}</p></div>
-        <Button variant="ghost" onClick={() => setSelection(null)}>{run.status === 'running' ? 'Return to current activity' : 'Return to overview'}</Button>
+        <Button variant="ghost" onClick={() => setSelection(null)}>{working ? 'Return to current activity' : 'Return to overview'}</Button>
       </div>
       <div className={`trace-detail-layout ${selectedStage.calls.length === 1 ? 'trace-detail-layout--single' : ''}`}>
         {selectedStage.calls.length > 1 ? <ol className="trace-actions" aria-label="Actions in this stage">

@@ -92,7 +92,10 @@ test("unfreeze with the right phrase posts with the MCP actor label", async () =
   } });
   const r = await callText("unfreeze", { run_id: "run_003", reason: "draft" });
   expect(r.isError).toBe(false);
-  expect(message).toMatch(/^Unfreeze run_003 \(meeting_assistant\) and resume it in production\./);
+  expect(message).toMatch(/^Unfreeze run_003 \(meeting_assistant\)/);
+  expect(message).toMatch(/held call may execute in production/i);
+  expect(message).toMatch(/later tool calls remain gated/i);
+  expect(message).not.toMatch(/goes through the gate again/i);
   expect(posts).toEqual([{ path: "/runs/run_003/unfreeze",
     body: { actor: "liam via Claude Code (MCP)", reason: "Customer gave this address" } }]);
 });
@@ -175,17 +178,23 @@ test("send_fix says the handoff is ready, not sent, with readable labels", async
   expect(r.structured.prompt).toBe("Fix inc_001");
 });
 
-test("resume asks for the typed phrase, then restarts the halted run as a new run", async () => {
+test("resume confirms queued recovery and preserves the exact returned run", async () => {
   let message = "";
   const { posts, callText } = await connect({ elicit: (m) => {
     message = m;
     return { action: "accept", content: { confirm: "resume run_004", reason: "Stop all was a drill" } };
   } });
   const r = await callText("resume", { run_id: "run_004", reason: "draft" });
-  expect(message).toBe("Resume run_004 (meeting_assistant). It restarts its task from the beginning in production; " +
-    "every action goes through the gate.");
   expect(posts).toEqual([{ path: "/runs/run_004/resume", body: { actor: "liam via Claude Code (MCP)", reason: "Stop all was a drill" } }]);
-  expect(r.text).toMatch(/^Done: Meeting assistant restarts as run_005 \(queued\)\. run_004 stays halted\./);
+  expect(r.structured).toEqual({ run: DB["POST /runs/run_004/resume"] });
+  expect(message).toMatch(/queue/i);
+  expect(message).toMatch(/owner|observed|confirmed start/i);
+  expect(message).not.toMatch(/It restarts its task/);
+  expect(r.text).toContain("run_005");
+  expect(r.text).toContain("queued");
+  expect(r.text).toContain("run_004 stays halted");
+  expect(r.text).toMatch(/owner|pending|waiting/i);
+  expect(r.text).not.toMatch(/restarts as|has started|is working/i);
 });
 
 test("resume_all lists who resumes and who stays stopped, asks for the phrase, then calls /resume-all", async () => {
@@ -200,11 +209,77 @@ test("resume_all lists who resumes and who stays stopped, asks for the phrase, t
     return { action: "accept", content: { confirm: "resume all", reason: "Drill over" } };
   } });
   const r = await callText("resume_all", { reason: "draft" });
-  expect(message).toBe("Resume all agents. Stop all is lifted. Restarts from the beginning: Meeting assistant, run 4 (run_004). " +
-    "Stays stopped (compromised or detonating): Meeting assistant, run 2 (run_002). Every action goes through the gate.");
   expect(posts).toEqual([{ path: "/resume-all", body: { actor: "liam via Claude Code (MCP)", reason: "Drill over" } }]);
   Object.assign(DB, { "GET /runs": before.runs, "GET /incidents": before.incidents });
-  expect(r.text).toMatch(/^Done: Stop all is lifted\. 1 resumed \(run_004 restarts as run_005\), 1 skipped \(run_002: /);
+  expect(r.structured).toEqual(DB["POST /resume-all"]);
+  expect(message).toMatch(/queue/i);
+  expect(message).toContain("run_004");
+  expect(message).toContain("run_002");
+  expect(message).not.toContain("run_007");
+  expect(message).not.toContain("Restarts from the beginning:");
+  expect(r.text).toMatch(/1 .*queued|run_005 \(queued\)/i);
+  expect(r.text).toMatch(/owner|pending|waiting/i);
+  expect(r.text).toMatch(/1 skipped \(run_002: /);
+  expect(r.text).not.toMatch(/restarts as|has started|is working/i);
+});
+
+test("live resume descriptions explain pending recovery rather than guaranteed execution", async () => {
+  const tools = (await (await connect()).client.listTools()).tools;
+  for (const name of ["resume", "resume_all"]) {
+    const description = tools.find((tool) => tool.name === name)!.description!;
+    expect(description).toMatch(/queue/i);
+    expect(description).toMatch(/owner|observed|confirmed start/i);
+    expect(description).not.toMatch(/a new run starts|restart every halted run/i);
+  }
+});
+
+test.each(["queued", "running", "failed"])("resume result preserves observed %s status without inventing a start", async (status) => {
+  const after = { ...run("run_005", status, "inc_004"), restarted_from: "run_004" };
+  const { posts, callText } = await connect({
+    responses: { "POST /runs/run_004/resume": after },
+    elicit: () => ({ action: "accept", content: { confirm: "resume run_004", reason: "Explicit recovery" } }),
+  });
+  const result = await callText("resume", { run_id: "run_004", reason: "draft" });
+  expect(result.isError).toBe(false);
+  expect(result.structured).toEqual({ run: after });
+  expect(result.text).toContain(status);
+  expect(posts).toHaveLength(1);
+  if (status === "queued") {
+    expect(result.text).toMatch(/owner|pending|waiting/i);
+    expect(result.text).not.toMatch(/restarts as|has started|is working/i);
+  }
+});
+
+test("resume_all reports mixed returned states instead of treating every accepted recovery as running", async () => {
+  const response = { resumed: [
+    { ...run("run_005", "queued", "inc_004"), restarted_from: "run_004" },
+    { ...run("run_009", "running", "inc_004"), restarted_from: "run_008" },
+  ], skipped: [{ run_id: "run_002", reason: "Confirmed compromise" }] };
+  const { posts, callText } = await connect({
+    responses: { "POST /resume-all": response },
+    elicit: () => ({ action: "accept", content: { confirm: "resume all", reason: "Explicit recovery" } }),
+  });
+  const result = await callText("resume_all", { reason: "draft" });
+  expect(result.structured).toEqual(response);
+  expect(result.text).toMatch(/run_005.*queued/);
+  expect(result.text).toMatch(/run_009.*running/);
+  expect(result.text).toContain("Confirmed compromise");
+  expect(result.text).not.toMatch(/restarts as|2 (?:agents?|runs?) (?:are )?running/i);
+  expect(posts).toHaveLength(1);
+});
+
+test.each(["resume", "resume_all"])("live %s rejects one failed POST without retrying or claiming recovery", async (tool) => {
+  const path = tool === "resume" ? "/runs/run_004/resume" : "/resume-all";
+  const phrase = tool === "resume" ? "resume run_004" : "resume all";
+  const { posts, callText } = await connect({
+    responses: { [`POST ${path}`]: { status: 409, detail: "Synthetic recovery refused" } },
+    elicit: () => ({ action: "accept", content: { confirm: phrase, reason: "Explicit recovery" } }),
+  });
+  const result = await callText(tool, tool === "resume" ? { run_id: "run_004", reason: "draft" } : { reason: "draft" });
+  expect(result.isError).toBe(true);
+  expect(result.text).toContain("Synthetic recovery refused");
+  expect(result.text).not.toMatch(/Done:|queued|restarts as/);
+  expect(posts).toEqual([{ path, body: { actor: "liam via Claude Code (MCP)", reason: "Explicit recovery" } }]);
 });
 
 test("resume_all fails closed without the typed phrase", async () => {

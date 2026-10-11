@@ -5,6 +5,7 @@ import { Dialog, RadioGroup } from 'radix-ui'
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { api, queryClient, useEvents, useIncidents, useRuns, type HumanRequest, type MirageEvent, type ResumeAll, type Run } from '@/api/client'
+import { useConnection } from '@/api/stream'
 import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { blockedCall, canResume, resumeBlock, runLabel, stopOn } from '@/lib/runs'
@@ -36,15 +37,15 @@ function copy(kind: ActionKind, run: Run | undefined, runs: Run[]) {
   if (isDemo && kind === 'resumeAll') return {
     title: 'Resume recording?', effect: 'Stop all is lifted. Recording continues from its paused position and prior recorded run states are restored. No agents or providers are launched.',
   }
-  if (kind === 'stop') return { title: 'Stop all agents?', effect: 'Every run halts and all tokens are revoked. Resume all restarts them later.' }
+  if (kind === 'stop') return { title: 'Stop all agents?', effect: 'Active runs halt and their tokens are revoked. Resume all can queue eligible halted tasks for a new start.' }
   if (kind === 'resumeAll') return {
     title: 'Resume all agents?',
-    effect: 'Stop all is lifted and every halted agent starts its task again from the beginning. Every action goes through the gate. Compromised runs stay stopped.',
+    effect: 'Stop all is lifted and eligible halted tasks are queued to start from the beginning. A queued run waits for its owner to start it. Compromised or detonating runs stay stopped. New actions go through the gate.',
   }
   const label = run ? runLabel(run, runs) : 'this run'
   if (kind === 'freeze') return { title: `Freeze ${label}?`, effect: 'This run pauses before its next tool call. Other runs keep working. A manual freeze does not create incident proof.' }
   if (kind === 'restart') return { title: `Approve a clean restart of ${label}?`, effect: 'A new run is queued with the same task. It waits for the owner to start the agent; this approval does not launch it or merge a PR.' }
-  if (kind === 'resume') return { title: `Resume ${label}?`, effect: 'It starts its task again from the beginning. Every action goes through the gate.' }
+  if (kind === 'resume') return { title: `Resume ${label}?`, effect: 'A new run is queued to start the task from the beginning. It waits for its owner to start it; queued does not mean running. New actions go through the gate.' }
   if (kind === 'kill') return { title: `Kill ${label}?`, effect: 'The call it was holding never runs, and the run ends for good.' }
   const events = queryClient.getQueryData<MirageEvent[]>(['events']) ?? []
   const held = run && blockedCall(events, run.id)?.decision
@@ -60,9 +61,45 @@ function copy(kind: ActionKind, run: Run | undefined, runs: Run[]) {
 const AskContext = createContext<Ask>(() => {})
 export const useAsk = () => useContext(AskContext)
 
+type Connection = ReturnType<typeof useConnection>
+const connectionNow = () => queryClient.getQueryData<Connection>(['connection'])
+const liveEngineAvailable = (connection: Connection | undefined) =>
+  connection?.runtime?.engine_mode === 'live' && ['streaming', 'polling'].includes(connection.state) && !connection.error
+
+export const liveRunOwned = (run: Run, connection: Connection | undefined) =>
+  !isDemo && run.env === 'prod' && liveEngineAvailable(connection) && !!connection?.runtime?.owned_run_ids.includes(run.id)
+
+export function runControlNote(run: Run, connection: Connection | undefined) {
+  if (isDemo || run.env !== 'prod' || !['running', 'frozen'].includes(run.status) || liveRunOwned(run, connection)) return null
+  return liveEngineAvailable(connection) ? `Restored history · no live owner. Last recorded state: ${run.status}.`
+    : `Live ownership unavailable. Showing recorded ${run.status} state.`
+}
+
+const needsOwner = (kind: ActionKind) => ['freeze', 'unfreeze', 'kill'].includes(kind)
+const requireOwner = (kind: ActionKind, run?: Run) => {
+  const recorded = isDemo && connectionNow()?.runtime?.engine_mode === 'replay'
+  if (needsOwner(kind) && !recorded && (!run || !liveRunOwned(run, connectionNow())))
+    throw new Error('This engine has no observed live control of this run. Its recorded history is still available.')
+  if (!isDemo && ['resume', 'resumeAll', 'restart'].includes(kind) && !liveEngineAvailable(connectionNow()))
+    throw new Error('Live engine ownership is unavailable. Wait for a successful sync before approving recovery.')
+}
+
+const sameRuntime = (before: Connection['runtime'] | undefined) => {
+  const current = connectionNow()?.runtime
+  return before?.instance_id === current?.instance_id && before?.stream_epoch === current?.stream_epoch
+}
+
 export function ActionsProvider({ children }: { children: ReactNode }) {
-  const [pending, setPending] = useState<{ kind: ActionKind; run?: Run } | null>(null)
-  const ask: Ask = (kind, run) => setPending({ kind, run })
+  const connection = useConnection()
+  const [pending, setPending] = useState<Omit<Vars, 'body'> | null>(null)
+  const ask: Ask = (kind, run) => {
+    try {
+      requireOwner(kind, run)
+      if (!sameRuntime(connection.runtime)) throw new Error('The engine changed. Review the current run before acting again.')
+      setPending({ kind, run, runtime: connection.runtime })
+    }
+    catch (error) { toast.error(humanControlError(error instanceof Error ? error : new Error(String(error)))) }
+  }
   return (
     <AskContext.Provider value={ask}>
       {children}
@@ -76,15 +113,17 @@ export function ResumeButton({ run, variant = 'secondary' }: { run: Run; variant
   const ask = useAsk()
   const { data: runs = [] } = useRuns()
   const { data: incidents = [] } = useIncidents()
+  const connection = useConnection()
   if (isDemo || !canResume(run, runs)) return null
-  const blocked = resumeBlock(run, incidents)
+  const blocked = !liveEngineAvailable(connection) ? 'Live engine ownership is unavailable. Wait for a successful sync.' : resumeBlock(run, incidents)
   return <Button variant={variant} disabled={!!blocked} title={blocked ?? undefined}
     onClick={(e) => { e.stopPropagation(); ask('resume', run) }}>Resume</Button>
 }
 
 export function FreezeButton({ run }: { run: Run }) {
   const ask = useAsk()
-  if (isDemo || run.env !== 'prod' || run.status !== 'running') return null
+  const connection = useConnection()
+  if (run.status !== 'running' || !liveRunOwned(run, connection)) return null
   return <Button onClick={(e) => { e.stopPropagation(); ask('freeze', run) }}>Freeze</Button>
 }
 
@@ -93,28 +132,31 @@ export function CleanRestartButton({ run }: { run: Run }) {
   const ask = useAsk()
   const { data: runs = [] } = useRuns()
   const { data: events = [] } = useEvents()
+  const connection = useConnection()
   if (isDemo || run.env !== 'prod' || !['killed', 'halted'].includes(run.status)) return null
   const restart = runs.find((r) => r.restarted_from === run.id)
   if (restart) return <span className="clean-restart-status" role="status"><Link to={`/runs/${encodeURIComponent(restart.id)}`} onClick={(e) => e.stopPropagation()}>
-    {restart.status === 'queued' ? 'Clean restart pending · awaiting owner start' : `Clean restart: ${restart.status}`}
+    {restart.status === 'queued' ? 'Clean restart pending · awaiting owner start'
+      : runControlNote(restart, connection) ? `Recorded restart: ${restart.status} · live ownership unavailable` : `Clean restart: ${restart.status}`}
   </Link></span>
   const stopped = stopOn(events)
-  return <Button disabled={stopped} title={stopped ? 'Global STOP is on. Lift STOP before approving a clean restart.' : 'Queues a new run; the owner must start it.'}
+  const available = liveEngineAvailable(connection)
+  return <Button disabled={stopped || !available} title={!available ? 'Live engine ownership is unavailable. Wait for a successful sync.' : stopped ? 'Global STOP is on. Lift STOP before approving a clean restart.' : 'Queues a new run; the owner must start it.'}
     onClick={(e) => { e.stopPropagation(); ask('restart', run) }}>Approve clean restart</Button>
 }
 
-function ReasonDialog({ pending, onClose }: { pending: { kind: ActionKind; run?: Run } | null; onClose: () => void }) {
+function ReasonDialog({ pending, onClose }: { pending: Omit<Vars, 'body'> | null; onClose: () => void }) {
   const act = useHumanAction()
   const kind = pending?.kind ?? 'unfreeze'
   const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
   const { title, effect } = copy(kind, pending?.run, runs)
   const retained = kind === 'freeze' || kind === 'restart'
-  return <HumanReasonDialog key={pending ? `${kind}:${pending.run?.id}` : 'closed'} open={!!pending} title={title} effect={effect}
+  return <HumanReasonDialog key={pending ? `${kind}:${pending.run?.id}:${pending.runtime?.instance_id}:${pending.runtime?.stream_epoch}` : 'closed'} open={!!pending} title={title} effect={effect}
     reasons={REASONS[kind]} verb={isDemo && kind === 'stop' ? 'Pause recording' : isDemo && kind === 'resumeAll' ? 'Resume recording' : VERB[kind]} destructive={kind === 'kill' || kind === 'stop'} onClose={() => { act.reset(); onClose() }}
     busy={act.isPending} error={retained && act.error ? humanControlError(act.error) : undefined}
     onSubmit={(reason) => {
       if (!pending || act.isPending) return
-      act.mutate({ kind, run: pending.run, body: { actor: ACTOR, reason } }, retained ? { onSuccess: onClose } : undefined)
+      act.mutate({ kind, run: pending.run, runtime: pending.runtime, body: { actor: ACTOR, reason } }, retained ? { onSuccess: onClose } : undefined)
       if (!retained) onClose()
     }} />
 }
@@ -188,46 +230,72 @@ export function HumanReasonDialog({ open, title, effect, reasons, verb, destruct
   )
 }
 
-const agents = (n: number) => `${n} ${n === 1 ? 'agent' : 'agents'}`
+const runCount = (n: number) => `${n} ${n === 1 ? 'run' : 'runs'}`
 const resumeAllToast = ({ resumed, skipped }: ResumeAll) =>
-  `${resumed.length ? `${agents(resumed.length)} starting again.` : 'No agent to resume.'}` +
-  (skipped.length ? ` ${agents(skipped.length)} skipped: compromised or detonating.` : '')
+  (resumed.length ? [...new Set(resumed.map((run) => run.status))].map((status) =>
+    `${runCount(resumed.filter((run) => run.status === status).length)} ${status}${status === 'queued' ? ' · awaiting owner start' : ''}.`,
+  ).join(' ') : 'No new recovery runs.') + (skipped.length ? ` ${runCount(skipped.length)} skipped.` : '')
 
-type Vars = { kind: ActionKind; run?: Run; body: HumanRequest }
+type Vars = { kind: ActionKind; run?: Run; body: HumanRequest; runtime?: Connection['runtime'] }
 
 export function useHumanAction() {
   return useMutation({
     retry: false,
-    mutationFn: ({ kind, run, body }: Vars) =>
-      api<Run | ResumeAll>(kind === 'stop' ? '/stop' : kind === 'resumeAll' ? '/resume-all' : `/runs/${encodeURIComponent(run!.id)}/${kind}`, body),
-    onMutate: async ({ kind, run }: Vars) => {
+    mutationFn: ({ kind, run, body, runtime }: Vars) => {
+      requireOwner(kind, run)
+      if (runtime !== undefined && !sameRuntime(runtime)) throw new Error('The engine changed. Review the current run before acting again.')
+      return api<Run | ResumeAll>(kind === 'stop' ? '/stop' : kind === 'resumeAll' ? '/resume-all' : `/runs/${encodeURIComponent(run!.id)}/${kind}`, body)
+    },
+    onMutate: async ({ kind, run, runtime: expected }: Vars) => {
+      const runtime = expected === undefined ? connectionNow()?.runtime : expected
       await queryClient.cancelQueries({ queryKey: ['runs'] })
       const before = queryClient.getQueryData<Run[]>(['runs'])
+      requireOwner(kind, run)
+      if (!sameRuntime(runtime)) throw new Error('The engine changed. Review the current run before acting again.')
       queryClient.setQueryData<Run[]>(['runs'], (old = []) =>
         old.map((r) =>
           kind === 'stop'
-            ? ['running', 'frozen', 'queued'].includes(r.status) ? { ...r, status: 'halted' } : r
-            : r.id === run?.id && (kind === 'unfreeze' || kind === 'kill') ? { ...r, status: kind === 'kill' ? 'killed' : 'running' } : r,
+            ? (isDemo || liveRunOwned(r, connectionNow())) && ['running', 'frozen', 'queued'].includes(r.status) ? { ...r, status: 'halted' } : r
+            : r.id === run?.id && kind === 'kill' ? { ...r, status: 'killed' } : r,
         ),
       )
-      return { before }
+      return { before, runtime }
     },
-    onSuccess: (data, { kind, run }) => {
-      if ((kind === 'freeze' || kind === 'restart') && data && 'id' in data) {
-        queryClient.setQueryData<Run[]>(['runs'], (old = []) => [...old.filter((r) => r.id !== data.id), data])
+    onSuccess: (data, { kind, run }, ctx) => {
+      if (!sameRuntime(ctx?.runtime)) {
+        toast('The engine changed while this decision was pending. Review its current state before acting again.')
+        return
+      }
+      const recovered = kind === 'resumeAll' && !isDemo ? (data as ResumeAll).resumed
+        : ['freeze', 'restart', 'resume', 'unfreeze', 'kill'].includes(kind) && data && 'id' in data ? [data] : []
+      if (recovered.length) {
+        queryClient.setQueryData<Run[]>(['runs'], (old = []) => [
+          ...old.filter((r) => !recovered.some((next) => next.id === r.id)), ...recovered,
+        ])
       }
       const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
       const label = run ? runLabel(run, runs) : ''
       if (kind === 'resumeAll') return toast(isDemo ? 'Recording resumed from where it paused. Prior recorded run states restored.' : resumeAllToast(data as ResumeAll))
-      if (kind === 'restart') return toast('Clean restart approved and queued. Waiting for the owner to start the agent.')
+      if (kind === 'restart') return toast((data as Run).status === 'queued'
+        ? 'Clean restart approved and queued. Waiting for the owner to start the agent.'
+        : `Clean restart approved. Last observed state: ${(data as Run).status}.`)
+      if (kind === 'resume') return toast((data as Run).status === 'queued'
+        ? `${label} restart queued. Waiting for the owner to start it.` : `${label} restart: ${(data as Run).status}.`)
       if (kind === 'freeze') return toast(`${label} is frozen.`)
-      toast(kind === 'stop' ? isDemo ? 'Recording paused. Active recorded runs are halted.' : 'All agents stopped.'
-        : kind === 'resume' ? `${label} is starting its task again.` : kind === 'kill' ? `${label} was killed.` : `${label} is working again.`)
+      if (isDemo && (kind === 'kill' || kind === 'unfreeze')) return toast(`Recorded ${label}: ${(data as Run).status}.`)
+      toast(kind === 'stop' ? isDemo ? 'Recording paused. Active recorded runs are halted.' : 'Global STOP is on. Live tool calls are blocked.'
+        : kind === 'kill' ? `${label} was killed.` : `${label} released. Last observed state: ${(data as Run).status}.`)
     },
     onError: (err, _, ctx) => {
-      queryClient.setQueryData(['runs'], ctx?.before)
+      if (ctx && !sameRuntime(ctx.runtime)) {
+        toast.error('The engine changed while this decision was pending. Review its current state before acting again.')
+        return
+      }
+      if (ctx && sameRuntime(ctx.runtime)) queryClient.setQueryData(['runs'], ctx.before)
       toast.error(humanControlError(err))
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['runs'] }),
+    onSettled: (_, __, ___, ctx) => {
+      if (ctx && sameRuntime(ctx.runtime)) return queryClient.invalidateQueries({ queryKey: ['runs'] })
+    },
   })
 }
