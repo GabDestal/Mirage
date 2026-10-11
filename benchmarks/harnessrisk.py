@@ -20,7 +20,7 @@ DATASET_SHA = "54589cd6dca0da004b603ce15cdb4fb5358ff52e"
 BASE_SHA = "2f43f1c488b39c9e8774ee346438f43ecd375056"
 ENGINE_SHA = "d72eb8c0848ad797dad4213d671c8480e60e8f41"
 FILE_TOOLS = {"list_dir", "read_file", "write_file", "delete_file"}
-PARAMETERS = {"temperature": 0, "max_tokens": 4096, "max_tool_calls": 12, "timeout_s": 120, "parallel": 1}
+PARAMETERS = {"temperature": 0, "max_tokens": 4096, "max_tool_calls": 12, "max_model_calls": 16, "timeout_s": 120, "parallel": 1}
 FULL_UNKNOWN = "Native write_file/delete_file and stateful read-after-write replay unsupported by accepted engine"
 
 
@@ -236,6 +236,8 @@ def run(args):
 
         @before_model
         def count_request(state, runtime):
+            if time.time() >= args.stop_epoch or usage["calls"] >= PARAMETERS["max_model_calls"]:
+                raise TimeoutError("Inference deadline or model call cap reached")
             usage["calls"] += 1
 
         @after_model
@@ -249,7 +251,7 @@ def run(args):
                 usage["tokens"] += tokens
             messages[:] = state["messages"]
 
-        previous, run_token = None, None
+        previous, run_token, run_id = None, None, None
         try:
             policy = (args.source / "harness_adapter/templates/skills/openclaw-safety-policy/SKILL.md").read_text().split("# Safety Policy", 1)[1]
             model = chat_model(args.model)
@@ -264,12 +266,13 @@ def run(args):
                 agent = mirage.protect(agent, name=name, owner="benchmark", entrypoint="benchmarks.harnessrisk:unsupported_replay", allow={"tools": sorted(FILE_TOOLS)})
                 run_token = core.start(name, "\n\n".join(case["task"]["user_messages"]))
                 # The SDK adapters use this same context; retain one run across native owner turns.
-                row["evidence_refs"].append("run:" + core._run.get()["id"])
+                run_id = core._run.get()["id"]
+                row["evidence_refs"].append("run:" + run_id)
             previous = signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError("Task timeout")))
             signal.alarm(PARAMETERS["timeout_s"])
             for owner_message in case["task"]["user_messages"]:
                 messages.append(HumanMessage(content=owner_message))
-                out = agent.invoke({"messages": messages}, {"recursion_limit": 32})
+                out = agent.invoke({"messages": messages}, {"recursion_limit": 32, "max_concurrency": 1})
                 messages[:] = out["messages"]
             status = "completed"
         except Exception as exc:
@@ -285,6 +288,22 @@ def run(args):
                     row["unknown_reason"] = "SDKCompletion:" + type(exc).__name__
                     status = "failed"
             world.save(case["case_id"], messages, status)
+            if run_id is not None:
+                try:
+                    info = core._http.get("/runs/" + run_id)
+                    info.raise_for_status()
+                    row["incident_id"] = info.json().get("incident_id")
+                    write_json(world.run_dir / "trajectory/engine_run.json", info.json())
+                    for endpoint in ("runtime", "events"):
+                        response = core._http.get("/" + endpoint)
+                        response.raise_for_status()
+                        data = response.json()
+                        if endpoint == "events":
+                            data = [e for e in data if e.get("run_id") == run_id or e.get("incident_id") == row["incident_id"] and row["incident_id"] is not None]
+                        write_json(world.run_dir / ("trajectory/engine_" + endpoint + ".json"), data)
+                except Exception as exc:
+                    row["unknown_reason"] = "EngineEvidence:" + type(exc).__name__
+                    status = "failed"
         row.update(calls=usage["calls"], tokens=usage["tokens"] if usage["tokens_known"] and usage["replies"] == usage["calls"] else None, latency_s=round(time.monotonic()-started, 3))
         try:
             scores, state = grade(world, case, args.source, args.case.parent)
