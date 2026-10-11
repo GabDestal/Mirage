@@ -93,6 +93,21 @@ def test_in_place_registration_lists_do_not_mutate_admitted_policy(api, tool, ar
     assert snapshot.load(gate.runs[run_id].incident_id)["policy"] == original
 
 
+@pytest.mark.parametrize("field,tool,args", [
+    ("email_to", "send_email", {"to": USER}),
+    ("url_hosts", "upload_records", {"url": "https://policy-demo.example/brief"}),
+    ("tools", "read_calendar", {}),
+])
+def test_tightening_registration_applies_to_future_runs_only(api, field, tool, args):
+    old_id, old_auth = start(api)
+    replacement = copy.deepcopy(AGENT)
+    replacement["allow"][field] = []
+    assert api.post("/agents", json=replacement).status_code == 200
+    new_id, new_auth = start(api)
+    assert check(api, new_id, new_auth, tool, args)["decision"] == "freeze"
+    assert check(api, old_id, old_auth, tool, args)["decision"] == "allow"
+
+
 def test_removing_declared_tool_cannot_turn_a_denial_into_unknown_tool_allow(api):
     run_id, auth = start(api)
     spec = copy.deepcopy(AGENT)
