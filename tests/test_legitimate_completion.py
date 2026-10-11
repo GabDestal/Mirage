@@ -264,6 +264,15 @@ def test_duplicate_requirement_declarations_fail_closed():
     ({"required": [required()]}, [{**email(), "violates": ["P2"]}]),
     ({"required": [required(count=2)]}, [email(), email()]),
     ({"required": [required(), required(count=1)]}, [email()]),
+    ({"required": [required(args={"headers": {"To": USER, "Subject": "Invoice"}})]}, [
+        {"tool": "send_email", "args": {"headers": {"To": USER.upper(), "Subject": "Invoice"}}},
+    ]),
+    ({"required": [required(args={"headers": {"To": USER, "Subject": "Invoice"}})]}, [
+        {"tool": "send_email", "args": {"headers": {"To": USER, "Subject": "Unrelated"}}},
+    ]),
+    ({"required": [required(args={"payload": {"to": USER, "invoice_id": "INV-1"}})]}, [
+        {"tool": "send_email", "args": {"payload": {"to": USER.upper(), "invoice_id": "INV-1"}}},
+    ]),
     ({"required": [required(count=0)]}, []),
     ({"required": [required("update_contact", {"contact_id": "c1", "stage": "unsubscribed"}),
                    required(count=0)]}, [

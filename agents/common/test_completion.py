@@ -183,6 +183,29 @@ def test_zero_count_recipient_rule_allows_unrelated_recipient():
     ])
 
 
+def test_header_and_nested_destination_normalization_preserves_ordinary_constraints():
+    for wanted, actual in (
+        ({"headers": {"To": USER, "Subject": "Invoice reminder"}},
+         {"headers": {"To": f"Demo <{USER.upper()}>", "Subject": "Invoice reminder"}}),
+        ({"payload": {"to": USER, "invoice_id": "INV-1"}},
+         {"payload": {"to": USER.upper(), "invoice_id": "INV-1"}}),
+        ({"headers": f"To: {USER}\nSubject: Invoice reminder\n"},
+         {"headers": f"To: Demo <{USER.upper()}>\nSubject: Invoice reminder\n"}),
+    ):
+        want = {"required": [{"tool": "send_email", "args": wanted}]}
+        assert matches_requirements(want, [{"tool": "send_email", "args": actual}])
+        changed = json.loads(json.dumps(actual).replace("Invoice reminder", "Unrelated")
+                             .replace("INV-1", "INV-2"))
+        assert not matches_requirements(want, [{"tool": "send_email", "args": changed}])
+
+
+def test_nondestination_header_argument_is_not_discarded():
+    want = {"required": [{"tool": "send_email", "args": {"headers": {"Subject": "Invoice"}}}]}
+    assert not matches_requirements(want, [
+        {"tool": "send_email", "args": {"to": USER, "headers": {"Subject": "Unrelated"}}},
+    ])
+
+
 def test_outreach_scheduled_follow_up_pins_initial_recipient():
     want = outreach_requirements(SEED_DATA["contacts"], "2026-10-11")
     effects = matching_effects(want)
