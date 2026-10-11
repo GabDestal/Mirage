@@ -6,8 +6,6 @@ import { ArrowRight, Bot, CheckCircle2, ChevronRight, Play, Search, ShieldAlert,
 import { api, useEvents, useIncidents, useRuns, type Incident, type MirageEvent, type Run } from '@/api/client'
 import { resetStream, useConnection, useNow } from '@/api/stream'
 import { CleanRestartButton, FreezeButton, ResumeButton, liveRunOwned, runControlNote, useAsk } from '@/components/actions'
-import { EngineApprovals } from '@/components/engine-approvals'
-import { ServiceEvidence } from '@/components/service-evidence'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
 import { agentName, avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
@@ -192,8 +190,6 @@ export function Fleet() {
           </div>
         </div>
 
-        <EngineApprovals />
-
         {/* Toolbar & Filter Tabs */}
         <div className="fleet-toolbar">
           <div className="fleet-tabs">
@@ -303,7 +299,6 @@ export function Fleet() {
             </div>
           )}
         </div>
-        <ServiceEvidence />
       </div>
     </section>
   )

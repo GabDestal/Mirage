@@ -15,8 +15,6 @@ try {
   const client = await server.ssrLoadModule('/src/api/client.ts')
   const actions = await server.ssrLoadModule('/src/components/actions.tsx')
   const { Fleet } = await server.ssrLoadModule('/src/pages/fleet.tsx')
-  const approvals = await server.ssrLoadModule('/src/components/engine-approvals.tsx')
-  const services = await server.ssrLoadModule('/src/components/service-evidence.tsx')
   const controls = await server.ssrLoadModule('/src/components/engine-controls.ts')
   const run = { id: 'run/one', agent: 'meeting_assistant', env: 'prod', task: 'Synthetic test', status: 'running',
     started_at: '2026-10-11T00:00:00Z', tool_calls: 0 }
@@ -39,9 +37,11 @@ try {
     cache.setQueryData(['services', service, env], { service, env, items: [] })
   const fleet = render(Fleet)
   assert.equal(fleet.includes('>Freeze<'), !demo, 'Only live production runs expose manual Freeze')
-  assert.ok(fleet.includes('Service evidence'), 'Fleet must show current service evidence')
-  assert.ok(fleet.includes('Engine approvals'), 'Fleet must show the engine approval queue')
-  console.log('PASS fleet exposes services, engine approvals and appropriate manual freeze')
+  assert.deepEqual(['Service evidence', 'Engine approvals'].filter((label) => fleet.includes(label)), [], 'Requested panels must be absent from Fleet')
+  for (const label of ['Agent Fleet', 'Ask Miragio', 'All Runs (1)', 'Trace', demo ? 'Restart demo recording' : 'Run 4-agent demo'])
+    assert.ok(fleet.includes(label), `Fleet must retain ${label}`)
+  assert.equal(fleet.includes('Recorded agents and incident evidence'), demo)
+  console.log('PASS fleet omits removed panels and retains launcher, run navigation, mode truth and appropriate manual freeze')
 
   if (demo) {
     assert.equal(render(actions.FreezeButton, { run }), '')
@@ -49,12 +49,7 @@ try {
     cache.setQueryData(['runs'], [{ ...run, status: 'frozen' }])
     const frozenDemo = render(Fleet)
     assert.ok(!frozenDemo.includes('>Unfreeze<') && !frozenDemo.includes('>Kill<'))
-    cache.setQueryData(['approvals'], [{ call_id: 'held', run_id: run.id, agent: run.agent, tool: 'send_email', args: {}, explanation: 'Synthetic review', ts: run.started_at }])
-    const queue = render(approvals.EngineApprovals)
-    assert.ok(queue.includes('Recorded demo: decisions are unavailable'))
-    assert.equal((queue.match(/disabled=""/g) ?? []).length, 2)
-    assert.ok(render(services.ServiceEvidence).includes('Recorded synthetic demo'))
-    console.log('PASS demo hides unsupported freeze/restart, disables engine decisions and labels recorded evidence')
+    console.log('PASS demo hides unsupported freeze/restart and manual recovery')
   } else {
 
   cache.setQueryData(['runs'], [{ ...run, status: 'frozen' }])
@@ -137,7 +132,6 @@ try {
   const held = { call_id: 'call/held', run_id: run.id, agent: run.agent, tool: 'send_email',
     args: { to: 'synthetic@example.test' }, explanation: 'New destination requires review.', policy_id: 'P5', p: 0.5, ts: run.started_at }
   cache.setQueryData(['approvals'], [held])
-  assert.ok(render(approvals.EngineApprovals).includes('Inspect held arguments'))
   const decide = capture(controls.useEngineApproval)
   for (const decision of ['approve', 'reject']) {
     respond = async () => new Response(JSON.stringify({ ...run, status: decision === 'approve' ? 'running' : 'killed' }))
@@ -161,29 +155,7 @@ try {
     assert.deepEqual(calls.pop(), { path: `/api/services/${service}?env=${env}`, method: 'GET', body: undefined })
     assert.deepEqual(cache.getQueryData(['services', service, env]), view)
   }
-  const serviceHtml = render(services.ServiceEvidence)
-  assert.ok(serviceHtml.includes('do not check provider health or confirm delivery'))
-  for (const service of ['outbox', 'calendar', 'crm']) {
-    const prod = serviceHtml.split(`aria-label="Production ${service === 'crm' ? 'CRM' : service[0].toUpperCase() + service.slice(1)}"`)[1].split('</section>')[0]
-    assert.ok(prod.includes(`prod-${service}-evidence`) && !prod.includes(`mirage-${service}-evidence`))
-  }
-  assert.ok(serviceHtml.includes('Tool result recorded') && serviceHtml.includes('Captured effect · not sent'))
-  assert.ok(serviceHtml.includes('Snapshot input') && serviceHtml.includes('Recorded read'))
-  for (const [service, env, flag, label] of [
-    ['outbox', 'prod', 'blocked', 'Blocked · never sent'],
-    ['outbox', 'mirage', 'malicious', 'Harmful effect · not sent'],
-    ['crm', 'prod', 'malicious', 'Proven cause'],
-  ]) {
-    const view = cache.getQueryData(['services', service, env])
-    cache.setQueryData(['services', service, env], { ...view, items: [{ ...view.items[0], flag }] })
-    assert.ok(render(services.ServiceEvidence).includes(label))
-  }
-  const failed = cache.getQueryCache().find({ queryKey: ['services', 'outbox', 'prod'] })
-  failed.setState({ status: 'error', error: new Error('Synthetic read failure') })
-  assert.ok(render(services.ServiceEvidence).includes('Could not refresh outbox: Synthetic read failure'))
-  cache.getQueryCache().find({ queryKey: ['approvals'] }).setState({ status: 'error', error: new Error('Synthetic queue failure') })
-  assert.ok(render(approvals.EngineApprovals).includes('Approval queue could not refresh: Synthetic queue failure'))
-  console.log('PASS GET contracts, prod/Mirage cache and rendering isolation, evidence labels and read failures')
+  console.log('PASS preserved GET contracts and prod/Mirage cache isolation')
   }
   cache.clear()
 } finally {
