@@ -1,4 +1,4 @@
-// Run from web/: node src/components/engine-proof.selfcheck.mjs
+// Run from web/: node src/components/engine-proof.selfcheck.mjs [live]
 import assert from 'node:assert/strict'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -8,9 +8,10 @@ import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 
+const mode = process.argv[2] === 'live' ? 'live' : 'demo'
 const server = await createServer({ configFile: false, plugins: [react()],
   resolve: { alias: { '@': fileURLToPath(new URL('../', import.meta.url)) } },
-  define: { 'import.meta.env.VITE_MIRAGE_UI_MODE': '"demo"' }, server: { middlewareMode: true } })
+  define: { 'import.meta.env.VITE_MIRAGE_UI_MODE': JSON.stringify(mode) }, server: { middlewareMode: true } })
 const originalFetch = globalThis.fetch
 const originalDocument = globalThis.document
 let requests = 0
@@ -38,7 +39,8 @@ try {
     event(6, 'detonation.started', { detonation_id: 'verify', purpose: 'verify' }),
     event(7, 'detonation.effect', { detonation_id: 'verify', tool: 'verification_only' }),
     event(8, 'fix.verified', { passed: false, attack_blocked: '2/2', legit_task_completed: '1/2' })])
-  for (const text of ['Persistent engine evidence', 'Sandbox replay complete', '1/2 compromised', 'snap_test', 'baseline_only', 'Removed-input tests', '0/2 compromised with this input removed', 'Recorded verification example', 'Attack blocked: 2/2', 'Legitimate task completed: 1/2', 'Open incident and coding-agent handoff']) assert.ok(completed.includes(text), text)
+  for (const text of ['Persistent engine evidence', 'Sandbox replay complete', '1/2 compromised', 'snap_test', 'baseline_only', 'Removed-input tests', '0/2 compromised with this input removed', mode === 'demo' ? 'Recorded verification example' : 'Current-code verification', 'Attack blocked: 2/2', 'Legitimate task completed: 1/2', 'Open incident and coding-agent handoff']) assert.ok(completed.includes(text), text)
+  assert.equal(completed.includes('a live incident and executable snapshot are required'), mode === 'demo')
   assert.ok(!completed.includes('removal_only') && !completed.includes('verification_only'))
   assert.ok(!completed.includes('3/3') && !completed.includes('chat-turn')) // No conversation or invented expected counts.
   const failed = render({ ...incident, status: 'open', verdict: null, bisection: [] }, [event(1, 'detonation.failed', { error: '<script>Runner crashed</script>' })])
@@ -47,7 +49,7 @@ try {
   assert.ok(!failed.includes('0/3') && !failed.includes('No compromise found'))
   assert.equal(requests, 0) // A completed external job requires no chat/model call or engine mutation.
   queryClient.clear()
-  console.log('Persistent empty-chat engine proof, crash, isolation and recorded verification rendering checks passed.')
+  console.log(`Persistent empty-chat engine proof, crash, isolation and ${mode} verification rendering checks passed.`)
 } finally {
   globalThis.fetch = originalFetch
   globalThis.document = originalDocument

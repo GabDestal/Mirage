@@ -25,7 +25,7 @@ export function safeLink(value: string | null | undefined) {
 
 export function latestFailure(events: MirageEvent[], stage: 'detonation' | 'bisection') {
   const types = stage === 'detonation'
-    ? ['detonation.started', 'detonation.failed', 'verdict.ready', 'fix.verified']
+    ? ['detonation.started', 'detonation.completed', 'detonation.failed', 'verdict.ready']
     : ['bisection.step', 'bisection.completed']
   const event = (stage === 'detonation' ? detonationEvents(events, 'baseline') : events).findLast((e) => types.includes(e.type))
   return typeof event?.payload.error === 'string' ? event.payload.error : undefined
@@ -75,7 +75,7 @@ export function baselineEvidence(incident: Incident, events: MirageEvent[]) {
     switch (event.type) {
       case 'run.status':
         if (event.run_id === incident.run_id && p.actor === 'system' && p.from === 'frozen' && p.to === 'frozen'
-          && p.reason === 'Automatic sandbox detonation queued (3 replays)') status = 'queued'
+          && p.reason === 'Automatic sandbox detonation queued (3 replays)') { status = 'queued'; error = undefined; resultIsPrevious = true }
         break
       case 'detonation.started':
         status = 'running'; error = undefined; effects = []
@@ -92,6 +92,7 @@ export function baselineEvidence(incident: Incident, events: MirageEvent[]) {
         break
       case 'detonation.failed':
         status = 'failed'; error = typeof p.error === 'string' ? p.error : 'The sandbox did not return proof.'
+        resultIsPrevious = true
         break
       case 'verdict.ready':
         status = 'completed'; error = undefined

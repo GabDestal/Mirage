@@ -60,5 +60,7 @@ assert.equal(baselineEvidence(incident, [event(1, 'detonation.started', { n_runs
 assert.equal(baselineEvidence(incident, [event(1, 'detonation.failed', { error: 'Retained failure' }, 'inc_other')]).status, undefined)
 assert.equal(baselineEvidence({ ...incident, status: 'detonating' }, [event(1, 'detonation.started', { purpose: 'verify' })]).status, undefined)
 assert.equal(baselineEvidence(incident, [...baseline, event(21, 'detonation.started', { detonation_id: 'retry' }), event(22, 'detonation.completed', { id: 'retry' })]).resultIsPrevious, true)
+assert.equal(baselineEvidence(incident, [...baseline, event(21, 'detonation.failed', { error: 'Reservation failed' })]).resultIsPrevious, true)
+assert.equal(latestFailure([event(1, 'detonation.failed', { error: 'Old failure' }), event(2, 'detonation.completed')], 'detonation'), undefined)
 assert.equal(verificationEvidence([...later, event(21, 'detonation.started', { detonation_id: 'verify_retry', purpose: 'verify' }), event(22, 'detonation.completed', { id: 'verify_retry' })])?.resultIsPrevious, true)
 console.log('Persistent baseline, verification isolation and crash accounting checks passed.')
