@@ -90,6 +90,8 @@ or the recording restarts. Both are opaque strings. `last_seq` is the visible hi
 unavailable. `owned_run_ids` lists this process's in-memory run owners (always empty in replay).
 Historical running/frozen/queued status alone never establishes active control after restore.
 Restoring history does not restore run tokens or owners, restart production, or replay jobs.
+Live restore records a system `frozen → failed` status only for ownerless production originals
+with their own confirmed verdict; verified recovery still requires explicit human approval.
 
 ### SandboxJob
 
