@@ -45,7 +45,8 @@
 .chat-page--conversation { height: 100%; min-height: 0; justify-content: flex-start; padding-block: 0 20px; }
 .chat-thread-toolbar { display: flex; align-items: center; justify-content: space-between; padding-block: 16px; font-size: 12px; }
 .chat-thread-toolbar button { display: flex; align-items: center; gap: 6px; color: var(--chat-muted); cursor: pointer; }
-.chat-thread { flex: 1; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; scrollbar-color: var(--chat-line) transparent; }
+/* Contains the absolute sr-only labels so they cannot lengthen and scroll the whole page. */
+.chat-thread { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; scrollbar-color: var(--chat-line) transparent; }
 .chat-turn { padding-block: 24px; }
 .chat-question { width: fit-content; max-width: 85%; margin: 0 0 24px auto; padding: 10px 14px; border-radius: 12px; background: var(--chat-wash); white-space: pre-wrap; }
 .chat-answer { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; }
