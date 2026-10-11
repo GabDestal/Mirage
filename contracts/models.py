@@ -27,7 +27,7 @@ EventType = Literal[
     "run.status", "global.stop", "global.stop_lifted", "incident.opened", "detonation.started", "detonation.effect",
     "detonation.completed", "detonation.failed", "verdict.ready", "bisection.step", "bisection.completed",
     "handoff.created", "fix.verified", "pr.opened", "human.action", "agent.registered",
-    "repair.job.updated",
+    "repair.job.updated", "recovery.prepared", "recovery.approved",
     "rule.drafted", "rule.activated",
 ]
 InputKind = Literal["calendar_event", "email", "crm_record", "web_page", "attachment", "user_task"]
@@ -470,6 +470,59 @@ class RepairJobContext(Model):
     policy_digest: ContentDigest
     incident: Incident
     report: str  # the existing handoff report, with attack text marked as untrusted data
+
+
+class RecoveryMergeCommit(Model):
+    oid: CommitSHA
+
+
+class RecoveryPullRequest(RepairPullRequest):
+    mergeCommit: RecoveryMergeCommit | None = None
+
+
+class RecoveryProvenance(Model):
+    policy_digest: ContentDigest
+    policy: dict[str, Any]
+    agent_spec: AgentSpec
+    config: dict[str, str]
+    config_digest: ContentDigest
+    config_source_digest: ContentDigest | None = None
+
+
+class RecoveryReport(Model):
+    """Trusted supervisor receipt after the complete merged factory is registered."""
+
+    repair_job_id: str
+    original_run_id: str
+    agent: str
+    task: str
+    pull_request: RecoveryPullRequest
+    merged_sha: CommitSHA
+    candidate_tree: CommitSHA
+    merged_tree: CommitSHA
+    verified_sha: CommitSHA
+    snapshot_digest: ContentDigest
+    agent_spec: AgentSpec
+    policy_digest: ContentDigest
+    config: dict[str, str]
+    config_digest: ContentDigest
+    config_source_digest: ContentDigest | None = None
+    checkpoint_digest: ContentDigest
+    verification: RepairCommandEvidence | None = None
+    clean_control: RepairCleanControl | None = None
+
+
+class RecoveryState(Model):
+    incident_id: str
+    status: Literal["prepared", "queued", "running", "completed", "failed"]
+    report: RecoveryReport
+    policy: dict[str, Any]  # prepared policy; approved queues keep their admitted copy
+    prepared_at: datetime
+    approval: HumanRequest | None = None
+    approved_at: datetime | None = None
+    new_run_id: str | None = None
+    useful_task_completed: bool = False
+    error: str | None = None  # controlled category
 
 
 # Ask Miragio operator chat (CONTRACTS.md §13). A separate Node service, not engine events.
