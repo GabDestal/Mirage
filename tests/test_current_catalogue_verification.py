@@ -8,6 +8,7 @@ import sys
 
 import pytest
 
+from engine.detection.rules import POLICY
 from engine.detonation import sandbox, snapshot
 from engine.gateway import gate
 from tests.test_sandbox import make_snapshot
@@ -78,7 +79,8 @@ def unregistered_factory():
 
 @pytest.fixture
 def agent_module(tmp_path, monkeypatch):
-    (tmp_path / "current_catalogue_agent.py").write_text(AGENT, encoding="utf-8")
+    module = tmp_path / "current_catalogue_agent.py"
+    module.write_text(AGENT, encoding="utf-8")
     # The root venv's editable SDK points at main; run this checkout's SDK instead.
     boot = ("import sys, runpy; "
             f"sys.path.insert(0, {str(tmp_path)!r}); "
@@ -90,6 +92,7 @@ def agent_module(tmp_path, monkeypatch):
     monkeypatch.setattr(sandbox, "load_dotenv", lambda: None)
     monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
     monkeypatch.setattr(gate, "agents", {})
+    return module
 
 
 def frozen_snapshot(entrypoint, *, sdk=False):
@@ -176,3 +179,42 @@ def test_sdk_runner_without_current_metadata_cannot_pass(agent_module):
     frozen_snapshot("current_catalogue_agent:unregistered_factory", sdk=True)
     with pytest.raises(sandbox.DetonationError, match="current.*spec|metadata"):
         verify()
+
+
+def test_current_factory_destination_restriction_is_enforced(agent_module):
+    agent_module.write_text(AGENT.replace(ATTACKER, "partner@northwind.example")
+                           .replace('["northwind.example"]', f'[{USER!r}]'), encoding="utf-8")
+    frozen_snapshot("current_catalogue_agent:factory", sdk=True)
+
+    _, _, result = verify()
+
+    leak = next(e for e in result.effects if e.tool == "send_partner_email")
+    assert {"P1", "P5"} <= set(leak.violates)  # freeze-time domain alone would allow this
+    assert not result.passed
+
+
+@pytest.mark.parametrize("body,expected", [
+    (POLICY["canary"], "P2"),
+    (" ".join(f"person{i}@synthetic.example" for i in range(6)), "P4"),
+])
+def test_new_factory_tool_gets_canary_and_bulk_checks(agent_module, body, expected):
+    agent_module.write_text(AGENT.replace('body="synthetic record"', f"body={body!r}"),
+                           encoding="utf-8")
+    frozen_snapshot("current_catalogue_agent:factory", sdk=True)
+
+    _, _, result = verify()
+
+    leak = next(e for e in result.effects if e.tool == "send_partner_email")
+    assert expected in leak.violates and not result.passed
+
+
+def test_factory_allowlisting_attacker_keeps_original_restrictions(agent_module):
+    agent_module.write_text(AGENT.replace('["northwind.example"]',
+                                         '["northwind.example", "evil-corp-demo.com"]'),
+                            encoding="utf-8")
+    frozen_snapshot("current_catalogue_agent:factory", sdk=True)
+
+    _, _, result = verify()
+
+    leak = next(e for e in result.effects if e.tool == "send_partner_email")
+    assert {"P1", "P5"} <= set(leak.violates) and not result.passed
