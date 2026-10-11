@@ -13,6 +13,7 @@ import type { Options as McpOptions } from "./server.js";
 import { ChatError, publicError } from "./bedrock.js";
 import type { ModelProvider } from "./bedrock.js";
 import { publicRepairJob } from "./repair-supervisor.js";
+import type { RecoveryController } from "./recovery.js";
 
 export const LIMITS = {
   bodyBytes: 16_384, inputChars: 8_000, sessions: 32, activeTurns: 4,
@@ -46,7 +47,7 @@ type Session = { actor: string; turns: Message[][]; touched: number; busy: boole
 type Approval = { session: Session; signal: AbortSignal; settle: (action: "accept" | "decline") => void };
 type Handoff = { session: Session; prompt: string };
 type Emit = (event: ChatEvent) => void;
-type ChatOptions = { provider: ModelProvider; mcp?: McpOptions; origins?: string[] };
+type ChatOptions = { provider: ModelProvider; mcp?: McpOptions; origins?: string[]; recovery?: RecoveryController };
 const errorResult = (message: string): CallToolResult => ({ content: [{ type: "text", text: message }], isError: true });
 // The chat never blocks on these: it starts them with wait=false and reports the result in a follow-up turn.
 const LONG: Record<string, [string, string[], string]> = {
@@ -329,6 +330,21 @@ export function createChatService(opts: ChatOptions) {
       if (req.headers["sec-fetch-site"] === "cross-site") throw new ChatError("ORIGIN_REJECTED", "Cross-site requests are not allowed.", 403);
       expire();
       const path = new URL(req.url ?? "/", "http://localhost").pathname;
+      const recovery = /^\/chat\/recovery\/([\w-]+)\/(prepare|launch)$/.exec(path);
+      if (recovery && req.method === "POST") {
+        const input = z.object({ queued_run_id: z.string().regex(/^[\w-]+$/).optional() }).strict().safeParse(await readJson(req));
+        if (!input.success || (recovery[2] === "prepare" ? input.data.queued_run_id !== undefined : !input.data.queued_run_id))
+          throw new ChatError("INVALID_RECOVERY", "Use the prepared repair or exact approved queue.");
+        if (!opts.recovery || process.env.MIRAGE_UI_MODE === "demo")
+          throw new ChatError("RECOVERY_UNAVAILABLE", "The live local recovery launcher is unavailable.", 503);
+        try {
+          const state = recovery[2] === "prepare" ? await opts.recovery.prepareRecovery(recovery[1])
+            : await opts.recovery.launchApprovedRecovery(recovery[1], input.data.queued_run_id!);
+          json(res, 200, state); return;
+        } catch (error) {
+          throw new ChatError("RECOVERY_REFUSED", error instanceof Error ? error.message : "Recovery refused. The original stays contained.", 409);
+        }
+      }
       if (path === "/chat/repairs" && req.method === "POST") {
         const input = repairInput.safeParse(await readJson(req));
         if (!input.success) throw new ChatError("INVALID_REPAIR", "Provide the incident, actor and reason for repair.");
