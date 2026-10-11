@@ -211,7 +211,7 @@ const useRepairs = (incidentId: string) => useQuery({ queryKey: ['repair-jobs', 
 const PR_ICONS = { OPEN: <GitPullRequest size={16} aria-hidden />, MERGED: <GitMerge size={16} aria-hidden />, CLOSED: <GitPullRequestClosed size={16} aria-hidden /> }
 
 // The one start button: repair now; step 5 starts the fleet check once the cause is known.
-function RepairAndCheck({ incidentId, eligible }: { incidentId: string; eligible: boolean }) {
+export function RepairAndCheck({ incidentId, eligible }: { incidentId: string; eligible: boolean }) {
   const [confirm, setConfirm] = useState(false)
   const repairs = useRepairs(incidentId)
   const latest = repairs.data?.at(-1)
