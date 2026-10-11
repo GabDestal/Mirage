@@ -127,6 +127,20 @@ def test_preloaded_sdk_cannot_silently_target_another_engine(monkeypatch, capsys
     assert "SDK already targets a different engine" in capsys.readouterr().err
 
 
+def test_thread_failure_is_reported_and_returns_failure(monkeypatch, capsys):
+    def failed_probe():
+        def invoke(_):
+            raise RuntimeError("sensitive error details")
+        return SimpleNamespace(invoke=invoke)
+
+    monkeypatch.setattr(fleet, "FLEET", [failed_probe])
+    assert fleet.run_fleet() == 1
+    output = capsys.readouterr()
+    assert "invocation failed (RuntimeError)" in output.err
+    assert "sensitive" not in output.err
+    assert "invocation completed" not in output.out
+
+
 class SpecRecorder:
     def __init__(self):
         self.specs = []
