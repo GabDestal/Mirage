@@ -6,6 +6,7 @@ export function fleetStatus(run: Pick<Run, 'status'>) {
   switch (run.status) {
     case 'running': return 'Working'
     case 'completed': return 'Healthy'
+    case 'failed': return 'Failed'
     case 'frozen': return 'Frozen'
     case 'queued': return 'Queued'
     case 'killed': case 'halted': return 'Stopped'

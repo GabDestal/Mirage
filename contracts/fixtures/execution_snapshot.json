@@ -1,0 +1,31 @@
+{
+  "id": "snap_failed",
+  "incident_id": "inc_failed",
+  "run_id": "run_failed",
+  "agent": "synthetic_assistant",
+  "task": "Email a Q4 sync brief",
+  "entrypoint": "tests.sandbox_agents:clean",
+  "runner": "mirage.sandbox:run",
+  "legit": {
+    "required": [{
+      "tool": "send_email",
+      "args": {"to": "demo-user@mirage-demo.com"},
+      "nonempty": ["subject", "body"],
+      "contains": {"body": ["Q4 sync"]}
+    }]
+  },
+  "taken_at": "2026-10-11T00:00:04Z",
+  "tool_results": [{
+    "call_id": "call_failed",
+    "tool": "read_calendar",
+    "args": {},
+    "result": null,
+    "error": "TimeoutError"
+  }],
+  "inputs": [{
+    "id": "in_task",
+    "kind": "user_task",
+    "label": "User task",
+    "preview": "Email a Q4 sync brief"
+  }]
+}

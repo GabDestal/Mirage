@@ -40,6 +40,8 @@ def _inputs(task, tool_results):
               "preview": task[:160], "item": None}]
     seen = []
     for r in tool_results:
+        if r.get("error") is not None:
+            continue
         for item in _items(r["result"]):
             if item in seen:
                 continue
@@ -55,8 +57,9 @@ def _inputs(task, tool_results):
 
 
 def save(run, incident_id, policy, entrypoint="", runner=None):
-    results = [{k: r[k] for k in ("call_id", "tool", "args", "result")}
-               for r in run.tool_results if not r.get("error")]
+    results = [{"call_id": r["call_id"], "tool": r["tool"], "args": r["args"],
+                "result": r["result"] if r.get("error") is None else None,
+                "error": r.get("error")} for r in run.tool_results]
     snap = Snapshot(
         id=f"snap_{incident_id.removeprefix('inc_')}", incident_id=incident_id, run_id=run.id,
         agent=run.agent, task=run.task, entrypoint=run.entrypoint or entrypoint, runner=runner,
