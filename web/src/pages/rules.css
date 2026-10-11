@@ -16,13 +16,13 @@
 .rules-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .rules-actions > button { min-height: 36px; }
 .rules-sentence { background: var(--paper-2); border-radius: 8px; padding: 12px 16px; overflow-wrap: anywhere; }
-.rules-page .rules-error { color: var(--alarm); margin-block: 12px; overflow-wrap: anywhere; }
+.rules-page .rules-error { color: color-mix(in srgb, var(--alarm) 92%, var(--ink)); margin-block: 12px; overflow-wrap: anywhere; }
 .rules-feedback { margin-block: 16px; }
 .rules-row { display: flex; align-items: flex-start; gap: 16px; justify-content: space-between; padding-block: 20px; border-bottom: 1px solid var(--line); }
 .rules-row p { margin-top: 6px; overflow-wrap: anywhere; }
 .rules-row button { flex-shrink: 0; }
 .rules-status { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 6px; background: var(--paper-2); font-size: 12px; font-weight: 500; }
-.rules-status-active { color: var(--mirage); background: var(--mirage-wash); }
+.rules-status-active { color: var(--ink); background: var(--mirage-wash); }
 .rules-digest { margin-top: 12px; font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
 .rules-digest code { color: var(--ink); font-family: var(--font-mono); }
 .rules-preview dl { display: grid; grid-template-columns: minmax(100px, auto) 1fr; gap: 8px 16px; margin-block: 16px; }

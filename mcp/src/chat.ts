@@ -189,7 +189,7 @@ export function createChatService(opts: ChatOptions) {
           const args = LONG[call.name] ? { ...call.input, wait: false } : call.input;
           emit({ type: "tool_start", call_id: callId, tool: call.name, args: sanitize(args, session.secrets) });
           const spec = catalogue.find((t) => t.name === call.name);
-          const key = `${call.name}:${String(call.input.run_id ?? call.input.incident_id ?? "")}`;
+          const key = `${call.name}:${String(call.input.run_id ?? call.input.incident_id ?? call.input.version ?? call.input.agent ?? "")}`;
           const effect = !["list_runs", "get_incident", "get_audit", "get_repair", "list_rule_agents", "list_rules", "get_rule", "preview_rule"].includes(call.name);
           let result: CallToolResult;
           if (call.malformed || !validArgs(call.input, spec)) result = errorResult("Tool arguments were rejected. No action was started.");

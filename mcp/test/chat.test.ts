@@ -99,12 +99,12 @@ async function collect(response: Response, onEvent?: (event: ChatEvent) => Promi
   return events;
 }
 
-test("streams actual HTTP deltas and supplies the MCP catalogue to Bedrock", async () => {
+test("streams actual HTTP deltas and supplies the registered MCP catalogue to Bedrock", async () => {
   const p = provider(plain()); const app = await start(p.model);
   const events = await collect(await app.post("/chat/turn", turn));
   expect(events.map((e) => e.type)).toEqual(["session", "text_delta", "text_delta", "done"]);
   expect(events[0]).toMatchObject({ session_id: expect.stringMatching(/^[a-f0-9-]{36}$/) });
-  expect(p.requests[0].tools.map((t) => t.toolSpec?.name)).toEqual(["start_repair", "get_repair", "list_runs", "get_incident", "get_audit", "detonate", "find_cause", "unfreeze", "kill", "resume", "resume_all", "send_fix"]);
+  expect(p.requests[0].tools.map((t) => t.toolSpec?.name)).toEqual(["list_rule_agents", "list_rules", "get_rule", "propose_rule", "preview_rule", "activate_rule", "start_repair", "get_repair", "list_runs", "get_incident", "get_audit", "detonate", "find_cause", "unfreeze", "kill", "resume", "resume_all", "send_fix"]);
   expect(app.posts).toEqual([]);
 });
 
@@ -126,6 +126,35 @@ test("unconfigured repair route fails visibly without an engine create", async (
   const app = await start(provider(plain()).model);
   const response = await app.post("/chat/repairs", { incident_id: "inc_007", actor: "operator", reason: "Fix" });
   expect(response.status).toBe(503); expect(app.posts).toEqual([]);
+});
+
+test.each(["accept", "decline"] as const)("typed rule proposal and preview use MCP; activation waits for chat %s", async (action) => {
+  const version = "a".repeat(64);
+  const draft = { version, agent: "meeting_assistant", status: "draft", created_at: "2026-10-11T00:00:00Z", activated_at: null,
+    allow: { tools: ["read_calendar", "send_email"], email_to: ["demo-user@mirage-demo.com"], url_hosts: [] } };
+  const posts: { path: string; body: unknown }[] = [];
+  const backend = { posts, fetch: vi.fn(async (url: any, init: RequestInit) => {
+    const path = new URL(String(url)).pathname;
+    if (init.method === "POST") posts.push({ path, body: JSON.parse(String(init.body ?? "null")) });
+    if (path.endsWith("/preview")) return Response.json({ version, summary: "Email only to the named demo user", effective_allow: draft.allow, decision: null, authoritative: true });
+    return Response.json(path.endsWith("/activate") ? { ...draft, status: "active" } : draft);
+  }) as typeof globalThis.fetch };
+  const p = provider(calls(["propose_rule", { agent: draft.agent, tools: draft.allow.tools, email_to: draft.allow.email_to }]),
+    calls(["preview_rule", { version }]), calls(["activate_rule", { version, reason: "Reviewed exact recipients" }]), plain("Rule decision recorded"));
+  const app = await start(p.model, backend);
+  const events = await collect(await app.post("/chat/turn", { message: "Draft and review this restrictive rule", actor: "test operator" }), async (event) => {
+    if (event.type !== "approval_required") return;
+    expect(posts.some((post) => post.path.endsWith("/activate"))).toBe(false);
+    expect(event.message).toContain(version);
+    expect(event.message).toContain("existing runs");
+    expect((await app.post(`/chat/approvals/${event.approval_id}`, { action })).ok).toBe(true);
+  });
+  expect(events.filter((event) => event.type === "approval_required")).toHaveLength(1);
+  expect(posts[0]).toEqual({ path: "/rules", body: { agent: draft.agent, allow: draft.allow } });
+  const activations = posts.filter((post) => post.path.endsWith("/activate"));
+  expect(activations).toHaveLength(action === "accept" ? 1 : 0);
+  if (action === "accept") expect(activations[0].body).toEqual({ actor: "test operator via Mirage Chat (MCP)", reason: "Reviewed exact recipients" });
+  expect(events.at(-1)).toEqual({ type: "done" });
 });
 
 test.each(["", "{}"])("argument stream %j reaches MCP for no-argument incident reads", async (raw) => {
