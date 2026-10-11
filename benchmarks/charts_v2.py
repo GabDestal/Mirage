@@ -9,6 +9,8 @@ import json
 from math import sqrt
 from pathlib import Path
 
+from benchmarkmaxxing_charts import MODELS
+
 W, H = 1600, 900
 INK, MUTED, FAINT, GRID = "#111111", "#6b6b6b", "#9a9a9a", "#ececec"
 GREY, ACCENT = "#c2c2c2", "#0f7b6c"
@@ -131,7 +133,7 @@ def agentdojo(data, out):
     dojo_panel(svg, dev, 1200, 1530, top, base, False)
     caveats = data.get("caveats") or [
         "Fixed denominators: every error and UNKNOWN counts as not-success. Whiskers are Wilson 95% intervals.",
-        f'Source: {data.get("source", "benchmarks/artifacts/agentdojo_v2")} · model {data.get("model", "see summary JSON")}']
+        f'Source: {data.get("source", "benchmarks/artifacts/agentdojo_v2")} · model {data.get("model") or "per row in rows JSONL"}']
     for i, line in enumerate(caveats[:2]):
         svg.text(80, 830 + i * 28, line, 16, 400, MUTED)
     svg.save(out / "agentdojo-v2-headline.svg", "AgentDojo attack success and utility, unprotected vs Mirage gate")
@@ -143,7 +145,7 @@ def agentrx(data, out):
     deltas = [f'{m["label"]} {pct(m["simple"])} → {pct(m["assisted"])}' for m in models
               if m.get("simple") and m.get("assisted") and m["simple"].get("n") and m["assisted"].get("n")]
     header(svg, "AgentRx v3: critical-step accuracy", ("Simple → assisted: " + ", ".join(deltas)) if deltas
-           else "AgentRx v3 results not landed yet", [("Simple diagnosis", GREY), ("Mirage-assisted", ACCENT)])
+           else "AgentRx v3 results not landed yet", [("Simple diagnosis", GREY), ("Evidence-assisted", ACCENT)])
     x0, x1, top, base = 150, 1520, 210, 680
     axis(svg, x0, x1, top, base, 16)
     gw = (x1 - x0) / max(len(models), 1)
@@ -170,16 +172,46 @@ def load(path):
     return json.loads(path.read_text()) if path and path.exists() else {}
 
 
+def from_agentdojo(raw, path):
+    """W1 summary: {"<dev|heldout>/<arm>": {"attack": {n, attacker_success, utility}, "clean": {n, utility}}}."""
+    splits = {}
+    for key, s in raw.items():
+        if "/" not in key:
+            continue
+        split, arm = key.split("/")
+        a, c = s.get("attack", {}), s.get("clean", {})
+        splits.setdefault({"heldout": "held_out"}.get(split, split), {})[arm] = {
+            "attacker_success": {"k": a.get("attacker_success", 0), "n": a.get("n", 0)},
+            "utility_under_attack": {"k": a.get("utility", 0), "n": a.get("n", 0)},
+            "clean_utility": {"k": c.get("utility", 0), "n": c.get("n", 0)}}
+    return {"splits": splits, "source": str(path), "model": raw.get("model")}
+
+
+def from_agentrx(raw, path):
+    """W3 summary: cohorts -> tables of {model_id, arm, critical_step_correct: {S, N, scored, U}}; held-out preferred."""
+    cohorts = raw.get("cohorts", {})
+    name = "families" if "families" in cohorts else next(iter(cohorts), None)
+    if name is None:
+        return {"source": str(path)}
+    models = {}
+    for t in cohorts[name]["tables"]:
+        m = t["critical_step_correct"]
+        arm = "simple" if t["arm"] == "simple_diagnosis" else "assisted"
+        models.setdefault(t["model_id"], {"label": MODELS.get(t["model_id"], t["model_id"]).replace(" reference", "")})[arm] = {
+            "k": m["S"], "n": m["N"], "scored": m["scored"]}
+    return {"models": list(models.values()), "split": cohorts[name]["split"], "source": str(path)}
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--agentdojo", type=Path, default=Path("docs/benchmarkmaxxing/v2-agentdojo.json"))
-    p.add_argument("--agentrx", type=Path, default=Path("docs/benchmarkmaxxing/v2-agentrx.json"))
+    p.add_argument("--agentdojo", type=Path, default=Path("benchmarks/artifacts/agentdojo_v2/summary.json"))
+    p.add_argument("--agentrx", type=Path, default=Path("benchmarks/artifacts/agentrx_v3/summary.json"))
     p.add_argument("--output", type=Path, default=Path("docs/benchmarkmaxxing"))
     a = p.parse_args()
     lo, hi = wilson(0, 10)
     assert lo == 0 and 0.27 < hi < 0.28 and wilson(5, 10)[0] < 0.5 < wilson(5, 10)[1]
-    agentdojo(load(a.agentdojo), a.output)
-    agentrx(load(a.agentrx), a.output)
+    agentdojo(from_agentdojo(load(a.agentdojo), a.agentdojo), a.output)
+    agentrx(from_agentrx(load(a.agentrx), a.agentrx), a.output)
     print("wrote agentdojo-v2-headline.svg, agentrx-v3-critical-step.svg")
 
 
