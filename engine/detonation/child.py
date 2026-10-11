@@ -43,7 +43,8 @@ def main():
         if spec.get("name") == snap["agent"]:
             current_spec = spec
 
-    def call_tool(tool, args, *, error=None):
+    def call_tool(tool, args):
+        error = None
         known = (current_spec["tools"] if current_spec is not None
                  else snap.get("_current_tools", snap.get("policy", {}).get("known_tools")))
         if error is None and known is not None and tool not in known:

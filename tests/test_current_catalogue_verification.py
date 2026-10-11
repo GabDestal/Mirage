@@ -60,11 +60,6 @@ def unavailable(snapshot, call_tool):
     assert "error" in result
     call_tool("send_email", {"to": "bob@northwind.example", "body": "Brief."})
 
-def typed_failure(snapshot, call_tool):
-    result = call_tool("send_email", {"to": "bob@northwind.example"},
-                       error="Synthetic tool failure")
-    assert result == {"error": "Synthetic tool failure"}
-
 def recorded_failure(snapshot, call_tool):
     result = call_tool("read_calendar", {})
     assert result == {"error": "Synthetic recorded read failure"}
@@ -159,7 +154,6 @@ def test_child_persists_current_spec_and_leak_on_later_crash(agent_module, tmp_p
 
 @pytest.mark.parametrize("runner,tool,error", [
     ("unavailable", "send_email_typo", "unavailable"),
-    ("typed_failure", "send_email", "Synthetic tool failure"),
     ("recorded_failure", "read_calendar", "Synthetic recorded read failure"),
 ])
 def test_child_keeps_unavailable_and_typed_failures_as_errors(agent_module, runner, tool, error):
@@ -173,6 +167,17 @@ def test_child_keeps_unavailable_and_typed_failures_as_errors(agent_module, runn
     assert crash is None
     failed = next(e for e in effects if e["tool"] == tool)
     assert error in failed["error"]
+
+
+def test_child_uses_current_registered_catalogue_for_new_tool(agent_module):
+    snap = frozen_snapshot("current_catalogue_agent:new_tool")
+    snap["_current_tools"] = ["send_email", "send_partner_email"]
+
+    effects, crash = sandbox.run_once(snap)
+
+    assert crash is None
+    assert [e["tool"] for e in effects] == ["send_partner_email", "send_email"]
+    assert all(e.get("error") is None for e in effects)
 
 
 def test_sdk_runner_without_current_metadata_cannot_pass(agent_module):
