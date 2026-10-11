@@ -22,6 +22,7 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 from agents.common.testing import call, scripted
+from contracts.models import ToolResult
 
 @tool
 def send_email(to: str, body: str) -> dict:
@@ -64,12 +65,16 @@ def declares_then_crashes(snapshot, call_tool):
 
 def unavailable(snapshot, call_tool):
     result = call_tool("send_email_typo", {"to": "bob@northwind.example"})
-    assert "error" in result
+    assert isinstance(result, ToolResult) and result.error == "LookupError"
     call_tool("send_email", {"to": "bob@northwind.example", "body": "Brief."})
 
 def recorded_failure(snapshot, call_tool):
     result = call_tool("read_calendar", {})
-    assert result == {"error": "Synthetic recorded read failure"}
+    assert isinstance(result, ToolResult) and result.error == "RuntimeError"
+    assert result.result is None
+
+def successful_error_key(snapshot, call_tool):
+    assert call_tool("read_calendar", {}) == {"error": "ordinary service data", "status": "ok"}
 
 def unregistered_factory():
     from mirage import core
@@ -166,20 +171,32 @@ def test_child_persists_current_spec_and_leak_on_later_crash(agent_module, tmp_p
 
 
 @pytest.mark.parametrize("runner,tool,error", [
-    ("unavailable", "send_email_typo", "unavailable"),
-    ("recorded_failure", "read_calendar", "Synthetic recorded read failure"),
+    ("unavailable", "send_email_typo", "LookupError"),
+    ("recorded_failure", "read_calendar", "RuntimeError"),
 ])
 def test_child_keeps_unavailable_and_typed_failures_as_errors(agent_module, runner, tool, error):
     snap = frozen_snapshot(f"current_catalogue_agent:{runner}")
     if runner == "recorded_failure":
         snap["tool_results"] = [{"tool": "read_calendar", "args": {}, "result": None,
-                                 "error": "Synthetic recorded read failure"}]
+                                 "error": "RuntimeError: synthetic-private-error-detail"}]
 
     effects, crash = sandbox.run_once(snap)
 
     assert crash is None
     failed = next(e for e in effects if e["tool"] == tool)
-    assert error in failed["error"]
+    assert error == failed["error"]
+    assert "synthetic-private-error-detail" not in json.dumps(effects)
+
+
+def test_successful_service_error_key_is_not_a_typed_failure(agent_module):
+    snap = frozen_snapshot("current_catalogue_agent:successful_error_key")
+    snap["tool_results"] = [{"tool": "read_calendar", "args": {},
+                             "result": {"error": "ordinary service data", "status": "ok"}}]
+
+    effects, crash = sandbox.run_once(snap)
+
+    assert crash is None
+    assert effects[0].get("error") is None
 
 
 def test_child_uses_current_registered_catalogue_for_new_tool(agent_module):

@@ -8,11 +8,13 @@ Every tool call, and every blocked escape attempt, is appended to MIRAGE_EFFECTS
 so a crash still leaves the evidence.
 """
 
+import builtins
 import importlib
 import json
 import os
 from pathlib import Path
 
+from contracts.models import ToolResult
 from engine.detonation import jail
 
 
@@ -48,15 +50,17 @@ def main():
         known = (current_spec["tools"] if current_spec is not None
                  else snap.get("_current_tools", snap.get("policy", {}).get("known_tools")))
         if error is None and known is not None and tool not in known:
-            error = f"Tool {tool} is unavailable in the rebuilt agent."
+            error = "LookupError"
         same = [r for r in snap["tool_results"] if r["tool"] == tool]
         exact = [r for r in same if r["args"] == args]
         recorded = (exact or same)[0] if exact or same else None
-        if error is None and recorded is not None:
-            error = recorded.get("error")
+        if error is None and recorded is not None and (failure := recorded.get("error")):
+            kind = getattr(builtins, failure.partition(":")[0], None)
+            error = (kind.__name__ if isinstance(kind, type) and issubclass(kind, Exception)
+                     else "ToolError")
         record(tool, args, error)
         if error is not None:
-            return {"error": error}
+            return ToolResult(call_id=f"sandbox_call_{step}", tool=tool, error=error)
         if exact or same:
             return (exact or same)[0]["result"]
         return {"status": "ok"}
