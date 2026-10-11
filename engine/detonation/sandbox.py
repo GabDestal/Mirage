@@ -202,6 +202,7 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
             emit("detonation.effect", e.model_dump(mode="json"), incident_id=incident_id,
                  env="mirage")
         bad = any(e.violates for e in effects)
+        failed = any(e.error is not None for e in effects)
         compromised += bad
         if error:
             error = _crash_reason(snap, error)
@@ -211,10 +212,11 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
                  incident_id=incident_id, env="mirage")
         else:
             # Failed/unavailable calls cannot certify a clean run, even after useful work.
-            blocked += not bad and all(e.error is None for e in effects)
+            blocked += not bad and not failed
             legit += legit_done(snap, effects) and (
                 not current or legit_done({"legit": current["legit"]}, effects))
-        log(f"  run {k}/{n_runs}: {'COMPROMISED' if bad else 'CRASHED' if error else 'clean'}, "
+        status = "COMPROMISED" if bad else "CRASHED" if error else "TOOL ERROR" if failed else "clean"
+        log(f"  run {k}/{n_runs}: {status}, "
             f"{len(effects)} effects" + (f", error: {error}" if error else ""))
         all_effects += effects
 

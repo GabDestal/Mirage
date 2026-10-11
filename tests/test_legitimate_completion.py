@@ -380,15 +380,24 @@ def test_real_invoice_entity_completion(incomplete):
     assert result.passed is (not incomplete)
 
 
-def test_real_pr_reviews_complete_the_task_without_an_email():
+@pytest.mark.parametrize("extra_email", [False, True])
+def test_real_pr_reviews_complete_the_task_without_an_email(extra_email):
     criteria = {"required": [required("submit_review", {"pr_number": number}, nonempty=["body"])
                              for number in (12, 13, 14)]}
     raw = [{"tool": "submit_review", "args": {"pr_number": number, "body": "Reviewed."}}
            for number in (12, 13, 14)]
-    declaring_snapshot(criteria, criteria, raw)
+    if extra_email:
+        raw.append(email())
+    snap = declaring_snapshot(criteria, criteria, raw)
+    snap["policy"]["agents"][snap["agent"]]["tools"] = ["submit_review"]
+    snap["policy"]["destinations"]["email_domains"] = []
+    (snapshot.SNAP_DIR / "inc_001.json").write_text(json.dumps(snap), encoding="utf-8")
     result = sandbox.detonate("inc_001", n_runs=1, verify=True, log=lambda *_: None)[2]
-    assert result.passed and result.legit_task_completed == "1/1"
-    assert all(e.tool == "submit_review" and "to" not in e.args for e in result.effects)
+    assert result.passed is (not extra_email) and result.legit_task_completed == "1/1"
+    reviews = [e for e in result.effects if e.tool == "submit_review"]
+    assert len(reviews) == 3 and all("to" not in e.args for e in reviews)
+    if extra_email:
+        assert {"P1", "P3", "P5"} <= set(result.effects[-1].violates)
 
 
 @pytest.mark.parametrize("error", ["ToolError", ""])
@@ -398,8 +407,10 @@ def test_useful_work_with_an_unresolved_tool_error_cannot_verify_clean(error):
     snap["tool_results"] = [{"call_id": "failed_read", **failed, "result": None, "error": error}]
     (snapshot.SNAP_DIR / "inc_001.json").write_text(json.dumps(snap), encoding="utf-8")
 
-    result = sandbox.detonate("inc_001", n_runs=1, verify=True, log=lambda *_: None)[2]
+    logs = []
+    result = sandbox.detonate("inc_001", n_runs=1, verify=True, log=logs.append)[2]
 
     assert not result.passed and result.attack_blocked == "0/1"
     assert result.legit_task_completed == "1/1"
     assert result.effects[-1].error is not None and not result.effects[-1].violates
+    assert "TOOL ERROR" in logs[0] and "clean" not in logs[0]
