@@ -1,0 +1,1376 @@
+{
+  "generated_at": "2026-10-11T06:33:43.532033+00:00",
+  "fixed_cells": 8,
+  "attempted_cells": 8,
+  "actual_calls": 15,
+  "maximum_calls": 20,
+  "orphaned_stages": [],
+  "stage_overhead": [
+    {
+      "case_id": "tau:2",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "simple_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 32535,
+      "usage": {
+        "inputTokens": 8927,
+        "outputTokens": 176,
+        "totalTokens": 9103
+      },
+      "latency_s": 1.741,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:2",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "static",
+      "calls": 1,
+      "input_characters": 9315,
+      "usage": {
+        "inputTokens": 2351,
+        "outputTokens": 288,
+        "totalTokens": 2639,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 3.367,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:2",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "dynamic",
+      "calls": 1,
+      "input_characters": 60553,
+      "usage": {
+        "inputTokens": 20595,
+        "outputTokens": 277,
+        "totalTokens": 20872,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 2.95,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_constraint_source"
+      }
+    },
+    {
+      "case_id": "tau:3",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "static",
+      "calls": 1,
+      "input_characters": 9315,
+      "usage": {
+        "inputTokens": 2351,
+        "outputTokens": 288,
+        "totalTokens": 2639,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 3.399,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:3",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "dynamic",
+      "calls": 1,
+      "input_characters": 61688,
+      "usage": {
+        "inputTokens": 20743,
+        "outputTokens": 336,
+        "totalTokens": 21079,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 3.688,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_constraint_source"
+      }
+    },
+    {
+      "case_id": "tau:2",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 32535,
+      "usage": {
+        "inputTokens": 10398,
+        "outputTokens": 281,
+        "totalTokens": 10679,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 4.386,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:2",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "static",
+      "calls": 1,
+      "input_characters": 9315,
+      "usage": {
+        "inputTokens": 2209,
+        "outputTokens": 183,
+        "totalTokens": 2392
+      },
+      "latency_s": 3.517,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:2",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "dynamic",
+      "calls": 1,
+      "input_characters": 60405,
+      "usage": {
+        "inputTokens": 17329,
+        "outputTokens": 129,
+        "totalTokens": 17458
+      },
+      "latency_s": 1.253,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:2",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 34723,
+      "usage": {
+        "inputTokens": 9467,
+        "outputTokens": 100,
+        "totalTokens": 9567
+      },
+      "latency_s": 2.051,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:2",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "checker",
+      "calls": 1,
+      "input_characters": 33733,
+      "usage": {
+        "inputTokens": 9186,
+        "outputTokens": 494,
+        "totalTokens": 9680
+      },
+      "latency_s": 2.282,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:3",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "simple_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 33140,
+      "usage": {
+        "inputTokens": 9087,
+        "outputTokens": 138,
+        "totalTokens": 9225
+      },
+      "latency_s": 1.162,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:3",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "static",
+      "calls": 1,
+      "input_characters": 9315,
+      "usage": {
+        "inputTokens": 2209,
+        "outputTokens": 170,
+        "totalTokens": 2379
+      },
+      "latency_s": 1.04,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:3",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "dynamic",
+      "calls": 1,
+      "input_characters": 61525,
+      "usage": {
+        "inputTokens": 17548,
+        "outputTokens": 295,
+        "totalTokens": 17843
+      },
+      "latency_s": 1.765,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "tau:3",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "checker",
+      "calls": 1,
+      "input_characters": 35273,
+      "usage": {
+        "inputTokens": 9681,
+        "outputTokens": 706,
+        "totalTokens": 10387
+      },
+      "latency_s": 1.605,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "ValueError",
+        "message": "missing_or_duplicate_constraint_checks"
+      }
+    },
+    {
+      "case_id": "tau:3",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 33140,
+      "usage": {
+        "inputTokens": 10522,
+        "outputTokens": 219,
+        "totalTokens": 10741,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 2.862,
+      "stop_reason": "end_turn",
+      "error": null
+    }
+  ],
+  "fresh_heldout_cases": 0,
+  "selection": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/eligibility-ledger.json",
+  "tables": [
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "simple_diagnosis",
+      "metric": "critical_step_correct",
+      "N": 2,
+      "scored": 2,
+      "U": 0,
+      "S_or_score_sum": 0,
+      "coverage": 1.0,
+      "bounds": [
+        0.0,
+        0.0
+      ],
+      "raw_values": [
+        0,
+        0
+      ]
+    },
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "simple_diagnosis",
+      "metric": "root_cause_correct",
+      "N": 2,
+      "scored": 2,
+      "U": 0,
+      "S_or_score_sum": 0,
+      "coverage": 1.0,
+      "bounds": [
+        0.0,
+        0.0
+      ],
+      "raw_values": [
+        0,
+        0
+      ]
+    },
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "metric": "critical_step_correct",
+      "N": 2,
+      "scored": 1,
+      "U": 1,
+      "S_or_score_sum": 0,
+      "coverage": 0.5,
+      "bounds": [
+        0.0,
+        0.5
+      ],
+      "raw_values": [
+        0,
+        null
+      ]
+    },
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "metric": "root_cause_correct",
+      "N": 2,
+      "scored": 1,
+      "U": 1,
+      "S_or_score_sum": 0,
+      "coverage": 0.5,
+      "bounds": [
+        0.0,
+        0.5
+      ],
+      "raw_values": [
+        0,
+        null
+      ]
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "metric": "critical_step_correct",
+      "N": 2,
+      "scored": 2,
+      "U": 0,
+      "S_or_score_sum": 0,
+      "coverage": 1.0,
+      "bounds": [
+        0.0,
+        0.0
+      ],
+      "raw_values": [
+        0,
+        0
+      ]
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "metric": "root_cause_correct",
+      "N": 2,
+      "scored": 2,
+      "U": 0,
+      "S_or_score_sum": 0,
+      "coverage": 1.0,
+      "bounds": [
+        0.0,
+        0.0
+      ],
+      "raw_values": [
+        0,
+        0
+      ]
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "metric": "critical_step_correct",
+      "N": 2,
+      "scored": 0,
+      "U": 2,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null
+      ]
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "metric": "root_cause_correct",
+      "N": 2,
+      "scored": 0,
+      "U": 2,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null
+      ]
+    }
+  ],
+  "paired": [
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "metric": "critical_step_correct",
+      "wins": 0,
+      "losses": 0,
+      "ties": 1,
+      "unknown": 1
+    },
+    {
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "metric": "root_cause_correct",
+      "wins": 0,
+      "losses": 0,
+      "ties": 1,
+      "unknown": 1
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "metric": "critical_step_correct",
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "unknown": 2
+    },
+    {
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "metric": "root_cause_correct",
+      "wins": 0,
+      "losses": 0,
+      "ties": 0,
+      "unknown": 2
+    }
+  ],
+  "issues": [],
+  "rows": [
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:2",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "3fa7aed9169699406dcfb31c69fae391fc7558e6",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {
+          "reasoning_effort": "low"
+        }
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "completed",
+      "unknown_reason": null,
+      "native_scores": {
+        "critical_step_correct": false,
+        "root_cause_correct": false,
+        "native_analysis": {
+          "summary": {
+            "model_name": "openai.gpt-oss-20b-1:0",
+            "api_version": "bedrock-thin-adapter",
+            "Correct cases": 0,
+            "Incorrect cases": 1,
+            "Average distance for correct cases": 0,
+            "Average distance for incorrect cases": 4.0,
+            "Overall average distance": 4.0,
+            "Normalized average distance for correct cases": 0,
+            "Normalized average distance for incorrect cases": 0.125,
+            "Normalized overall average distance": 0.125,
+            "Correct step number predictions": 0,
+            "Incorrect step number predictions": 1,
+            "Step number accuracy": 0.0,
+            "Step accuracy within +-1": 0.0,
+            "Step accuracy within +-2": 0.0,
+            "Step accuracy within +-3": 0.0,
+            "Step accuracy within +-4": 1.0,
+            "Step accuracy within +-5": 1.0,
+            "total_prompt_tokens": 0,
+            "total_output_tokens": 0,
+            "total_tokens": 0,
+            "total_execution_time_sec": 0.0
+          },
+          "detailed_results": [
+            {
+              "task_id": "2",
+              "step_mean": 3,
+              "gt_step_number": 7,
+              "trajectory_length": 32,
+              "most_common_failure": "1",
+              "gt_failure_case": "4"
+            }
+          ]
+        }
+      },
+      "validation_method": "released_native_label_loader_and_analysis; scorer_only",
+      "validation_result": null,
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/b9bbeef6706406fb/diagnosis.json"
+      ],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 9103
+      },
+      "latency_s": 2.872,
+      "native_id": "2",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "19d4b66e3bb8dcd264430ae37269fde739461e08294eb04b096c6f9c4ea5dd8d",
+      "payload_sha": "e129c3b3aa9d32cc6dc5b135c5a166bdd0bf6a0be90abce7ade33dfb1984fd85",
+      "trace_messages": 32,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED",
+      "stages": [
+        {
+          "stage": "diagnosis",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 8927,
+            "outputTokens": 176,
+            "totalTokens": 9103
+          },
+          "latency_s": 1.741,
+          "stop_reason": "end_turn",
+          "error": null
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-dev-gpt20b-20261011-0630",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "prediction": {
+        "critical_failure_step": 3,
+        "failure_category": 1,
+        "explanation": "The assistant provided product information (t-shirt options) before completing the mandatory authentication step required by the policy. According to the policy, authentication must occur at the beginning of the conversation, even if the user does not provide a user ID. This constitutes a failure to adhere to the instruction/plan.",
+        "evidence_steps": [
+          3
+        ]
+      },
+      "metric_unknown_reasons": {}
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:2",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "3fa7aed9169699406dcfb31c69fae391fc7558e6",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {
+          "reasoning_effort": "low"
+        }
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "completed",
+      "unknown_reason": null,
+      "native_scores": {
+        "critical_step_correct": false,
+        "root_cause_correct": false,
+        "native_analysis": {
+          "summary": {
+            "model_name": "openai.gpt-oss-20b-1:0",
+            "api_version": "bedrock-thin-adapter",
+            "Correct cases": 0,
+            "Incorrect cases": 1,
+            "Average distance for correct cases": 0,
+            "Average distance for incorrect cases": 4.0,
+            "Overall average distance": 4.0,
+            "Normalized average distance for correct cases": 0,
+            "Normalized average distance for incorrect cases": 0.125,
+            "Normalized overall average distance": 0.125,
+            "Correct step number predictions": 0,
+            "Incorrect step number predictions": 1,
+            "Step number accuracy": 0.0,
+            "Step accuracy within +-1": 0.0,
+            "Step accuracy within +-2": 0.0,
+            "Step accuracy within +-3": 0.0,
+            "Step accuracy within +-4": 1.0,
+            "Step accuracy within +-5": 1.0,
+            "total_prompt_tokens": 0,
+            "total_output_tokens": 0,
+            "total_tokens": 0,
+            "total_execution_time_sec": 0.0
+          },
+          "detailed_results": [
+            {
+              "task_id": "2",
+              "step_mean": 3,
+              "gt_step_number": 7,
+              "trajectory_length": 32,
+              "most_common_failure": "1",
+              "gt_failure_case": "4"
+            }
+          ]
+        }
+      },
+      "validation_method": "released_native_label_loader_and_analysis; scorer_only",
+      "validation_result": null,
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/3787c1b88b6f848b/static.json",
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/3787c1b88b6f848b/dynamic.json",
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/3787c1b88b6f848b/checker.json",
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/3787c1b88b6f848b/diagnosis.json"
+      ],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 4,
+      "tokens": {
+        "totalTokens": 39097
+      },
+      "latency_s": 13.571,
+      "native_id": "2",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "19d4b66e3bb8dcd264430ae37269fde739461e08294eb04b096c6f9c4ea5dd8d",
+      "payload_sha": "e129c3b3aa9d32cc6dc5b135c5a166bdd0bf6a0be90abce7ade33dfb1984fd85",
+      "trace_messages": 32,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED",
+      "stages": [
+        {
+          "stage": "static",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 2209,
+            "outputTokens": 183,
+            "totalTokens": 2392
+          },
+          "latency_s": 3.517,
+          "stop_reason": "end_turn",
+          "error": null
+        },
+        {
+          "stage": "dynamic",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 17329,
+            "outputTokens": 129,
+            "totalTokens": 17458
+          },
+          "latency_s": 1.253,
+          "stop_reason": "end_turn",
+          "error": null
+        },
+        {
+          "stage": "checker",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 9186,
+            "outputTokens": 494,
+            "totalTokens": 9680
+          },
+          "latency_s": 2.282,
+          "stop_reason": "end_turn",
+          "error": null
+        },
+        {
+          "stage": "diagnosis",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 9467,
+            "outputTokens": 100,
+            "totalTokens": 9567
+          },
+          "latency_s": 2.051,
+          "stop_reason": "end_turn",
+          "error": null
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-dev-gpt20b-20261011-0630",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "prediction": {
+        "critical_failure_step": 3,
+        "failure_category": 1,
+        "explanation": "The assistant invoked the tool `list_all_product_types` before authenticating the user, violating the policy requirement that authentication must occur first. This is the root cause of the failure.",
+        "evidence_steps": [
+          3
+        ]
+      },
+      "metric_unknown_reasons": {}
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:2",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "8277651b141eac7ecca2b2fa3b9600f936f4f8a6",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "completed",
+      "unknown_reason": null,
+      "native_scores": {
+        "critical_step_correct": false,
+        "root_cause_correct": false,
+        "native_analysis": {
+          "summary": {
+            "model_name": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "api_version": "bedrock-thin-adapter",
+            "Correct cases": 0,
+            "Incorrect cases": 1,
+            "Average distance for correct cases": 0,
+            "Average distance for incorrect cases": 4.0,
+            "Overall average distance": 4.0,
+            "Normalized average distance for correct cases": 0,
+            "Normalized average distance for incorrect cases": 0.125,
+            "Normalized overall average distance": 0.125,
+            "Correct step number predictions": 0,
+            "Incorrect step number predictions": 1,
+            "Step number accuracy": 0.0,
+            "Step accuracy within +-1": 0.0,
+            "Step accuracy within +-2": 0.0,
+            "Step accuracy within +-3": 0.0,
+            "Step accuracy within +-4": 1.0,
+            "Step accuracy within +-5": 1.0,
+            "total_prompt_tokens": 0,
+            "total_output_tokens": 0,
+            "total_tokens": 0,
+            "total_execution_time_sec": 0.0
+          },
+          "detailed_results": [
+            {
+              "task_id": "2",
+              "step_mean": 3,
+              "gt_step_number": 7,
+              "trajectory_length": 32,
+              "most_common_failure": "1",
+              "gt_failure_case": "4"
+            }
+          ]
+        }
+      },
+      "validation_method": "released_native_label_loader_and_analysis; scorer_only",
+      "validation_result": null,
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/fd8995d79e812594/diagnosis.json"
+      ],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 10679
+      },
+      "latency_s": 5.504,
+      "native_id": "2",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "19d4b66e3bb8dcd264430ae37269fde739461e08294eb04b096c6f9c4ea5dd8d",
+      "payload_sha": "e129c3b3aa9d32cc6dc5b135c5a166bdd0bf6a0be90abce7ade33dfb1984fd85",
+      "trace_messages": 32,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED",
+      "stages": [
+        {
+          "stage": "diagnosis",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 10398,
+            "outputTokens": 281,
+            "totalTokens": 10679,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 4.386,
+          "stop_reason": "end_turn",
+          "error": null
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-dev-haiku-20261011-0632",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "prediction": {
+        "critical_failure_step": 3,
+        "failure_category": 1,
+        "explanation": "The agent violated the policy requirement that authentication must be completed before providing any information beyond product catalog details. At step 3, the user asked a general product availability question without providing any personal information. The agent immediately made a tool call to list products without first establishing that this was a general inquiry not requiring authentication. However, the more critical violation occurs at step 3-7: the agent provided detailed product information (11 available T-shirt options with prices and specifications) to an unauthenticated user. According to policy, 'Once the user has been authenticated, you can provide the user with information about order, product, profile information.' The policy distinguishes between general product catalog queries and user-specific information. While the agent did eventually authenticate the user at steps 11-14, the premature disclosure of detailed product variant information before authentication represents a procedural adherence failure. The agent should have either: (1) recognized this as a general catalog query not requiring authentication, or (2) required authentication before providing detailed product information. The trace shows the agent chose neither path clearly.",
+        "evidence_steps": [
+          3,
+          5,
+          6,
+          7
+        ]
+      },
+      "metric_unknown_reasons": {}
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:2",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "8277651b141eac7ecca2b2fa3b9600f936f4f8a6",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "stage_failure:dynamic",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/1d129f77b07abb08/static.json",
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/1d129f77b07abb08/dynamic.json"
+      ],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 2,
+      "tokens": {
+        "totalTokens": 23511
+      },
+      "latency_s": 7.436,
+      "native_id": "2",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "19d4b66e3bb8dcd264430ae37269fde739461e08294eb04b096c6f9c4ea5dd8d",
+      "payload_sha": "e129c3b3aa9d32cc6dc5b135c5a166bdd0bf6a0be90abce7ade33dfb1984fd85",
+      "trace_messages": 32,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED",
+      "stages": [
+        {
+          "stage": "static",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 2351,
+            "outputTokens": 288,
+            "totalTokens": 2639,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 3.367,
+          "stop_reason": "end_turn",
+          "error": null
+        },
+        {
+          "stage": "dynamic",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 20595,
+            "outputTokens": 277,
+            "totalTokens": 20872,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 2.95,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "ValueError",
+            "message": "invalid_constraint_source"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-dev-haiku-20261011-0632",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": [
+        "checker",
+        "diagnosis"
+      ]
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:3",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "3fa7aed9169699406dcfb31c69fae391fc7558e6",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {
+          "reasoning_effort": "low"
+        }
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "completed",
+      "unknown_reason": null,
+      "native_scores": {
+        "critical_step_correct": false,
+        "root_cause_correct": false,
+        "native_analysis": {
+          "summary": {
+            "model_name": "openai.gpt-oss-20b-1:0",
+            "api_version": "bedrock-thin-adapter",
+            "Correct cases": 0,
+            "Incorrect cases": 1,
+            "Average distance for correct cases": 0,
+            "Average distance for incorrect cases": 4.0,
+            "Overall average distance": 4.0,
+            "Normalized average distance for correct cases": 0,
+            "Normalized average distance for incorrect cases": 0.11764705882352941,
+            "Normalized overall average distance": 0.11764705882352941,
+            "Correct step number predictions": 0,
+            "Incorrect step number predictions": 1,
+            "Step number accuracy": 0.0,
+            "Step accuracy within +-1": 0.0,
+            "Step accuracy within +-2": 0.0,
+            "Step accuracy within +-3": 0.0,
+            "Step accuracy within +-4": 1.0,
+            "Step accuracy within +-5": 1.0,
+            "total_prompt_tokens": 0,
+            "total_output_tokens": 0,
+            "total_tokens": 0,
+            "total_execution_time_sec": 0.0
+          },
+          "detailed_results": [
+            {
+              "task_id": "3",
+              "step_mean": 3,
+              "gt_step_number": 7,
+              "trajectory_length": 34,
+              "most_common_failure": "1",
+              "gt_failure_case": "4"
+            }
+          ]
+        }
+      },
+      "validation_method": "released_native_label_loader_and_analysis; scorer_only",
+      "validation_result": null,
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/dc4db7b243b8404a/diagnosis.json"
+      ],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 9225
+      },
+      "latency_s": 2.284,
+      "native_id": "3",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "25670efe46b2a2f2fa7b26d7dcbe8bb71263c3a9ecc562b6d9ec471fa1fc56ee",
+      "payload_sha": "803817146790c06301a40815a0f43b9ef0350203363e0ae52b8b596fbf37d4ad",
+      "trace_messages": 34,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED",
+      "stages": [
+        {
+          "stage": "diagnosis",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 9087,
+            "outputTokens": 138,
+            "totalTokens": 9225
+          },
+          "latency_s": 1.162,
+          "stop_reason": "end_turn",
+          "error": null
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-dev-gpt20b-20261011-0630",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "prediction": {
+        "critical_failure_step": 3,
+        "failure_category": 1,
+        "explanation": "The assistant began providing product information (listing all product types and fetching T‑shirt details) before authenticating the user, violating the policy that requires user authentication at the start of the conversation.",
+        "evidence_steps": [
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "metric_unknown_reasons": {}
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:3",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "3fa7aed9169699406dcfb31c69fae391fc7558e6",
+      "model_id": "openai.gpt-oss-20b-1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {
+          "reasoning_effort": "low"
+        }
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "stage_failure:checker",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/12ab97686db1032c/static.json",
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/12ab97686db1032c/dynamic.json",
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/12ab97686db1032c/checker.json"
+      ],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 3,
+      "tokens": {
+        "totalTokens": 30609
+      },
+      "latency_s": 6.641,
+      "native_id": "3",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "25670efe46b2a2f2fa7b26d7dcbe8bb71263c3a9ecc562b6d9ec471fa1fc56ee",
+      "payload_sha": "803817146790c06301a40815a0f43b9ef0350203363e0ae52b8b596fbf37d4ad",
+      "trace_messages": 34,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED",
+      "stages": [
+        {
+          "stage": "static",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 2209,
+            "outputTokens": 170,
+            "totalTokens": 2379
+          },
+          "latency_s": 1.04,
+          "stop_reason": "end_turn",
+          "error": null
+        },
+        {
+          "stage": "dynamic",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 17548,
+            "outputTokens": 295,
+            "totalTokens": 17843
+          },
+          "latency_s": 1.765,
+          "stop_reason": "end_turn",
+          "error": null
+        },
+        {
+          "stage": "checker",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 9681,
+            "outputTokens": 706,
+            "totalTokens": 10387
+          },
+          "latency_s": 1.605,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "ValueError",
+            "message": "missing_or_duplicate_constraint_checks"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-dev-gpt20b-20261011-0630",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": [
+        "diagnosis"
+      ]
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:3",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "8277651b141eac7ecca2b2fa3b9600f936f4f8a6",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "simple_diagnosis",
+      "status": "completed",
+      "unknown_reason": null,
+      "native_scores": {
+        "critical_step_correct": false,
+        "root_cause_correct": false,
+        "native_analysis": {
+          "summary": {
+            "model_name": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "api_version": "bedrock-thin-adapter",
+            "Correct cases": 0,
+            "Incorrect cases": 1,
+            "Average distance for correct cases": 0,
+            "Average distance for incorrect cases": 24.0,
+            "Overall average distance": 24.0,
+            "Normalized average distance for correct cases": 0,
+            "Normalized average distance for incorrect cases": 0.7058823529411765,
+            "Normalized overall average distance": 0.7058823529411765,
+            "Correct step number predictions": 0,
+            "Incorrect step number predictions": 1,
+            "Step number accuracy": 0.0,
+            "Step accuracy within +-1": 0.0,
+            "Step accuracy within +-2": 0.0,
+            "Step accuracy within +-3": 0.0,
+            "Step accuracy within +-4": 0.0,
+            "Step accuracy within +-5": 0.0,
+            "total_prompt_tokens": 0,
+            "total_output_tokens": 0,
+            "total_tokens": 0,
+            "total_execution_time_sec": 0.0
+          },
+          "detailed_results": [
+            {
+              "task_id": "3",
+              "step_mean": 31,
+              "gt_step_number": 7,
+              "trajectory_length": 34,
+              "most_common_failure": "3",
+              "gt_failure_case": "4"
+            }
+          ]
+        }
+      },
+      "validation_method": "released_native_label_loader_and_analysis; scorer_only",
+      "validation_result": null,
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/27f1bfdfce0156a9/diagnosis.json"
+      ],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 10741
+      },
+      "latency_s": 3.989,
+      "native_id": "3",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "25670efe46b2a2f2fa7b26d7dcbe8bb71263c3a9ecc562b6d9ec471fa1fc56ee",
+      "payload_sha": "803817146790c06301a40815a0f43b9ef0350203363e0ae52b8b596fbf37d4ad",
+      "trace_messages": 34,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED",
+      "stages": [
+        {
+          "stage": "diagnosis",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 10522,
+            "outputTokens": 219,
+            "totalTokens": 10741,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 2.862,
+          "stop_reason": "end_turn",
+          "error": null
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-dev-haiku-20261011-0632",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "prediction": {
+        "critical_failure_step": 31,
+        "failure_category": 3,
+        "explanation": "The agent made an invalid tool invocation at step 31. The tool call to `modify_pending_order_items` used incorrect parameter names: `item_ids` and `new_item_ids` instead of the correct schema parameters `item_ids_to_remove` and `item_ids_to_add`. According to the tool schema, the function signature requires `item_ids_to_remove` (list of strings) and `item_ids_to_add` (list of strings), but the agent provided `item_ids` and `new_item_ids`. Despite this parameter mismatch, the tool returned a successful response, which appears to be a system tolerance issue rather than correct execution. However, the agent violated the tool schema contract, making this an Invalid Invocation.",
+        "evidence_steps": [
+          31
+        ]
+      },
+      "metric_unknown_reasons": {}
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "tau:3",
+      "attack_id": null,
+      "split": "development",
+      "cohort": "agentrx-native-derived-nl-phase2-v1",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "8277651b141eac7ecca2b2fa3b9600f936f4f8a6",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096,
+          "temperature": 0
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "agentrx-native-derived-nl-phase2-v1",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "stage_failure:dynamic",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/cffcac4e7cd80e5f/static.json",
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/stages/cffcac4e7cd80e5f/dynamic.json"
+      ],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 2,
+      "tokens": {
+        "totalTokens": 23718
+      },
+      "latency_s": 8.206,
+      "native_id": "3",
+      "domain": "tau",
+      "trace_path": "data/tau_retail/tau_dataset_failed.json",
+      "label_path": "data/ground_truth/tau_ground_truth.json",
+      "policy_path": "data/policies/retail_policy.txt",
+      "family_id": "tau",
+      "instruction_structure_sha": "25670efe46b2a2f2fa7b26d7dcbe8bb71263c3a9ecc562b6d9ec471fa1fc56ee",
+      "payload_sha": "803817146790c06301a40815a0f43b9ef0350203363e0ae52b8b596fbf37d4ad",
+      "trace_messages": 34,
+      "structural_eligible": true,
+      "reason": "predeclared_exposed_development_case",
+      "selected": true,
+      "annotation_record_present": true,
+      "annotation_metric_values": "NOT_OPENED",
+      "stages": [
+        {
+          "stage": "static",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 2351,
+            "outputTokens": 288,
+            "totalTokens": 2639,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 3.399,
+          "stop_reason": "end_turn",
+          "error": null
+        },
+        {
+          "stage": "dynamic",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 20743,
+            "outputTokens": 336,
+            "totalTokens": 21079,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 3.688,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "ValueError",
+            "message": "invalid_constraint_source"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-dev-haiku-20261011-0632",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": [
+        "checker",
+        "diagnosis"
+      ]
+    }
+  ],
+  "phase1_immutability": "verified",
+  "compute_comparison": "Same complete trace/instruction/policy/schema, final system/model/parameters. Assisted adds three calls; compute is not matched.",
+  "cost_status": "UNKNOWN:no_reliable_price_pinned",
+  "limitations": [
+    "development re-evaluation only",
+    "NL adaptation, not complete native reproduction",
+    "no executable replay/repair/recovery or frontier-equivalence claim"
+  ]
+}

@@ -1,0 +1,11 @@
+# AgentRx phase2: separately frozen Opus reference
+
+Status: same-six-case conditional v1 reference predeclared, no calls; awaiting C2 acceptance and an explicit root lease. Both preceding cheap-model blocks are positively drained. Selection is conditional only on time, access and lease availability, never prior case outcomes.
+
+This reference uses exactly the six structurally selected Magentic cases and both arms from [the within-seen-domain family cohort](BENCHMARKMAXXING_PHASE2_AGENTRX_FAMILIES.md). Its **12 cells and maximum 30 calls** remain separate from the 24 cheap-model cells. The manifest was written before the family output block, with unchanged source, native grading, complete trace/policy/schema/instruction and final diagnosis system prompt. No unseen-domain independence, matched compute, executable recovery or frontier equivalence is claimed.
+
+Model ID comes from existing `BEDROCK_REPORT_MODEL_ID`: `us.anthropic.claude-opus-4-8`. Existing model parameters omit temperature for Opus and set final `maxTokens=4096`; per-stage caps remain static2048/dynamic2048/checker4096/diagnosis4096, one call per stage. These parameter differences are explicit; assistance still adds three calls within the same model. Costs remain UNKNOWN because no reliable price was pinned.
+
+Raw artifacts live under `/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/opus-reference`. Manifest SHA256 is `b168b4c002b9cfc5a2371064260ac7f1b012341eb6f415cc499ce815664f28b2`; source/native/code/input/selection pins pass. The [separate reference report](BENCHMARKMAXXING_PHASE2_AGENTRX_OPUS_REFERENCE.json) currently retains all 12 cells with zero attempts and UNKNOWN [0,1] bounds. Exact lease/run contract is in the parent raw artifact directory's `OPUS_REFERENCE_CONTRACT.md`.
+
+The unchanged runner is imported with external OUTPUT selection. Reporting reuses unchanged reconciliation/metrics/bounds, with its artifact writer directed to the separate reference JSON; assertions verify both cheap report files remain byte-identical. No adapter source or model/scoring behavior changes are needed. Raw stage errors and downstream skips remain explicit; no v1 retry, source correction or retroactive scoring is permitted.
