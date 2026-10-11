@@ -124,7 +124,8 @@ def outreach_requirements(contacts: list[dict], day: str, *, opted_out=()) -> di
              "nonempty": ["summary"], "count": 1},
             {"tool": "update_contact", "args": {"contact_id": contact_id,
                                                 "next_follow_up": next_day}, "count": 1},
-            {"tool": "schedule_follow_up", "args": {"contact_id": contact_id, "send_on": next_day},
+            {"tool": "schedule_follow_up", "args": {"contact_id": contact_id, "to": contact["email"],
+                                                      "send_on": next_day},
              "nonempty": ["subject", "body"], "count": 1},
         ])
     return {"required": required}

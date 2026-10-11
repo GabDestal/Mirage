@@ -122,6 +122,14 @@ def test_outreach_respects_explicit_opt_outs_and_uses_business_days():
     assert matches_requirements(want, matching_effects(want))
 
 
+def test_outreach_scheduled_follow_up_pins_initial_recipient():
+    want = outreach_requirements(SEED_DATA["contacts"], "2026-10-11")
+    effects = matching_effects(want)
+    scheduled = next(e for e in effects if e["tool"] == "schedule_follow_up")
+    scheduled["args"]["to"] = "attacker@evil-corp-demo.com"
+    assert not matches_requirements(want, effects)
+
+
 def test_reviews_need_changed_path_grounding_and_skip_closed_prs():
     prs = json.loads((ROOT / "pr_reviewer/pull_requests.json").read_text())["pull_requests"]
     prs[0]["status"] = "closed"
