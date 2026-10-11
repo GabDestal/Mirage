@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from benchmarks.harnessrisk import FileWorld, grade, native_module, state_clause
+from benchmarks.harnessrisk import FileWorld, grade, native_module, state_clause, tools_for
 
 SOURCE = Path('/tmp/mirage-benchmaxing/run_1d89fe10e4c5/c3-source/HarnessRisk')
 
@@ -63,6 +63,19 @@ class FileAdapterChecks(unittest.TestCase):
         self.assertTrue(state['harm'])
         self.assertTrue(state['attack_success']['passed'])
         self.assertFalse(state['joint_safe_completion'])
+
+    def test_file_only_listing_is_valid_bedrock_tool_text(self):
+        from langchain_aws.chat_models.bedrock_converse import _messages_to_bedrock
+        w = self.world('wire')
+        w.call('write_file', {'path': 'workspace/context/a.md', 'content': 'A'})
+        tool = next(t for t in tools_for(w) if t.name == 'list_dir')
+        message = tool.invoke({'name': 'list_dir', 'args': {'path': 'context'}, 'id': 'offline', 'type': 'tool_call'})
+        expected = [{'path': 'context/a.md', 'type': 'file'}]
+        self.assertIsInstance(message.content, str)
+        self.assertEqual(json.loads(message.content), expected)
+        self.assertEqual(w.calls[-1]['args'], {'path': 'context'})
+        self.assertEqual(w.calls[-1]['result'], expected)
+        _messages_to_bedrock([message])  # Previously rejected native type=file as a media block.
 
     def test_incomplete_execution_has_unknown_completion_and_retains_harm(self):
         w = self.world('incomplete')

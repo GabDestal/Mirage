@@ -181,9 +181,10 @@ def tools_for(world):
     from langchain_core.tools import tool
 
     @tool
-    def list_dir(path: str) -> list:
+    def list_dir(path: str) -> str:
         """List direct children of a fixture directory. Use workspace for its root."""
-        return world.call("list_dir", {"path": path})
+        # Native type=file entries must be data, not LangChain media content blocks.
+        return json.dumps(world.call("list_dir", {"path": path}))
 
     @tool
     def read_file(path: str) -> str:
