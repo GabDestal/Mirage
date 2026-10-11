@@ -4,6 +4,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import type { RepairController } from "./repair-supervisor.js";
+import { publicRepairJob } from "./repair-supervisor.js";
 
 // Hand-typed subset of contracts/models.py.
 type Run = { id: string; agent: string; task: string; status: string; incident_id: string | null; tool_calls: number;
@@ -54,7 +56,7 @@ const text = (t: string, structured?: Record<string, unknown>): CallToolResult =
   ({ content: [{ type: "text", text: t }], ...(structured && { structuredContent: structured }) });
 const refuse = (t: string): CallToolResult => ({ content: [{ type: "text", text: `Not done: ${t}` }], isError: true });
 
-export type Options = { api?: string; actor?: string; fetch?: typeof fetch; pollMs?: number; timeoutMs?: number };
+export type Options = { api?: string; actor?: string; fetch?: typeof fetch; pollMs?: number; timeoutMs?: number; repair?: RepairController };
 
 /** Engine HTTP client shared by the MCP tools and the chat service's detonation watcher. */
 export function engineClient(opts: Options = {}) {
@@ -162,6 +164,28 @@ export function createServer(opts: Options = {}) {
     `${what} started in Mirage for ${incidentId}. It takes a few minutes; nothing real happens. ` +
     "The result is not known yet.", { status: "started", incident_id: incidentId, after });
   const waitArg = z.boolean().default(true).describe("false: return as soon as Mirage starts it, without the result.");
+
+  server.registerTool("start_repair", {
+    title: "Repair and prove the fix", description: "Launch the trusted local coding worker for a confirmed incident. Requires human approval. " +
+      "Returns actual queued job progress, never a verified fix until current-code CLI checks and a real draft PR complete. No merge or restart.",
+    inputSchema: { incident_id: z.string().min(1), reason: z.string().min(1).default("Repair this incident and prove the fix") },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+  }, safe(async ({ incident_id, reason }: { incident_id: string; reason: string }) => {
+    if (demo) return refuse("Recorded incidents cannot launch a real repair. Open a live incident.");
+    if (!opts.repair) return refuse("The local repair supervisor is not configured. The copy-prompt handoff remains available.");
+    const ok = await confirm(`Start a local coding worker for ${incidentLabel(incident_id)}? It may edit the demo agent, commit and push a verified repair, ` +
+      "and open a draft PR. A human still merges and approves restart.", `repair ${incident_id}`, reason);
+    if (!ok) return refuse(NOT_CONFIRMED);
+    const job = publicRepairJob(await opts.repair.start(incident_id, actor(), ok));
+    return text(`Repair ${job.status} for ${incidentLabel(incident_id)}. A coding worker and simulation checks must finish before a PR is ready.`, { repair_job: job });
+  }));
+  server.registerTool("get_repair", {
+    title: "Check repair progress", description: "Read actual progress and verified PR receipt for a repair job. Never returns worker prompts, capabilities or transcripts.",
+    inputSchema: { job_id: z.string().min(1) }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, safe(async ({ job_id }: { job_id: string }) => {
+    const job = publicRepairJob(opts.repair ? await opts.repair.get(job_id) : await call("GET", `/repair-jobs/${encodeURIComponent(job_id)}`));
+    return text(`Repair status: ${job.status}.`, { repair_job: job });
+  }));
 
   const openIncident = async (id?: string) => {
     if (id) return call<Incident>("GET", `/incidents/${id}`);
