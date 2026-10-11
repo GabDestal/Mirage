@@ -99,7 +99,7 @@ export function Fleet() {
     try {
       await api('/demo/start', {})
       resetStream()
-      toast.success('Started 4-agent demo fleet')
+      toast.success('Deployed the fleet')
     } catch (e: any) {
       toast.error(e?.message || 'Could not start demo')
     } finally {
