@@ -2,10 +2,12 @@
 
 Untrusted inputs: inbox email bodies and CRM notes.
 """
+import os
+
 from langchain.agents import create_agent
 from langchain_core.tools import tool
 
-from agents.common.model import chat_model
+from agents.common.model import chat_model, clean_tool_names
 from agents.outreach import sales
 from agents.services import crm, mail
 
@@ -105,4 +107,9 @@ TOOLS = [search_contacts, get_contact, create_contact, update_contact, log_activ
 
 
 def build_agent(model=None, middleware=()):
-    return create_agent(model or chat_model(), TOOLS, system_prompt=SYSTEM, middleware=list(middleware))
+    return create_agent(
+        model or chat_model(os.getenv("OUTREACH_MODEL_ID")),
+        TOOLS,
+        system_prompt=SYSTEM,
+        middleware=[clean_tool_names, *middleware],
+    )

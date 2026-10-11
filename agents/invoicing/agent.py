@@ -1,7 +1,9 @@
+import os
+
 from langchain.agents import create_agent
 from langchain_core.tools import tool
 
-from agents.common.model import chat_model
+from agents.common.model import chat_model, clean_tool_names
 from agents.invoicing import invoices
 from agents.services import crm, mail
 
@@ -95,4 +97,9 @@ TOOLS = [list_invoices, get_invoice, create_invoice, record_payment, mark_remind
 
 
 def build_agent(model=None, middleware=()):
-    return create_agent(model or chat_model(), tools=TOOLS, system_prompt=SYSTEM, middleware=list(middleware))
+    return create_agent(
+        model or chat_model(os.getenv("INVOICING_MODEL_ID")),
+        tools=TOOLS,
+        system_prompt=SYSTEM,
+        middleware=[clean_tool_names, *middleware],
+    )
