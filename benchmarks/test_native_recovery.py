@@ -1,10 +1,15 @@
 """Provider-free checks of the runtime/scorer boundary and native owner turns."""
 
 from copy import deepcopy
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
-from benchmarks.native_recovery import (content_hash, diagnosis_evidence, lifecycle_disclosure,
-                                        run_owner_turns, runtime_payload)
+from benchmarks.native_recovery import (NativeCapture, content_hash, diagnosis_evidence,
+                                        capture_middleware, export_world, install_precheck_capture,
+                                        lifecycle_disclosure, run_owner_turns, runtime_payload)
+from benchmarks.harnessrisk import FileWorld, native_module
 
 
 class NativeRecoveryChecks(unittest.TestCase):
@@ -75,6 +80,176 @@ class NativeRecoveryChecks(unittest.TestCase):
         self.assertEqual(content_hash({"a": 1, "b": "é"}), content_hash({"b": "é", "a": 1}))
         self.assertNotEqual(content_hash({"a": 1}), content_hash({"a": 2}))
         self.assertIn("no human approval", lifecycle_disclosure()["restart"])
+
+
+SOURCE = Path("/tmp/mirage-benchmaxing/run_1d89fe10e4c5/c3-source/HarnessRisk")
+
+
+@unittest.skipUnless(SOURCE.exists(), "Pinned native source checkout required")
+class CaptureChecks(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.native = native_module(SOURCE, "harness_adapter/harness_adapter.py", "capture_native_seed")
+        case = {"world": {"workspace_files": {"workspace/.env": "INERT=fixture\n"},
+                          "allowed_tools": ["list_dir", "read_file", "write_file", "delete_file"]},
+                "task": {"user_messages": ["First request", "Second request"]}}
+        self.world = FileWorld(self.root / "world", case, self.native)
+        self.payload = runtime_payload(case, "original system")
+        self.capture = NativeCapture(self.root / "registry", self.world, self.payload,
+                                     {"run_id": "run_1", "task": "First request\n\nSecond request"},
+                                     {"instance_id": "engine_1", "stream_epoch": "epoch_1"},
+                                     {"name": "native-agent"}, "offline")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def load_latest(self):
+        record = json.loads((self.root / "registry/run_1.json").read_text())
+        digest = content_hash(record)
+        immutable = json.loads((self.root / "registry" / (digest + ".json")).read_text())
+        self.assertEqual(record, immutable)
+        return record, digest
+
+    def test_capture_retains_empty_directories_and_initial_immutability(self):
+        from langchain_core.messages import ToolMessage
+        _, first = self.load_latest()
+        for index, (tool, args) in enumerate([
+            ("write_file", {"path": "workspace/new/data.txt", "content": "é"}),
+            ("delete_file", {"path": "workspace/new/data.txt"}),
+        ]):
+            call = {"id": f"model_{index}", "name": tool, "args": args}
+            self.capture.invoke(call, lambda: ToolMessage(
+                content=json.dumps(self.world.call(tool, args)), tool_call_id=call["id"], name=tool), "run_1")
+        final, last = self.load_latest()
+        self.assertEqual(final["frozen_world"], export_world(self.world))
+        self.assertEqual(final["frozen_world"]["directories"], ["new"])
+        self.assertEqual(final["initial_world"], {"files": {".env": "INERT=fixture\n"}, "directories": []})
+        self.assertNotEqual(first, last)
+        self.assertTrue((self.root / "registry" / (first + ".json")).exists())
+        self.assertEqual(len(final["callbacks"]), 2)
+
+    def test_original_run_required_and_engine_ids_not_invented(self):
+        from langchain_core.messages import ToolMessage
+        call = {"id": "model_1", "name": "read_file", "args": {"path": "workspace/.env"}}
+        for run_id in (None, "different_run"):
+            with self.assertRaises(ValueError):
+                self.capture.invoke(call, lambda: self.fail("Unbound callback ran"), run_id)
+        self.capture.invoke(call, lambda: ToolMessage(content="INERT=fixture\n", tool_call_id="model_1"), "run_1")
+        record, _ = self.load_latest()
+        self.assertNotIn("call_id", record["callbacks"][0])
+        self.assertEqual(record["callbacks"][0]["model_call_id"], "model_1")
+
+    def test_failed_callback_is_published_before_error_propagates(self):
+        call = {"id": "model_1", "name": "read_file", "args": {"path": "workspace/missing"}}
+        with self.assertRaises(FileNotFoundError):
+            self.capture.invoke(call, lambda: self.world.call("read_file", call["args"]), "run_1")
+        record, _ = self.load_latest()
+        self.assertEqual(record["callbacks"][0]["error"], "FileNotFoundError")
+        self.assertIsNone(record["callbacks"][0]["result"])
+        self.assertEqual(record["frozen_world"], record["initial_world"])
+
+    def test_owner_only_transition_refreshes_without_new_callback(self):
+        from langchain_core.messages import AIMessage, HumanMessage
+        _, initial = self.load_latest()
+        history = [HumanMessage(content="First request"), AIMessage(content="first reply"),
+                   HumanMessage(content="Second request")]
+        self.capture.owner_turn(1, history)
+        final, current = self.load_latest()
+        self.assertNotEqual(initial, current)
+        self.assertEqual(final["owner_index"], 1)
+        self.assertEqual(self.capture.owner_context[-1]["data"]["content"], "Second request")
+        self.assertEqual(final["callbacks"], [])
+
+    def test_handled_tool_error_keeps_sdk_error_and_no_fallback_result(self):
+        from langchain_core.messages import ToolMessage
+        call = {"id": "model_1", "name": "read_file", "args": {"path": "workspace/missing"}}
+        self.capture.invoke(call, lambda: ToolMessage(content="provider text", status="error", tool_call_id="model_1"), "run_1")
+        record, _ = self.load_latest()
+        self.assertEqual(record["callbacks"][0]["error"], "ToolMessageError")
+        self.assertIsNone(record["callbacks"][0]["result"])
+
+    def test_sdk_gate_precedes_callback_and_capture_precedes_result_post(self):
+        import httpx
+        from unittest.mock import patch
+        from langchain.agents import create_agent
+        from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+        from langchain_core.messages import AIMessage, HumanMessage
+        import mirage
+        from mirage import core
+        from mirage.protect import registry
+        from benchmarks.harnessrisk import tools_for
+
+        class LocalModel(FakeMessagesListChatModel):
+            def bind_tools(self, tools, **kwargs):
+                return self
+
+        case = {"world": {"workspace_files": {"workspace/data.json": '{"number": 3}\n'},
+                          "allowed_tools": ["list_dir", "read_file", "write_file", "delete_file"]},
+                "task": {"user_messages": ["Inspect the fixture"]}}
+        world = FileWorld(self.root / "sdk-world", case, self.native)
+        payload = runtime_payload(case, "original system")
+        holder, requests, checked = {}, [], []
+
+        def capture_record():
+            return json.loads((self.root / "sdk-registry/run_sdk.json").read_text())
+
+        def handle(request):
+            body = json.loads(request.content) if request.content else None
+            requests.append((request.url.path, body))
+            if request.url.path == "/agents":
+                holder["spec"] = body
+                return httpx.Response(204)
+            if request.url.path == "/runs":
+                return httpx.Response(200, json={"run_id": "run_sdk", "run_token": "offline-token"})
+            if request.url.path == "/gateway/check":
+                checked.append(len(capture_record()["callbacks"]))
+                allow = body["tool"] != "write_file"
+                return httpx.Response(200, json={"call_id": f"actual_engine_{len(checked)}",
+                    "tool": body["tool"], "args": body["args"], "decision": "allow" if allow else "block",
+                    "layer": "hard_rule", "explanation": "offline admission test"})
+            if request.url.path.endswith("/tool-results"):
+                recorded = capture_record()["callbacks"][-1]
+                self.assertEqual(recorded["tool"], body["tool"])
+                self.assertEqual(recorded["result"], body["result"])
+                self.assertEqual(recorded["error"], body["error"])
+                self.assertNotIn("call_id", recorded)
+            return httpx.Response(204)
+
+        responses = [AIMessage(content="", tool_calls=[{"name": tool, "args": args, "id": f"model_{i}"}])
+                     for i, (tool, args) in enumerate([
+                         ("list_dir", {"path": "workspace"}),
+                         ("read_file", {"path": "workspace/data.json"}),
+                         ("write_file", {"path": "workspace/denied", "content": "no"}),
+                     ])]
+        client = httpx.Client(base_url="http://offline.invalid", transport=httpx.MockTransport(handle))
+        with patch.object(core, "_http", client), patch.object(core, "_sandbox", None):
+            agent = create_agent(LocalModel(responses=responses), tools_for(world),
+                                 system_prompt=payload["system"],
+                                 middleware=[capture_middleware(lambda: holder["capture"])])
+            agent = mirage.protect(agent, name="sdk-offline-native", owner="benchmark",
+                                   entrypoint="benchmarks.native_recovery:factory",
+                                   allow={"tools": case["world"]["allowed_tools"]})
+            token = core.start("sdk-offline-native", "Inspect the fixture")
+            try:
+                capture = NativeCapture(self.root / "sdk-registry", world, payload,
+                                        {"run_id": core._run.get()["id"], "task": "Inspect the fixture"},
+                                        {"stream_epoch": "offline_epoch"}, holder["spec"], "offline")
+                holder["capture"] = capture
+                install_precheck_capture(agent, capture)
+                with self.assertRaises(core.Blocked):
+                    run_owner_turns(agent, payload["owner_messages"], before_turn=capture.owner_turn)
+            finally:
+                core.end(token, RuntimeError("offline denied invocation"))
+                registry.pop("sdk-offline-native", None)
+        client.close()
+        final = capture_record()
+        self.assertEqual(checked, [0, 1, 2])
+        self.assertEqual(len(world.calls), 2)
+        self.assertEqual(final["callbacks"][1]["result"], {"number": 3})
+        self.assertEqual(final["frozen_world"]["files"]["data.json"], '{"number": 3}\n')
+        self.assertNotIn("denied", world.snapshot())
+        self.assertEqual(len([p for p, _ in requests if p.endswith("/tool-results")]), 2)
 
 
 if __name__ == "__main__":

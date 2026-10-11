@@ -1,0 +1,102 @@
+# Fixture-native recovery protocol
+
+Status: offline implementation checkpoint; private registry implementation approved by
+root/Person A, runtime composition acceptance and provider lease pending.
+Demo steps served: isolated replay, cause investigation, generic correction, verification,
+and original-task recovery (`PRODUCT.md` 1:20–2:40). This benchmark adapter is Person B work;
+the child/sandbox/snapshot boundary remains W5 and Person A owned. No public contract change.
+
+Reuse [HarnessRisk](https://github.com/Baiyajing/HarnessRisk/tree/07671f25b515fb936e0312dfdd3ca60b4bdf2f92)
+and the exact W3 file adapter/grader bridge at
+`463d943c9684899590f2b87e7d38c8861e1e736b` rather than add a simulator or dependency.
+`benchmarks/harnessrisk.py` and its original focused test are byte-identical copies;
+phase 1 PR165 and artifacts remain unchanged. New logic is in `native_recovery.py`.
+
+## Lifecycle claims
+
+| Stage | Actual engine boundary | Benchmark extension or remaining gap |
+|---|---|---|
+| Victim tools | Protected arms use SDK admission and recording before the callback | Unprotected arm uses the same four fixture tools directly |
+| Initial compromise | Existing code verdict checks effects, not retained native state | Native fixtures may already be compromised; no prevention or engine detection claim |
+| Freeze | A genuine gateway receipt can establish containment | A predeclared automated operator checkpoint is disclosed; manual freeze creates no incident |
+| Replay | Only root-accepted exact W5 child/sandbox source may execute native replay | A later explicit seeded proof does not retrospectively complete unseeded automatic replay |
+| Verdict | Engine verdict remains unchanged | Untouched native raw scores and actual file predicates are externally scored separately |
+| Cause | Engine bisection is claimed only if its real receipts exist | Exact read-input intervention is a bounded benchmark extension; utility and safety are both checked |
+| Correction | No policy, gateway or SDK bypass | Generic instruction-trust or input-treatment change, never a scripted deliverable |
+| Verification | Engine verification receipt is reported as recorded | External state proof requires three independent attempts with real utility and safety |
+| Restart | Real HTTP receipt must name original run and exact original task | Automated actor is explicit; this cannot establish human approval or human-approved recovery |
+
+## Runtime and evaluation separation
+
+Runtime receives only fixture files, original sequential owner messages, system text and
+unchanged four-tool schemas. Case IDs, objectives, expected answers, labels, trajectories,
+oracle predicates and full case objects stay in external selection/evaluation. Each owner
+message is presented in order after the prior turn finishes; all model/tool context persists.
+Diagnosis receives the owner task, observed read/action trace and actual initial/final state.
+Untrusted file contents remain data, including inert fixture `.env` text.
+
+The native grader runs only after execution against exported final files. Native report-text
+fallback, detection and persistence heuristics remain raw fields and cannot prove useful
+completion, engine detection or retained poisoning. Incomplete attempts retain known harm;
+missing completion/safety stays UNKNOWN in the fixed selected denominator.
+
+## Approved private registry transport
+
+The complete state includes files and directories: deleting a file can leave a directory
+observable by `list_dir`. A trusted parent opt-in registry captures at admission, owner-turn
+transitions, before each existing SDK gateway check, and after each admitted callback before
+result recording. W5 owns validation and envelope construction in `snapshot.save` before
+atomic snapshot publication and automatic queueing. The accepted frozen payload
+must bind exact run/task/snapshot identity, full original context, callback ledger and content
+hash before proof begins. Replay must never read the current production world or apply
+already-completed pre-freeze writes twice. Recorded continuation starts from initial state,
+applies the chronological successful prefix exactly once, then validates complete frozen
+state before continuation. Current-code same-frozen verification starts from frozen state
+with fresh model context and no prefix reapplication. Full-task execution from initial state
+is a separate extension. Each attempt has an independent world; failed SDK/native error
+categories remain evidence. The original tool arguments and file bytes are unchanged.
+
+Producer callbacks have no invented engine call IDs. The engine binds authoritative IDs
+after exact sequence comparison to its records, including failures. SDK-normalized results
+are compared separately from original file text: `list_dir` is JSON text to the model but a
+list in recorded results; JSON file text can likewise become a dict/list/scalar in recording.
+The engine generates `_native_file_world` inside the original user-task input's private
+`item`, preserving that item. Envelope metadata never enters victim prompts or tool results.
+
+No fixture seed is smuggled into `legit`, labels, a modified read response or a public schema.
+No arbitrary shell, real HTTP, host secrets or new jail exception is exposed to agents.
+
+## Selection and execution gates
+
+Before reading fresh labels/outcomes, record eligibility from tools, services/environment
+presence, workspace path structure and owner-turn count. Previously exposed configuration,
+durable-memory and file-restoration families (including 119/120/124) are DEVELOPMENT.
+Renaming cases does not create held-out data. Unsupported native clean controls remain
+UNKNOWN; no synthetic control replaces one. C3 reviews family exclusions and the frozen
+same-case two-model three-arm matrix before any fresh evaluation.
+
+No provider, model smoke, service or installation runs without a root lease naming protocol,
+models, cases, role budgets and cutoff. Caps remain uniform within the protocol, with no
+retry-until-pass and exact effective parameters/resource accounting recorded. Conditional
+Opus reference uses the same case. Existing installed dependencies suffice.
+
+## Offline checkpoints
+
+`e08df07` passed 13 provider-free checks using installed main `.venv`:
+
+```sh
+PYTHONPATH=.:sdk /Users/liamszefner/Business/hacks/Mirage/.venv/bin/python \
+  -m unittest benchmarks.test_harnessrisk benchmarks.test_native_recovery -v
+```
+
+Checks cover W3 mapping/isolation, typed errors, raw-versus-state utility, retained harm,
+configuration/memory preservation, approval evidence, exact schemas, runtime projection and
+sequential owner context. No fresh native run, native replay integration, actual human
+approval, provider acceptance or recovery improvement is established by this checkpoint.
+
+The producer adds checks for immutable state revisions, empty directories, failed callback
+capture, owner-only transitions and original run binding. A provider-free fake-model/client
+check exercises the existing SDK hooks: capture precedes each gate check, the denied callback
+never executes, admitted capture precedes result POST, and JSON normalization matches actual
+SDK recording while original file bytes stay intact. Real engine capture validation and jailed
+child integration remain W5 acceptance gates.
