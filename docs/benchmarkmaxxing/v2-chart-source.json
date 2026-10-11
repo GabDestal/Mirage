@@ -186,7 +186,54 @@
         }
       }
     },
-    "source": "docs/benchmarkmaxxing/v2-inputs/agentdojo_v2_summary.json"
+    "stops": {
+      "openai.gpt-oss-120b-1:0": {
+        "attack": {
+          "k": 17,
+          "n": 20
+        },
+        "clean": {
+          "k": 4,
+          "n": 10
+        }
+      },
+      "openai.gpt-oss-20b-1:0": {
+        "attack": {
+          "k": 12,
+          "n": 20
+        },
+        "clean": {
+          "k": 2,
+          "n": 10
+        }
+      },
+      "us.anthropic.claude-haiku-4-5-20251001-v1:0": {
+        "attack": {
+          "k": 7,
+          "n": 20
+        },
+        "clean": {
+          "k": 4,
+          "n": 10
+        }
+      },
+      "us.anthropic.claude-opus-4-8": {
+        "attack": {
+          "k": 7,
+          "n": 20
+        },
+        "clean": {
+          "k": 5,
+          "n": 10
+        }
+      }
+    },
+    "stop_rules": {
+      "UNTRUSTED_PROVENANCE": 78,
+      "DEST_NOT_ALLOWED": 4
+    },
+    "source": "docs/benchmarkmaxxing/v2-inputs/agentdojo_v2_summary.json",
+    "rows": "../bench-agentdojo-v2/benchmarks/artifacts/agentdojo_v2"
   },
   "agentrx": {
     "models": [

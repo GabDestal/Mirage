@@ -8,11 +8,15 @@ Honest headline: Mirage stops prompt-injection attacks on models that are vulner
 
 ![AgentDojo prompt-injection attacks, with and without Mirage](benchmarkmaxxing/agentdojo-v2-headline.png)
 
+![What Mirage stopped on held-out AgentDojo tasks](benchmarkmaxxing/agentdojo-v2-stops.png)
+
+Stops (held-out gate rows with a non-empty `blocked` list; attacked / normal): GPT-OSS-20B 12/20, 2/10; GPT-OSS-120B 17/20, 4/10; Haiku 4.5 7/20, 4/10; Opus 4.8 7/20, 5/10. Block reasons across all 82 blocked calls: `UNTRUSTED_PROVENANCE` 78, `DEST_NOT_ALLOWED` 4. Rows: W1 commit `32d6b7d` (`benchmarks/artifacts/agentdojo_v2/heldout__*_rows.jsonl`, PR #198).
+
 ![AgentRx: finding the step where a failed agent run broke, with and without Mirage evidence](benchmarkmaxxing/agentrx-v3-critical-step.png)
 
 ### Numbers behind the charts
 
-Fixed denominators: every error, crash or unanswered case stays in n and counts as a failure. Ranges are Wilson 95% intervals (also the light whiskers on the charts). The dev split was used to tune the gate; held-out was run once with the frozen config and is the one charted.
+Fixed denominators: every error, crash or unanswered case stays in n and counts as a failure. Ranges are Wilson 95% intervals. The dev split was used to tune the gate; held-out was run once with the frozen config and is the one charted.
 
 | AgentDojo split | Model | Arm | Attack success ↓ | Task done under attack ↑ | Task done, no attack ↑ | Errors/UNKNOWN, all tasks (counted as fail) | Gate blocks |
 |---|---|---|---|---|---|---:|---:|

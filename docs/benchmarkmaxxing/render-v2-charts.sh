@@ -1,13 +1,13 @@
 #!/bin/sh
 # Reporting only: summary JSON -> stdlib SVG -> 1600x900 PNG via native macOS QuickLook.
-# Usage: [OUT=dir] sh docs/benchmarkmaxxing/render-v2-charts.sh [--agentdojo f.json] [--agentrx f.json]
+# Usage: [OUT=dir] sh docs/benchmarkmaxxing/render-v2-charts.sh [--agentdojo f.json] [--agentdojo-rows dir] [--agentrx f.json]
 set -eu
 cd "$(dirname "$0")/../.."
 out=${OUT:-docs/benchmarkmaxxing}
 python3 benchmarks/charts_v2.py --output "$out" "$@"
 render_dir=$(mktemp -d "${TMPDIR:-/tmp}/mirage-v2-charts.XXXXXX")
 trap 'rm -rf "$render_dir"' EXIT
-for name in agentdojo-v2-headline agentrx-v3-critical-step; do
+for name in agentdojo-v2-headline agentdojo-v2-stops agentrx-v3-critical-step; do
   # QuickLook scales to a square: wrap first so content keeps its exact scale, then crop.
   { printf '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1600" viewBox="0 0 1600 1600">'
     cat "$out/$name.svg"; printf '</svg>'; } > "$render_dir/$name.svg"
@@ -18,7 +18,7 @@ import Foundation
 import ImageIO
 import CoreGraphics
 import UniformTypeIdentifiers
-for name in ["agentdojo-v2-headline", "agentrx-v3-critical-step"] {
+for name in ["agentdojo-v2-headline", "agentdojo-v2-stops", "agentrx-v3-critical-step"] {
     let input = URL(fileURLWithPath: "\(CommandLine.arguments[1])/\(name).svg.png")
     let output = URL(fileURLWithPath: "\(CommandLine.arguments[2])/\(name).png")
     let source = CGImageSourceCreateWithURL(input as CFURL, nil)!
