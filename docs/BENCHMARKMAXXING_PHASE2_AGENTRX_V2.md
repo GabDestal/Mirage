@@ -1,6 +1,6 @@
 # AgentRx phase2 v2: typed provenance and new fixed cohorts
 
-Status: distinct offline implementation, no v2 inference. Root/C2 approved typed sources after development showed a provenance-format mismatch. V1 executable files, prompts, raw outputs, native scores and denominators remain byte-identical and runnable for the separately leased Opus reference. No old cell is retried, rescued or regraded.
+Status: distinct offline implementation and both protocols frozen, no v2 inference. Root/C2 approved typed sources after development showed a provenance-format mismatch. V1 executable files, prompts, raw outputs, native scores and denominators remain byte-identical and runnable for the separately leased Opus reference. No old cell is retried, rescued or regraded.
 
 The only model behavior change is provenance representation. Static constraints derive from the supplied policy/schema; dynamic constraints derive from supplied instruction/trace/policy/schema. Both prompts request nonempty arrays of unique canonical source literals. The parser accepts those arrays or one canonical literal, preserves the original representation, and rejects unknown/label sources, duplicates, empty arrays, wrong types and free-text compound strings. It performs no splitting or coercion. Strict fields/IDs, actual 1-based citations, complete checker coverage, stage caps, final diagnosis prompt, model parameters and external native grading are unchanged.
 
@@ -26,3 +26,7 @@ python3 -m benchmarks.agentrx_phase2_v2 verify --cohort families
 ```
 
 Provider hold remains until positive user-session drain and an exact root lease naming model/cases/arms/stages/caps/deadline. Estimated rehearsal time is not authorization. No model calls are authorized by these offline commands or by environment IDs. PR166 remains open against `benchmaxing`.
+
+Implementation commit: `ec21035` (isolated v2 module; original v1 code pins still match). Development manifest SHA256: `a8fddd846ac6150b6c8a04bd5abfe3180fbfa7a7c517c1724ef4aee9457a0947`. New-family manifest SHA256: `0e73ac32af009763d0ff063f787f26d3c14d83efc07fce47152659ceb7582917`. Both source/native/selection/phase1/v1 pin checks pass, including 79 v1 source/raw-result files per preservation receipt. Family cases independently match C2's next-six selection exactly. The initial no-call family freeze is archived after a development-ledger availability fix; prompts/cases/caps did not change. The failed offline development preparation is recorded with zero calls.
+
+Separate zero-attempt fixed-denominator reports: [development](BENCHMARKMAXXING_PHASE2_AGENTRX_V2_DEV.json) and [new families](BENCHMARKMAXXING_PHASE2_AGENTRX_V2_FAMILIES.json). All selected metrics currently remain UNKNOWN with [0,1] bounds. Run uses the existing venv Python with `-m benchmarks.agentrx_phase2_v2 run --cohort development` or `--cohort families`, plus the exact root-assigned `--lease` JSON. Static/dynamic/checker/diagnosis caps are 2048/2048/4096/4096, one call per stage, maximum ten calls per development model block or 30 per new-family model block.
