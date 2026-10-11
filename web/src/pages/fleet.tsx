@@ -324,6 +324,7 @@ function AgentTableRow({
   selected: boolean
 }) {
   const navigate = useNavigate()
+  const ask = useAsk()
   const label = runLabel(run, runs)
   const sentence = run.status === 'completed' ? 'Ready for the next task'
     : run.status === 'running' ? run.task
@@ -388,6 +389,11 @@ function AgentTableRow({
           <Button asChild variant="secondary" onClick={(e) => e.stopPropagation()}>
             <Link to={`/incidents/${run.incident_id}`}>Review Incident</Link>
           </Button>
+        ) : isFrozen && run.env === 'prod' && !isDemo ? (
+          <div className="fleet-inline-controls">
+            <Button onClick={(e) => { e.stopPropagation(); ask('unfreeze', run) }}>Unfreeze</Button>
+            <Button variant="destructive" onClick={(e) => { e.stopPropagation(); ask('kill', run) }}>Kill</Button>
+          </div>
         ) : canResume(run, runs) ? (
           <ResumeButton run={run} />
         ) : (

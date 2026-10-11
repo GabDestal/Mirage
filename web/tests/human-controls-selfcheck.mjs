@@ -43,6 +43,9 @@ try {
   if (demo) {
     assert.equal(render(actions.FreezeButton, { run }), '')
     assert.equal(render(actions.CleanRestartButton, { run: { ...run, status: 'killed' } }), '')
+    cache.setQueryData(['runs'], [{ ...run, status: 'frozen' }])
+    const frozenDemo = render(Fleet)
+    assert.ok(!frozenDemo.includes('>Unfreeze<') && !frozenDemo.includes('>Kill<'))
     cache.setQueryData(['approvals'], [{ call_id: 'held', run_id: run.id, agent: run.agent, tool: 'send_email', args: {}, explanation: 'Synthetic review', ts: run.started_at }])
     const queue = render(approvals.EngineApprovals)
     assert.ok(queue.includes('Recorded demo: decisions are unavailable'))
@@ -50,6 +53,18 @@ try {
     assert.ok(render(services.ServiceEvidence).includes('Recorded synthetic demo'))
     console.log('PASS demo hides unsupported freeze/restart, disables engine decisions and labels recorded evidence')
   } else {
+
+  cache.setQueryData(['runs'], [{ ...run, status: 'frozen' }])
+  const manual = render(Fleet)
+  assert.ok(manual.includes('>Unfreeze<') && manual.includes('>Kill<'), 'Manual incident-less freeze must expose reason-controlled recovery')
+  cache.setQueryData(['runs'], [{ ...run, status: 'frozen', incident_id: 'incident_test' }])
+  const incidentFlow = render(Fleet)
+  assert.ok(incidentFlow.includes('Review Incident') && !incidentFlow.includes('>Unfreeze<') && !incidentFlow.includes('>Kill<'))
+  for (const variant of [{ ...run, status: 'frozen', env: 'mirage' }, { ...run, status: 'queued' }, { ...run, status: 'completed' }]) {
+    cache.setQueryData(['runs'], [variant])
+    const ineligible = render(Fleet)
+    assert.ok(!ineligible.includes('>Unfreeze<') && !ineligible.includes('>Kill<'))
+  }
 
   const killed = { ...run, status: 'killed' }
   cache.setQueryData(['runs'], [killed])
@@ -77,7 +92,18 @@ try {
   }
   const body = { actor: actions.ACTOR, reason: 'Synthetic human decision' }
   const act = capture(actions.useHumanAction)
+  for (const kind of ['unfreeze', 'kill']) {
+    respond = async () => new Response(JSON.stringify({ ...run, status: kind === 'unfreeze' ? 'running' : 'killed' }))
+    await act.mutateAsync({ kind, run: { ...run, status: 'frozen' }, body })
+    assert.deepEqual(calls.pop(), { path: `/api/runs/run%2Fone/${kind}`, method: 'POST', body })
+    respond = async () => new Response(JSON.stringify({ detail: 'Synthetic recovery refused' }), { status: 409 })
+    await assert.rejects(act.mutateAsync({ kind, run: { ...run, status: 'frozen' }, body }), { status: 409 })
+    assert.equal(calls.length, 1, 'Manual recovery POST must never retry')
+    calls.length = 0
+  }
+  console.log('PASS incident-less recovery eligibility and actual unfreeze/kill actor/reason REST routes without retries')
   cache.setQueryData(['runs'], [run])
+  respond = async () => new Response(JSON.stringify({ ...run, status: 'frozen' }))
   await act.mutateAsync({ kind: 'freeze', run, body })
   assert.deepEqual(calls.pop(), { path: '/api/runs/run%2Fone/freeze', method: 'POST', body })
   assert.equal(cache.getQueryData(['runs'])[0].status, 'frozen')

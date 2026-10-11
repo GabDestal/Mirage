@@ -23,6 +23,7 @@
 .fleet-action-cell .clean-restart-status { display: block; font-size: 12px; line-height: 18px; white-space: normal; color: var(--fleet-ink-2); }
 .fleet-table .fleet-action-cell { white-space: normal; }
 .fleet-action-cell > button { margin: 3px; }
+.fleet-inline-controls { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .fleet-page .clean-restart-status a:focus-visible, .fleet-page summary:focus-visible { outline: 2px solid var(--fleet-blue); outline-offset: 3px; }
 @media (max-width: 640px) {
   .service-evidence-grid { grid-template-columns: 1fr; gap: 16px; }
@@ -520,6 +521,7 @@
   .fleet-table td { min-width: 0; padding: 0; border-bottom: none; }
   .fleet-table td:nth-child(3) { grid-column: 1 / -1; }
   .fleet-table .fleet-action-cell { text-align: left; }
+  .fleet-inline-controls { justify-content: flex-start; }
   .fleet-table td.fleet-time-cell { align-self: center; }
   .fleet-agent-cell { gap: 8px; }
   .fleet-action-link, .fleet-action-cell > a { min-height: 40px; }
