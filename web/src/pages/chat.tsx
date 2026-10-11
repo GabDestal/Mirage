@@ -6,6 +6,7 @@ import { useIncidents, useRuns } from '@/api/client'
 import { sanitize, useChat, type ChatPart, type ChatTurn, type ToolResult } from '@/api/chat'
 import { ChatActivity, ChatApprovalCard, ChatComposer, ChatToolCard } from '@/components/chat-primitives'
 import { HandoffDrawer } from '@/components/handoff-drawer'
+import { RepairProgress } from '@/components/repair-progress'
 import { Miragio } from '@/components/miragio'
 import { Button } from '@/components/ui/button'
 import { agentCount } from './fleet-presentation'
@@ -143,7 +144,7 @@ export function Chat() {
 // Users see what Miragio is doing, never the raw MCP tool name.
 const toolLabels: Record<string, string> = {
   list_runs: 'Checking your agents', get_incident: 'Reading the incident', get_audit: 'Reading the audit log', detonate: 'Detonating in Mirage',
-  find_cause: 'Finding the cause', unfreeze: 'Unfreezing the agent', kill: 'Stopping the agent', resume: 'Resuming the agent', resume_all: 'Resuming all agents', send_fix: 'Handing off to your coding agent',
+  find_cause: 'Finding the cause', unfreeze: 'Unfreezing the agent', kill: 'Stopping the agent', resume: 'Resuming the agent', resume_all: 'Resuming all agents', send_fix: 'Handing off to your coding agent', start_repair: 'Repairing and proving the fix', get_repair: 'Checking repair progress',
 }
 const toolLabel = (tool: string) => toolLabels[tool] ?? tool.replaceAll('_', ' ').replace(/^./, (first) => first.toUpperCase())
 
@@ -192,12 +193,14 @@ function Tool({ part, waiting }: { part: Extract<ChatPart, { kind: 'tool' }>; wa
   const evidence = part.result ? resultText(part.result) : ''
   const handoffUrl = part.tool === 'send_fix' ? part.result?.structuredContent?.handoff_url : undefined
   const safeHandoff = typeof handoffUrl === 'string' && /^\/chat\/handoffs\/[A-Za-z0-9_-]+$/.test(handoffUrl) ? handoffUrl : undefined
+  const repair = part.result?.structuredContent?.repair_job as { id?: unknown; incident_id?: unknown } | undefined
   return <><ChatToolCard tool={toolLabel(part.tool)} status={waiting ? 'waiting' : part.status} summary={waiting ? 'Approve or decline below' : part.progress || (part.status === 'running' ? 'Request sent to Mirage' : part.status === 'error' ? 'Check the result before trying again' : 'Result received')}>
     <div className="chat-tool-evidence">
       <h4>Request</h4><pre>{JSON.stringify(sanitize(part.args), null, 2)}</pre>
       {evidence ? <><h4>Result</h4><pre>{evidence}</pre><CopyButton text={evidence} label="Copy visible result" /></> : null}
     </div>
   </ChatToolCard>
+  {repair && typeof repair.id === 'string' && typeof repair.incident_id === 'string' ? <RepairProgress incidentId={repair.incident_id} jobId={repair.id} /> : null}
   {safeHandoff ? <HandoffActions url={safeHandoff} /> : null}</>
 }
 

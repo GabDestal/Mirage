@@ -1,6 +1,7 @@
 import { createServer as createHttpServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -11,6 +12,7 @@ import { CONFIRM_META, createServer, effectTools, engineClient, untrusted } from
 import type { Options as McpOptions } from "./server.js";
 import { ChatError, publicError } from "./bedrock.js";
 import type { ModelProvider } from "./bedrock.js";
+import { publicRepairJob } from "./repair-supervisor.js";
 
 export const LIMITS = {
   bodyBytes: 16_384, inputChars: 8_000, sessions: 32, activeTurns: 4,
@@ -23,6 +25,8 @@ const turnInput = z.object({ session_id: id.optional(), message: z.string().trim
   actor: z.string().trim().min(1).max(80).regex(/^[\p{L}\p{N} ._@-]+$/u) }).strict();
 // The click is the confirmation: the browser sends only its decision, never form content.
 const approvalInput = z.object({ action: z.enum(["accept", "decline"]) }).strict();
+const repairInput = z.object({ incident_id: z.string().regex(/^[\w-]+$/), actor: z.string().trim().min(1).max(80),
+  reason: z.string().trim().min(1).max(500) }).strict();
 const confirmAnswer = z.object({ confirm: z.string().min(1), reason: z.string() }).strict();
 
 export type ChatEvent =
@@ -186,7 +190,7 @@ export function createChatService(opts: ChatOptions) {
           emit({ type: "tool_start", call_id: callId, tool: call.name, args: sanitize(args, session.secrets) });
           const spec = catalogue.find((t) => t.name === call.name);
           const key = `${call.name}:${String(call.input.run_id ?? call.input.incident_id ?? "")}`;
-          const effect = !["list_runs", "get_incident", "get_audit"].includes(call.name);
+          const effect = !["list_runs", "get_incident", "get_audit", "get_repair"].includes(call.name);
           let result: CallToolResult;
           if (call.malformed || !validArgs(call.input, spec)) result = errorResult("Tool arguments were rejected. No action was started.");
           else if (effect && auto) result = errorResult("Automatic updates cannot start actions. Ask the human.");
@@ -208,6 +212,8 @@ export function createChatService(opts: ChatOptions) {
           }
           const after = result.structuredContent?.after;
           if (LONG[call.name] && !result.isError && typeof after === "number") watchResult(session, call.name, String(call.input.incident_id), after);
+          if (call.name === "start_repair" && !result.isError && result.structuredContent?.repair_job)
+            watchRepair(session, publicRepairJob(result.structuredContent.repair_job));
           collectTokens(result, session.secrets);
           const modelResult = sanitize(result, session.secrets);
           let uiResult = modelResult;
@@ -274,6 +280,24 @@ export function createChatService(opts: ChatOptions) {
     });
   }
 
+  /** Follow public receipts only; neither the model nor session history receives worker output. */
+  function watchRepair(session: Session, initial: ReturnType<typeof publicRepairJob>) {
+    void (async () => {
+      let job = initial;
+      const deadline = Date.now() + 25 * 60_000;
+      while (!shutdown.signal.aborted && Date.now() < deadline && !["pr_open", "failed"].includes(job.status)) {
+        await delay(2000, undefined, { signal: shutdown.signal });
+        if (!opts.mcp?.repair) return;
+        job = publicRepairJob(await opts.mcp.repair.get(initial.id));
+      }
+      if (shutdown.signal.aborted) return;
+      session.queue.push({ incidentId: initial.incident_id, title: "Coding repair update",
+        message: "Automatic Mirage update, not typed by the human: the local repair has this observed public receipt. " +
+          untrusted("repair_job", job) + " Summarize its actual state and PR only. A pending job is not a verified fix. Do not merge, restart or start another repair." });
+      void drain(session);
+    })().catch(() => {});
+  }
+
   /** Run queued follow-ups one at a time, only while the session has no live turn. */
   async function drain(session: Session) {
     if (session.busy || shutdown.signal.aborted) return;
@@ -305,6 +329,18 @@ export function createChatService(opts: ChatOptions) {
       if (req.headers["sec-fetch-site"] === "cross-site") throw new ChatError("ORIGIN_REJECTED", "Cross-site requests are not allowed.", 403);
       expire();
       const path = new URL(req.url ?? "/", "http://localhost").pathname;
+      if (path === "/chat/repairs" && req.method === "POST") {
+        const input = repairInput.safeParse(await readJson(req));
+        if (!input.success) throw new ChatError("INVALID_REPAIR", "Provide the incident, actor and reason for repair.");
+        if (!opts.mcp?.repair || process.env.MIRAGE_UI_MODE === "demo")
+          throw new ChatError("REPAIR_UNAVAILABLE", "The live local repair supervisor is unavailable. Use the copy-prompt handoff.", 503);
+        try {
+          const job = publicRepairJob(await opts.mcp.repair.start(input.data.incident_id, input.data.actor, input.data.reason));
+          json(res, 202, job); return;
+        } catch (error) {
+          throw new ChatError("REPAIR_FAILED", error instanceof Error ? error.message : "Repair launch failed.", 409);
+        }
+      }
       if (req.method === "GET" && path.startsWith("/chat/handoffs/")) {
         const handoff = handoffs.get(path.slice("/chat/handoffs/".length));
         if (!handoff) throw new ChatError("HANDOFF_EXPIRED", "This handoff is unavailable or its session expired.", 404);
