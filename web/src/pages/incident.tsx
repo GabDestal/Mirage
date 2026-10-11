@@ -8,6 +8,7 @@ import { useConnection } from '@/api/stream'
 import { AgentAvatar } from '@/agents/avatars'
 import { ACTOR, CleanRestartButton, HumanReasonDialog, ResumeButton, liveRunOwned, useAsk } from '@/components/actions'
 import { HandoffDrawer } from '@/components/handoff-drawer'
+import { RepairProgress } from '@/components/repair-progress'
 import { Button } from '@/components/ui/button'
 import { automaticClearanceText, avatarState, callPhrase, runLabel, steps } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
@@ -169,6 +170,8 @@ export function IncidentPage() {
         })}</ul> : <p className="incident-muted">No input previews were returned for this snapshot.</p>}
       </StorySection>
       <StorySection number="4" title="The fix">
+        <RepairProgress key={id} incidentId={id}
+          canStart={!!incident.verdict?.confirmed && ['confirmed', 'root_caused', 'fix_pending', 'fix_verified', 'pr_open'].includes(incident.status)} />
         {verificationState?.status === 'queued' && <Notice>Current-code verification is queued. No new result has been returned yet.</Notice>}
         {verificationState?.status === 'running' && <Notice>Current-code verification is running. No new result has been returned yet.</Notice>}
         {verificationState?.status === 'failed' && <Notice tone="alarm">Current-code verification failed: {verificationState.error ?? 'No result returned'}. No new fix acceptance was established.</Notice>}
