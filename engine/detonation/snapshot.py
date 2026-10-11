@@ -10,6 +10,7 @@ removes an input by dropping that item from every tool result.
 import copy
 import json
 import os
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -64,7 +65,25 @@ def save(run, incident_id, policy, entrypoint="", runner=None):
         inputs=_inputs(run.task, results),
     ).model_dump(mode="json")  # the contract checks the shape before it is written
     SNAP_DIR.mkdir(parents=True, exist_ok=True)
-    (SNAP_DIR / f"{incident_id}.json").write_text(json.dumps(snap, indent=1), encoding="utf-8")
+    temporary = None
+    try:
+        # Publish only a complete, flushed recording; failed writes are never replay inputs.
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=SNAP_DIR,
+                                         prefix=f".{incident_id}.", suffix=".tmp",
+                                         delete=False) as file:
+            temporary = Path(file.name)
+            json.dump(snap, file, indent=1)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(temporary, SNAP_DIR / f"{incident_id}.json")
+        directory = os.open(SNAP_DIR, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return snap
 
 
