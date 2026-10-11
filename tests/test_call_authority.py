@@ -44,6 +44,22 @@ def protected(run, to, effects, callback=None):
         core._run.reset(token)
 
 
+def assert_revoked_denial_finished(run_id, call_id, human_actions):
+    run = gate.runs[run_id]
+    assert run.status == "failed"
+    assert run.calls[call_id]["state"] == "revoked"
+    assert run.calls[call_id]["tool"] == "send_email"
+    assert run.calls[call_id]["args"]["to"] == USER
+    assert run.tool_results == []
+    history = events.read()
+    assert not any(e.type == "tool.result" and e.run_id == run_id for e in history)
+    assert [e.payload for e in history if e.type == "run.status" and e.run_id == run_id
+            and e.payload["to"] in ("failed", "completed", "killed", "halted")] == [{
+                "from": "running", "to": "failed", "actor": "sdk", "reason": "Run failed: Blocked."}]
+    assert [e.payload["action"] for e in history if e.type == "human.action"
+            and e.payload["target"] == run_id] == human_actions
+
+
 
 def test_approval_releases_only_the_original_checked_call(api, monkeypatch):
     run_id, auth = start(api)
@@ -224,8 +240,8 @@ def test_delayed_original_sdk_wait_cannot_revive_after_later_control_epoch(
             release.set()
         assert callback.result(3) == "blocked"
     assert effects == []
-    assert gate.runs[run_id].status == "running"
-    assert gate.runs[run_id].tool_results == []
+    assert_revoked_denial_finished(run_id, approval["call_id"],
+                                  [release_action, "freeze", "unfreeze"])
 
 
 @pytest.mark.parametrize("control", ["freeze", "kill", "stop"])
@@ -430,7 +446,8 @@ def test_pending_sdk_check_cannot_survive_manual_freeze_and_unfreeze(api, monkey
             release.set()
         assert pending.result(3) == "blocked"
     assert effects == []
-    assert gate.runs[run_id].status == "running"
+    (call_id,) = gate.runs[run_id].calls
+    assert_revoked_denial_finished(run_id, call_id, ["freeze", "unfreeze"])
 
 
 def test_approval_does_not_admit_a_result_before_the_bound_wait(api, monkeypatch):
