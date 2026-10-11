@@ -1,0 +1,270 @@
+{
+  "agentdojo": {
+    "splits": {
+      "dev": {
+        "openai.gpt-oss-20b-1:0": {
+          "gate": {
+            "attacker_success": {
+              "k": 2,
+              "n": 20
+            },
+            "utility_under_attack": {
+              "k": 7,
+              "n": 20
+            },
+            "clean_utility": {
+              "k": 5,
+              "n": 10
+            },
+            "unknown": 3,
+            "blocks": 23,
+            "false_blocks": 4
+          },
+          "unprotected": {
+            "attacker_success": {
+              "k": 9,
+              "n": 20
+            },
+            "utility_under_attack": {
+              "k": 9,
+              "n": 20
+            },
+            "clean_utility": {
+              "k": 9,
+              "n": 10
+            },
+            "unknown": 4,
+            "blocks": 0,
+            "false_blocks": 0
+          }
+        }
+      },
+      "held_out": {
+        "openai.gpt-oss-120b-1:0": {
+          "unprotected": {
+            "attacker_success": {
+              "k": 19,
+              "n": 20
+            },
+            "utility_under_attack": {
+              "k": 15,
+              "n": 20
+            },
+            "clean_utility": {
+              "k": 10,
+              "n": 10
+            },
+            "unknown": 1,
+            "blocks": 0,
+            "false_blocks": 0
+          },
+          "gate": {
+            "attacker_success": {
+              "k": 2,
+              "n": 20
+            },
+            "utility_under_attack": {
+              "k": 6,
+              "n": 20
+            },
+            "clean_utility": {
+              "k": 6,
+              "n": 10
+            },
+            "unknown": 1,
+            "blocks": 30,
+            "false_blocks": 4
+          }
+        },
+        "openai.gpt-oss-20b-1:0": {
+          "unprotected": {
+            "attacker_success": {
+              "k": 11,
+              "n": 20
+            },
+            "utility_under_attack": {
+              "k": 15,
+              "n": 20
+            },
+            "clean_utility": {
+              "k": 7,
+              "n": 10
+            },
+            "unknown": 0,
+            "blocks": 0,
+            "false_blocks": 0
+          },
+          "gate": {
+            "attacker_success": {
+              "k": 0,
+              "n": 20
+            },
+            "utility_under_attack": {
+              "k": 11,
+              "n": 20
+            },
+            "clean_utility": {
+              "k": 7,
+              "n": 10
+            },
+            "unknown": 0,
+            "blocks": 19,
+            "false_blocks": 2
+          }
+        },
+        "us.anthropic.claude-haiku-4-5-20251001-v1:0": {
+          "unprotected": {
+            "attacker_success": {
+              "k": 0,
+              "n": 20
+            },
+            "utility_under_attack": {
+              "k": 17,
+              "n": 20
+            },
+            "clean_utility": {
+              "k": 10,
+              "n": 10
+            },
+            "unknown": 0,
+            "blocks": 0,
+            "false_blocks": 0
+          },
+          "gate": {
+            "attacker_success": {
+              "k": 0,
+              "n": 20
+            },
+            "utility_under_attack": {
+              "k": 10,
+              "n": 20
+            },
+            "clean_utility": {
+              "k": 6,
+              "n": 10
+            },
+            "unknown": 0,
+            "blocks": 14,
+            "false_blocks": 4
+          }
+        },
+        "us.anthropic.claude-opus-4-8": {
+          "unprotected": {
+            "attacker_success": {
+              "k": 0,
+              "n": 20
+            },
+            "utility_under_attack": {
+              "k": 17,
+              "n": 20
+            },
+            "clean_utility": {
+              "k": 10,
+              "n": 10
+            },
+            "unknown": 0,
+            "blocks": 0,
+            "false_blocks": 0
+          },
+          "gate": {
+            "attacker_success": {
+              "k": 0,
+              "n": 20
+            },
+            "utility_under_attack": {
+              "k": 9,
+              "n": 20
+            },
+            "clean_utility": {
+              "k": 5,
+              "n": 10
+            },
+            "unknown": 0,
+            "blocks": 19,
+            "false_blocks": 5
+          }
+        }
+      }
+    },
+    "stops": {
+      "openai.gpt-oss-120b-1:0": {
+        "attack": {
+          "k": 17,
+          "n": 20
+        },
+        "clean": {
+          "k": 4,
+          "n": 10
+        }
+      },
+      "openai.gpt-oss-20b-1:0": {
+        "attack": {
+          "k": 12,
+          "n": 20
+        },
+        "clean": {
+          "k": 2,
+          "n": 10
+        }
+      },
+      "us.anthropic.claude-haiku-4-5-20251001-v1:0": {
+        "attack": {
+          "k": 7,
+          "n": 20
+        },
+        "clean": {
+          "k": 4,
+          "n": 10
+        }
+      },
+      "us.anthropic.claude-opus-4-8": {
+        "attack": {
+          "k": 7,
+          "n": 20
+        },
+        "clean": {
+          "k": 5,
+          "n": 10
+        }
+      }
+    },
+    "stop_rules": {
+      "UNTRUSTED_PROVENANCE": 78,
+      "DEST_NOT_ALLOWED": 4
+    },
+    "source": "docs/benchmarkmaxxing/v2-inputs/agentdojo_v2_summary.json",
+    "rows": "../bench-agentdojo-v2/benchmarks/artifacts/agentdojo_v2"
+  },
+  "agentrx": {
+    "models": [
+      {
+        "label": "GPT-OSS-20B",
+        "simple": {
+          "k": 2,
+          "n": 6,
+          "scored": 5
+        },
+        "assisted": {
+          "k": 3,
+          "n": 6,
+          "scored": 6
+        }
+      },
+      {
+        "label": "Haiku 4.5",
+        "simple": {
+          "k": 3,
+          "n": 6,
+          "scored": 6
+        },
+        "assisted": {
+          "k": 0,
+          "n": 6,
+          "scored": 3
+        }
+      }
+    ],
+    "split": "heldout_families",
+    "source": "docs/benchmarkmaxxing/v2-inputs/agentrx_v3_summary.json"
+  }
+}
