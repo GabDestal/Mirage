@@ -1,8 +1,9 @@
 # UI and engine repair acceptance — 2026-10-11
 
 **Status: draft; fresh composed acceptance pending.** Source inspected at
-`47474ee22ec25e6b626092af0342722a7a0d7c41` after rebasing the documentation draft;
-it is the verified remote `origin/main` source. GitHub independently reports the fourteen PRs below merged, with the
+`3d657d59840e1f644f0a08c5ff6455890bee2113` after rebasing the documentation draft;
+it is the verified remote `origin/main` source. GitHub independently reports the fifteen
+PRs below merged, with the
 listed squash commits. This documentation worker inspected source, merge metadata
 and published worker reports; it ran no services, controls, providers or fleets.
 Final coordinator source SHA and rehearsal evidence have not yet been supplied.
@@ -56,6 +57,7 @@ counts describe the worker's named suite/head and must not be added together.
 | [#134](https://github.com/GabDestal/Mirage/pull/134) / A | Layer-2 response validation, sanitized unavailability and shared outbound destinations | `e836fd4a797ec9fbe648f29164d7c4db37954b05` | `d8efa585118709b4f9a6afb4eb4f90fba8ff273c` | 80 failed/13 passed → 264 related tests. Mocks only; outage still intentionally allows after hard rules; semantic P3/P6 acceptance remains open. |
 | [#136](https://github.com/GabDestal/Mirage/pull/136) / A | Crash-regression assertion follows sanitized diagnostics while retaining inconclusive-cause guards | `2e7f47c188a4aa1b6af3d94cf2293912521e344f` | `db0e74b53aaff2b18bf383688eca46e828d7bc06` | Exact regression 1 failed/1 passed → 2 passed; 53 focused and 530 full tests. Test-only alignment, no implementation or provider change. |
 | [#135](https://github.com/GabDestal/Mirage/pull/135) / A | Integer counts1..10 before loading/scheduling/audit; default detonate/verify3, bisect2 | `47474ee22ec25e6b626092af0342722a7a0d7c41` | `1315ce523a3c43d8dcd03ab3f5e2880db9ba7ad6` | Real zero-child HTTP0/0 false pass; 52 failed/15 passed → 110 count cases and 640 full tests on #136 base. Jailed scripted children; no provider. |
+| [#138](https://github.com/GabDestal/Mirage/pull/138) / B | Handoff explains required checkout/snapshot or connected deployment; unavailable/stale prompt actions disabled | `3d657d59840e1f644f0a08c5ff6455890bee2113` | `3662a09a76b4e3e2d7b57448692d66ca85b619be` | 4 RED failures → 10 live-mode and 10 recorded-demo selfchecks; existing controls/build/lint pass. Synthetic drawer/REST/clipboard/window checks; coordinator independently confirms both10-pass runs. No remote fixer or browser workflow acceptance. |
 
 ### Published validation commands and report provenance
 
@@ -80,6 +82,7 @@ reproducing. This ledger does not ask for a new suite or provider rerun.
 | #134 | `/Users/liamszefner/Business/hacks/Mirage/.venv/bin/python -m pytest tests/test_decision_response_validation.py tests/test_layer2.py tests/test_judge.py tests/test_destination_rules.py tests/test_startup_mode.py tests/test_containment_persistence.py tests/test_gate.py tests/test_api.py -q --tb=short` → 264 passed | `/tmp/mirage-decision-response-report.md` |
 | #136 | PR reports `test_crashed_bisection_cannot_prove_a_cause` (2 passed), 53 focused and 530 full passes; exact command not published in its body, so not inferred. | PR body; test-only scope |
 | #135 | `/Users/liamszefner/Business/hacks/Mirage/.venv/bin/python -m pytest -q --tb=short` → 640 passed on exact `2e7f47c188a4aa1b6af3d94cf2293912521e344f` plus owned count commits | `/tmp/mirage-positive-proof-counts-20261011.md` |
+| #138 | From `web/`: `node tests/handoff-ui-selfcheck.mjs` and `node tests/handoff-ui-selfcheck.mjs --demo` → 10 passed each; independent coordinator reruns also10 each | PR body and coordinator report |
 
 ## 3. U1–U5 delivery and open dependencies
 
@@ -89,7 +92,7 @@ reproducing. This ledger does not ask for a new suite or provider rerun.
 | U2 — services and human controls | #125 merged; actual reason/body hooks and encoded REST paths tested with stub fetch/rendering. | Browser-visible service isolation, approval vs chat approval, manual Freeze→Unfreeze/Kill, restored ownership refusal, queued restart, STOP/recovery and no repeated effects. |
 | U3 — stream recovery | [#130](https://github.com/GabDestal/Mirage/pull/130) open at `39c32ac9020ca1bbb3f878dcd4d8bb0e322744ed`; 7 initial REDs plus 4 epoch REDs/timeout → 18 stream tests; typecheck/build/launcher/lint reported green. | Merge exact runtime/epoch/owned-run contract and composed transport; browser CONNECTING→polling→OPEN, external reset and stale-callback fencing, GET-only recovery. |
 | U4 — persistent proof | [#132](https://github.com/GabDestal/Mirage/pull/132) draft at `e68b30b03dcb832e037d3383df3a4725a5f8c68f`; empty-chat render and existing proof/UI checks reported green. | Shared job metadata and final baseline-effects integration; final head/RED-GREEN evidence; navigate Chat/Fleet/Incident without a model turn and keep baseline distinct from bisection/verification. |
-| U5 — documentation acceptance | This three-file documentation draft; README updated for #133. | Final known source SHA and coordinator rehearsal artifacts, final link/syntax/scope checks, pushed matching PR head. Documentation readiness will not close missing runtime gates. |
+| U5 — documentation acceptance | [Draft #137](https://github.com/GabDestal/Mirage/pull/137), these three documentation files; README updated for #133. | Final known source SHA and coordinator rehearsal artifacts, final link/syntax/scope checks, pushed matching PR head. Documentation readiness will not close missing runtime gates. |
 
 Person A's current-tool policy, exact legitimate-task matcher,
 recorded-read/error fidelity, execution truth and runtime/ownership/job metadata
@@ -109,7 +112,7 @@ approval/recovery acceptance is established by #125's UI controls or this report
 
 | Detail | Current fact / coordinator-owned evidence slot |
 |---|---|
-| Final composed source | Pending coordinator's known full SHA; draft inspection source is `47474ee22ec25e6b626092af0342722a7a0d7c41` |
+| Final composed source | Pending coordinator's known full SHA; draft inspection source is `3d657d59840e1f644f0a08c5ff6455890bee2113` |
 | Engine | Planned owned loopback `http://127.0.0.1:8040`, Person A; coordinator reports not yet running. Started PID/time/loaded revision/mode/instance/epoch/owned runs pending. |
 | Web/proxy | Coordinator reports main UI `http://127.0.0.1:5180`, PID84720, terminal `term_146a8a2b-1ee2-4b95-9d64-9c0bab73eaa1`, source at startup `e3a0d019`; configured `/api`→8040, `/chat`→8041. Read parity/loaded final source pending. |
 | Chat/MCP | Coordinator reports `http://127.0.0.1:8041`, PID86841, terminal `term_55913927-9c65-4fd4-8984-b9dc1b19ceba`. Engine target8040 is planned; native-browser chat attempt exposed Bedrock denial for the configured chat model in `us-east-1`. No successful provider/tool completion; built source and final model identity pending. |
@@ -128,7 +131,7 @@ open port or configured model name. This worker performs none of those operation
 
 Pinned source: [model limiter/fallback][source-model], [four protected factories/startup][source-fleet],
 [agent completion declarations][source-completion], [shared synthetic services][source-services],
-[current-code verifier][source-verifier], [handoff][source-handoff], [CLI][source-cli].
+[current-code verifier][source-verifier], [handoff][source-handoff], [handoff drawer][source-handoff-ui], [CLI][source-cli].
 
 ## 5. Browser and incident workflow ledger
 
@@ -137,14 +140,14 @@ counts and error outcomes; never replace partial evidence with expected `3/3`.
 
 | Demo / workflow | Observable acceptance | Current result |
 |---|---|---|
-| Fleet/startup (0:00) | Protected SDK runs on the identified engine; actual task inventory and outcomes, failures visible; services explicitly synthetic/event-derived | Pending; no final fleet invocation by this worker |
+| Fleet/startup (0:00) | Protected SDK runs on the identified engine; actual task inventory and outcomes, failures visible; services explicitly synthetic/event-derived | Native browser shows honest disconnected Fleet/502 while engine is absent; protected-fleet acceptance pending, no invocation by this worker |
 | Containment (0:30) | Offending tool held before its outbound effect, one run frozen while companions continue; exact incident/snapshot; automatic three-run queue without UI Detonate | Pending composed/provider evidence; #124/#131 offline tests only |
 | Proof (1:20) | Three jailed attempts, consistent attempted/completed/error/harm counts and deterministic verdict; Production blocked vs Mirage captured effects; no real tools in child | Pending; from-freeze recorded replies prove consequences, not three fresh injection successes |
 | Cause | Human Find the cause runs from scratch with removed input; report observed ratios and no cause if interrupted/inconclusive | Pending; #126 synthetic retry/folding evidence only |
 | Persistent views | Chat opens after automatic job and reads existing proof without model turn; Fleet/Incident navigation and reconnect preserve baseline; removed-input/verify effects identified separately | Pending U3/U4 composition/browser |
 | Failure/retry | Job failure preserves prior proof, leaves production contained, shows sanitized category and explicit retry; missing snapshot/read/tool error cannot become success | Pending; partial repairs merged, remaining fidelity/shared contracts open |
 | Human controls | Reason/actor logged for manual freeze/unfreeze/kill, engine approve/reject and STOP/recovery; confirmed compromise refused; restored owner409 honest; no automatic POST retry | Pending browser/engine composition; #125 synthetic hooks/render checks only |
-| External handoff (2:00) | Human opens/copies incident report and current snapshot-scoped capability to their external coding agent; untrusted inputs fenced; tokens excluded from chat/model cards | Pending real handoff. Mirage does not write or internally generate the repair. |
+| External handoff (2:00) | Human opens/copies incident report to their external coding agent; same snapshot reachable through local checkout/state or connected deployment; untrusted inputs fenced; tokens excluded from chat/model cards | #138 synthetic/coordinator selfchecks accept truthful drawer wording and prompt readiness; actual external handoff/access remains pending. Mirage does not write or internally generate the repair. |
 | Failed fix rejected | External agent's changed current code tested from scratch against same snapshot, freeze/current policy and full legitimate task; bad/no-op/permission-loosening/partial-task fix fails | Pending current-code verification; recorded fixture fix is an example only |
 | Clean fix passes | Positive requested runs all finish, attack blocked n/n and entire legitimate task completed n/n; exact user/content/entity inventory, useful brief, no duplicate/forbidden work | Pending engine matcher/fleet wiring and fresh rehearsal; a sent email or completed card is insufficient |
 | PR/restart (2:40) | External coding agent opens actual fix PR; human review/merge and explicit clean-restart decision separately recorded; queued stays pending until owner starts | Pending actual product decisions; this docs PR is not an incident fix PR |
@@ -161,7 +164,14 @@ loading or scheduling. Remaining current-catalogue/legitimate-check weaknesses m
 that interface alone does not establish verified fixes. Use the actual live incident snapshot; the recorded
 M1 handoff has no executable snapshot/token and its PR URL is a placeholder.
 
-**Coordinator browser observation, 01:11 UTC:** Orca tab handles repeatedly disappeared;
+The current live handoff supplies incident context and local verification paths.
+Opening a Claude Code/Codex link does not transfer the checkout/snapshot or connect
+Mirage; a copied prompt alone does not grant reachable sandbox access. #138 explains
+that requirement, keeps the prompt read-only, and disables unavailable, blank or
+error-stale prompt actions. A backend incident token is not proof of deployed access.
+Human PR review/merge and clean-restart approval remain explicit product decisions.
+
+**Coordinator browser report, 01:11 UTC:** Orca tab handles repeatedly disappeared;
 fallback native Dia at `127.0.0.1:5180` reached the dashboard through normal demo
 sign-in. Accessibility state exposed the chat turn “What is happening across my
 agents?” and a public error that Bedrock denied access to the configured chat model
@@ -170,6 +180,12 @@ no successful provider/tool completion or incident proof. A ScreenCaptureKit err
 followed sign-in, but subsequent accessibility state verified navigation; no screenshot
 proof was supplied. Engine8040 was still not started. The observation does not identify
 an expired key or establish that other model roles are unavailable.
+
+**Coordinator browser report, 01:16 UTC:** native Dia `/fleet` accessibility state
+showed “Can't reach the Mirage engine”, “502 Bad Gateway” and “Try again” while
+engine8040 remained absent. This accepts visibility of the disconnected Fleet state
+only: no fake agent cards or model retry were observed, and no live attachment,
+containment or provider proof is established.
 
 ## 6. Open provider, service and deployment gates
 
@@ -189,7 +205,7 @@ Historical metrics, selected N=4 eval results and M1 recordings remain unchanged
 ## 7. Documentation delivery checks
 
 Draft validation command: `python3 /tmp/mirage-ui-engine-repair-docs-check.py` →
-24 local links/anchors, 7 pinned source objects, 14 squash ancestors and 5 shell blocks
+24 local links/anchors, 8 pinned source objects, 15 squash ancestors and 5 shell blocks
 (`zsh -n`, syntax only) passed. Exact three-file scope and byte-identical connection-plan
 sections 1+ passed; `git diff --check` passed. GitHub PR metadata was fetched, but no
 broader external-link crawl or code/provider test rerun was performed.
@@ -199,10 +215,11 @@ remote/PR head remain pending. No implementation/config/schema edits, new reposi
 tests, service restarts, control POSTs, provider calls, credentials or deployments
 belong to this task.
 
-[source-model]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/agents/common/model.py
-[source-fleet]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/agents/run_demo_fleet.py
-[source-completion]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/agents/common/completion.py
-[source-services]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/agents/services/__init__.py
-[source-verifier]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/engine/detonation/sandbox.py
-[source-handoff]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/engine/handoff.py
-[source-cli]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/engine/cli.py
+[source-model]: https://github.com/GabDestal/Mirage/blob/3d657d59840e1f644f0a08c5ff6455890bee2113/agents/common/model.py
+[source-fleet]: https://github.com/GabDestal/Mirage/blob/3d657d59840e1f644f0a08c5ff6455890bee2113/agents/run_demo_fleet.py
+[source-completion]: https://github.com/GabDestal/Mirage/blob/3d657d59840e1f644f0a08c5ff6455890bee2113/agents/common/completion.py
+[source-services]: https://github.com/GabDestal/Mirage/blob/3d657d59840e1f644f0a08c5ff6455890bee2113/agents/services/__init__.py
+[source-verifier]: https://github.com/GabDestal/Mirage/blob/3d657d59840e1f644f0a08c5ff6455890bee2113/engine/detonation/sandbox.py
+[source-handoff]: https://github.com/GabDestal/Mirage/blob/3d657d59840e1f644f0a08c5ff6455890bee2113/engine/handoff.py
+[source-cli]: https://github.com/GabDestal/Mirage/blob/3d657d59840e1f644f0a08c5ff6455890bee2113/engine/cli.py
+[source-handoff-ui]: https://github.com/GabDestal/Mirage/blob/3d657d59840e1f644f0a08c5ff6455890bee2113/web/src/components/handoff-drawer.tsx
