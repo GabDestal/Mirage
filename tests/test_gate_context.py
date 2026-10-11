@@ -31,6 +31,13 @@ def test_context_fences_results_and_flags_provenance(monkeypatch):
     assert "<provenance>www.evil-77.com</provenance>" in user
 
 
+def test_context_keeps_an_old_source_the_task_names():
+    old = {"tool": "get_webpage", "args": {"url": "wiki.example/me"}, "result": "1. post hello"}
+    noise = [{"tool": "read", "args": {"c": "x"}, "result": f"r{i}"} for i in range(10)]
+    data = decision_model._context([old, *noise], "Do my checklist at wiki.example/me")
+    assert "(source named in the task)] 1. post hello" in data and "r1" not in data and "r5" in data
+
+
 def test_provenance_ignores_values_the_task_names():
     data = decision_model._context([{"tool": "read_file", "result": "pay DE89370400440532013000"}])
     assert decision_model.provenance("Pay to DE89370400440532013000", {"recipient": "DE89370400440532013000"}, data) == []
