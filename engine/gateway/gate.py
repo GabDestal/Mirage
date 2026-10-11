@@ -22,9 +22,11 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+# Validate settings before engine.rules opens the event store.
+from engine.config import MODE  # isort: skip
+
 from contracts.models import AgentSpec, AutomaticClearance, GateDecision, HumanAction, Run
 from engine import rules
-from engine.config import MODE
 from engine.detection import decision_model
 from engine.detection.rules import POLICY, hard_rule
 from engine.detonation import jobs, snapshot
