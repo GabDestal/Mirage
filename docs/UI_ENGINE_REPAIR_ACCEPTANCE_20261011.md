@@ -1,8 +1,8 @@
 # UI and engine repair acceptance — 2026-10-11
 
 **Status: draft; fresh composed acceptance pending.** Source inspected at
-`e836fd4a797ec9fbe648f29164d7c4db37954b05` after rebasing the documentation draft;
-it is the verified remote `origin/main` source. GitHub independently reports the twelve PRs below merged, with the
+`47474ee22ec25e6b626092af0342722a7a0d7c41` after rebasing the documentation draft;
+it is the verified remote `origin/main` source. GitHub independently reports the fourteen PRs below merged, with the
 listed squash commits. This documentation worker inspected source, merge metadata
 and published worker reports; it ran no services, controls, providers or fleets.
 Final coordinator source SHA and rehearsal evidence have not yet been supplied.
@@ -54,6 +54,8 @@ counts describe the worker's named suite/head and must not be added together.
 | [#127](https://github.com/GabDestal/Mirage/pull/127) / A | Shared normalized email/URL destinations and decoded payload checks in gate/verdict | `f129e7c02e20ff8d7aa7e22ff3434ca8f56d36dc` | `9065380f1969b6d68297fb020c1ba7274a258e1e` | 45 failed/41 passed plus review REDs → 284 tests, including 101 destination cases. Callback held before unsafe effects; unknown field semantics/tool-internal destinations and semantic P3/P6 remain limits. |
 | [#133](https://github.com/GabDestal/Mirage/pull/133) / B | Shared process-local provider-turn cadence, individual overrides and sanitizer for all four factories | `e3a0d019d3b9c3f7b22deec91e8889cd5f4da654` | `6b68321bdbe3e4f9062073fa799bef2a7c6649a0` | 31 failed/7 passed initially → 43 model/config and 131 agent tests. Virtual-clock four-factory/12-turn check at 1-second intervals; no measured provider throughput. |
 | [#134](https://github.com/GabDestal/Mirage/pull/134) / A | Layer-2 response validation, sanitized unavailability and shared outbound destinations | `e836fd4a797ec9fbe648f29164d7c4db37954b05` | `d8efa585118709b4f9a6afb4eb4f90fba8ff273c` | 80 failed/13 passed → 264 related tests. Mocks only; outage still intentionally allows after hard rules; semantic P3/P6 acceptance remains open. |
+| [#136](https://github.com/GabDestal/Mirage/pull/136) / A | Crash-regression assertion follows sanitized diagnostics while retaining inconclusive-cause guards | `2e7f47c188a4aa1b6af3d94cf2293912521e344f` | `db0e74b53aaff2b18bf383688eca46e828d7bc06` | Exact regression 1 failed/1 passed → 2 passed; 53 focused and 530 full tests. Test-only alignment, no implementation or provider change. |
+| [#135](https://github.com/GabDestal/Mirage/pull/135) / A | Integer counts1..10 before loading/scheduling/audit; default detonate/verify3, bisect2 | `47474ee22ec25e6b626092af0342722a7a0d7c41` | `1315ce523a3c43d8dcd03ab3f5e2880db9ba7ad6` | Real zero-child HTTP0/0 false pass; 52 failed/15 passed → 110 count cases and 640 full tests on #136 base. Jailed scripted children; no provider. |
 
 ### Published validation commands and report provenance
 
@@ -76,6 +78,8 @@ reproducing. This ledger does not ask for a new suite or provider rerun.
 | #127 | `uv run pytest -q` → 284 passed; `uv run ruff check engine/detection/rules.py tests/test_destination_rules.py` → passed | PR body |
 | #133 | `env -i PATH=/usr/bin:/bin PYTHONDONTWRITEBYTECODE=1 PYTHON_DOTENV_DISABLED=1 AWS_EC2_METADATA_DISABLED=true PYTHONPATH=/Users/liamszefner/orca/workspaces/Mirage/fix-fleet-model-cadence:/Users/liamszefner/orca/workspaces/Mirage/fix-fleet-model-cadence/sdk /Users/liamszefner/Business/hacks/Mirage/.venv/bin/python /tmp/mirage-model-cadence-tests-20261011.py` → 131 passed | `/tmp/mirage-model-cadence-report-20261011.md` |
 | #134 | `/Users/liamszefner/Business/hacks/Mirage/.venv/bin/python -m pytest tests/test_decision_response_validation.py tests/test_layer2.py tests/test_judge.py tests/test_destination_rules.py tests/test_startup_mode.py tests/test_containment_persistence.py tests/test_gate.py tests/test_api.py -q --tb=short` → 264 passed | `/tmp/mirage-decision-response-report.md` |
+| #136 | PR reports `test_crashed_bisection_cannot_prove_a_cause` (2 passed), 53 focused and 530 full passes; exact command not published in its body, so not inferred. | PR body; test-only scope |
+| #135 | `/Users/liamszefner/Business/hacks/Mirage/.venv/bin/python -m pytest -q --tb=short` → 640 passed on exact `2e7f47c188a4aa1b6af3d94cf2293912521e344f` plus owned count commits | `/tmp/mirage-positive-proof-counts-20261011.md` |
 
 ## 3. U1–U5 delivery and open dependencies
 
@@ -87,7 +91,7 @@ reproducing. This ledger does not ask for a new suite or provider rerun.
 | U4 — persistent proof | [#132](https://github.com/GabDestal/Mirage/pull/132) draft at `e68b30b03dcb832e037d3383df3a4725a5f8c68f`; empty-chat render and existing proof/UI checks reported green. | Shared job metadata and final baseline-effects integration; final head/RED-GREEN evidence; navigate Chat/Fleet/Incident without a model turn and keep baseline distinct from bisection/verification. |
 | U5 — documentation acceptance | This three-file documentation draft; README updated for #133. | Final known source SHA and coordinator rehearsal artifacts, final link/syntax/scope checks, pushed matching PR head. Documentation readiness will not close missing runtime gates. |
 
-Person A's positive bounded counts, current-tool policy, exact legitimate-task matcher,
+Person A's current-tool policy, exact legitimate-task matcher,
 recorded-read/error fidelity, execution truth and runtime/ownership/job metadata
 remain separate dependencies at the inspected source. #129 supplies pure criteria,
 not completed engine/fleet wiring. #133 supplies process-local pacing, not a shared
@@ -105,7 +109,7 @@ approval/recovery acceptance is established by #125's UI controls or this report
 
 | Detail | Current fact / coordinator-owned evidence slot |
 |---|---|
-| Final composed source | Pending coordinator's known full SHA; draft inspection source is `e836fd4a797ec9fbe648f29164d7c4db37954b05` |
+| Final composed source | Pending coordinator's known full SHA; draft inspection source is `47474ee22ec25e6b626092af0342722a7a0d7c41` |
 | Engine | Planned owned loopback `http://127.0.0.1:8040`, Person A; coordinator reports not yet running. Started PID/time/loaded revision/mode/instance/epoch/owned runs pending. |
 | Web/proxy | Coordinator reports main UI `http://127.0.0.1:5180`, PID84720, terminal `term_146a8a2b-1ee2-4b95-9d64-9c0bab73eaa1`, source at startup `e3a0d019`; configured `/api`→8040, `/chat`→8041. Read parity/loaded final source pending. |
 | Chat/MCP | Coordinator reports `http://127.0.0.1:8041`, PID86841, terminal `term_55913927-9c65-4fd4-8984-b9dc1b19ceba`. Engine target8040 is planned; native-browser chat attempt exposed Bedrock denial for the configured chat model in `us-east-1`. No successful provider/tool completion; built source and final model identity pending. |
@@ -152,8 +156,9 @@ is executed as `uv run python -m engine.cli detonate --incident <id> --runs 3 --
 (root packaging has no installed console-script entrypoint). This defaults to
 current-code verification from scratch; `--from-freeze` is the operator consequence
 replay. Exit0 requires `passed`; both attack-blocked and legitimate-task n/n are required.
-The current weakness of counts/catalogue/legitimate checks means that interface alone
-does not establish verified fixes. Use the actual live incident snapshot; the recorded
+Counts now accept integers1..10 only, with default detonate/verify3 and bisect2, before
+loading or scheduling. Remaining current-catalogue/legitimate-check weaknesses mean
+that interface alone does not establish verified fixes. Use the actual live incident snapshot; the recorded
 M1 handoff has no executable snapshot/token and its PR URL is a placeholder.
 
 **Coordinator browser observation, 01:11 UTC:** Orca tab handles repeatedly disappeared;
@@ -184,7 +189,7 @@ Historical metrics, selected N=4 eval results and M1 recordings remain unchanged
 ## 7. Documentation delivery checks
 
 Draft validation command: `python3 /tmp/mirage-ui-engine-repair-docs-check.py` →
-24 local links/anchors, 7 pinned source objects, 12 squash ancestors and 5 shell blocks
+24 local links/anchors, 7 pinned source objects, 14 squash ancestors and 5 shell blocks
 (`zsh -n`, syntax only) passed. Exact three-file scope and byte-identical connection-plan
 sections 1+ passed; `git diff --check` passed. GitHub PR metadata was fetched, but no
 broader external-link crawl or code/provider test rerun was performed.
@@ -194,10 +199,10 @@ remote/PR head remain pending. No implementation/config/schema edits, new reposi
 tests, service restarts, control POSTs, provider calls, credentials or deployments
 belong to this task.
 
-[source-model]: https://github.com/GabDestal/Mirage/blob/e3a0d019d3b9c3f7b22deec91e8889cd5f4da654/agents/common/model.py
-[source-fleet]: https://github.com/GabDestal/Mirage/blob/e3a0d019d3b9c3f7b22deec91e8889cd5f4da654/agents/run_demo_fleet.py
-[source-completion]: https://github.com/GabDestal/Mirage/blob/e3a0d019d3b9c3f7b22deec91e8889cd5f4da654/agents/common/completion.py
-[source-services]: https://github.com/GabDestal/Mirage/blob/e3a0d019d3b9c3f7b22deec91e8889cd5f4da654/agents/services/__init__.py
-[source-verifier]: https://github.com/GabDestal/Mirage/blob/e3a0d019d3b9c3f7b22deec91e8889cd5f4da654/engine/detonation/sandbox.py
-[source-handoff]: https://github.com/GabDestal/Mirage/blob/e3a0d019d3b9c3f7b22deec91e8889cd5f4da654/engine/handoff.py
-[source-cli]: https://github.com/GabDestal/Mirage/blob/e3a0d019d3b9c3f7b22deec91e8889cd5f4da654/engine/cli.py
+[source-model]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/agents/common/model.py
+[source-fleet]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/agents/run_demo_fleet.py
+[source-completion]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/agents/common/completion.py
+[source-services]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/agents/services/__init__.py
+[source-verifier]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/engine/detonation/sandbox.py
+[source-handoff]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/engine/handoff.py
+[source-cli]: https://github.com/GabDestal/Mirage/blob/47474ee22ec25e6b626092af0342722a7a0d7c41/engine/cli.py
