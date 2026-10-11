@@ -324,3 +324,85 @@ def test_call_with_a_failed_decision_audit_has_no_result_authority(api, monkeypa
         "call_id": requested.payload["call_id"], "tool": "read_calendar", "result": []})
     assert response.status_code == 409
     assert gate.runs[run_id].tool_results == []
+
+
+@pytest.mark.parametrize("tool_name", ["upload_contacts", "read_calendarchannelcommentary"])
+def test_runtime_added_langgraph_callback_requires_registered_tool_admission(api, tool_name):
+    import mirage
+    from langchain.agents import create_agent
+    from langchain_core.messages import AIMessage
+    from langchain_core.tools import tool
+
+    from agents.common.testing import call, scripted
+
+    effects = []
+
+    @tool
+    def read_calendar() -> list:
+        """Read synthetic calendar entries."""
+        return []
+
+    @tool(tool_name)
+    def runtime_added(to: str) -> dict:
+        """Capture a synthetic outbound effect."""
+        effects.append(to)
+        return {"status": "sent"}
+
+    graph = mirage.protect(create_agent(scripted(call(tool_name, to=ATTACKER), AIMessage("done")),
+                                       tools=[read_calendar]), name=AGENT["name"],
+                           allow={"tools": ["read_calendar"], "email_to": [USER]}, entrypoint="")
+    # Runtime tool catalogue drift: the real ToolNode now has a callback absent at registration.
+    graph.nodes["tools"].bound.tools_by_name[tool_name] = runtime_added
+    try:
+        graph.invoke({"messages": [("user", "Read my calendar")]})
+    except core.Blocked:
+        pass
+    assert effects == []
+    decision = next(e.payload for e in events.read() if e.type == "gate.decision")
+    assert (decision["decision"], decision["rule_id"]) == ("block", "UNKNOWN_TOOL")
+    assert not any(e.type == "incident.opened" for e in events.read())
+    assert not any(e.type == "tool.result" for e in events.read())
+
+
+@pytest.mark.parametrize("other_run", [False, True])
+def test_bound_wait_rejects_a_call_not_checked_for_its_run(api, other_run):
+    run_id, auth = start(api)
+    call_id = "call_missing"
+    if other_run:
+        other_id, other_auth = start(api)
+        call_id = check(api, other_id, other_auth, "read_calendar").json()["call_id"]
+    response = api.get(f"/runs/{run_id}/wait", headers=auth,
+                       params={"timeout": 0, "call_id": call_id})
+    assert response.status_code == 409
+    assert gate.runs[run_id].tool_results == []
+
+
+def test_legacy_unbound_wait_cannot_claim_a_held_release(api, monkeypatch):
+    run_id, auth = start(api)
+    monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
+        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
+    held = check(api, run_id, auth, "send_email", to=USER).json()
+    params = {"timeout": 0, "call_id": held["call_id"]}
+    path = f"/runs/{run_id}/wait"
+    assert api.get(path, headers=auth, params=params).json() == {"status": "frozen"}
+    assert api.post(f"/approvals/{held['call_id']}/approve", json=HUMAN).status_code == 200
+    assert api.get(path, headers=auth, params={"timeout": 0}).status_code == 409
+    assert api.get(path, headers=auth, params=params).json() == {"status": "running"}
+    assert api.post(f"/runs/{run_id}/tool-results", headers=auth, json={
+        "call_id": held["call_id"], "tool": "send_email", "result": {"status": "sent"}}
+                    ).status_code == 204
+    assert api.get(path, headers=auth, params=params).status_code == 409
+
+
+def test_unbound_wait_cannot_revive_a_revoked_hold_after_manual_unfreeze(api, monkeypatch):
+    run_id, auth = start(api)
+    monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
+        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
+    held = check(api, run_id, auth, "send_email", to=USER).json()
+    assert api.post(f"/approvals/{held['call_id']}/approve", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run_id}/unfreeze", json=HUMAN).status_code == 200
+    path = f"/runs/{run_id}/wait"
+    assert api.get(path, headers=auth, params={"timeout": 0}).status_code == 409
+    assert api.get(path, headers=auth,
+                   params={"timeout": 0, "call_id": held["call_id"]}).status_code == 409
