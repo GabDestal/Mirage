@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react'
-import { KeyRound } from 'lucide-react'
+import { KeyRound, ShieldCheck } from 'lucide-react'
 import { IconAgentsIcon } from './icons/icon-agents'
 
 export type NavItem = {
@@ -12,6 +12,7 @@ export type NavItem = {
 }
 
 export const NAV_ITEMS: NavItem[] = [
+  { icon: ShieldCheck, labelKey: 'Rules', mobileIcon: ShieldCheck, to: '/rules', children: [] },
   {
     icon: IconAgentsIcon,
     labelKey: 'API keys',

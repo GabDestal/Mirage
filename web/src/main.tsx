@@ -7,6 +7,7 @@ import { queryClient } from '@/api/client'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Fleet } from '@/pages/fleet'
 import { Integrations } from '@/pages/integrations'
+import { Rules } from '@/pages/rules'
 import { Chat } from '@/pages/chat'
 import { DemoEntry } from '@/pages/login'
 import { Incidents, RunPage } from '@/pages/placeholders'
@@ -27,6 +28,7 @@ const router = createBrowserRouter([
       { path: '/', element: <Chat />, handle: { title: 'Chat' } },
       { path: '/fleet', element: <Fleet />, handle: { title: 'Fleet' } },
       { path: '/integrations', element: <Integrations />, handle: { title: 'API keys' } },
+      { path: '/rules', element: <Rules />, handle: { title: 'Rules' } },
       { path: '/incidents', element: <Incidents />, handle: { title: 'Incidents' } },
       { path: '/incidents/:id', element: <IncidentPage />, handle: { title: 'Incident' } },
       { path: '/runs/:id', element: <RunPage />, handle: { title: 'Run' } },
