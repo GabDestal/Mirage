@@ -1,6 +1,20 @@
 # Mirage benchmark improvement plan — two-hour pilot
 
-Status: parked, planning only. Documentation and rebasing this independent feature branch are authorized. Benchmark execution, implementation and tuning wait for the user's explicit start.
+Status: phase2 execution authorized; first source-backed chart publication prepared on 2026-10-11. The original parked preparation and 120-minute pilot below are preserved as historical conditions, not current prohibitions on authorized phase2 work.
+
+## Current authorized phase2 work
+
+The user explicitly started the pilot and separately approved a phase2 extension for maximum benchmark optimization and two measured proof figures. The original **120-minute** plan remains the original budget; phase2 is a separately authorized extension, not a retroactive reset of that pilot. Root coordinates implementation and may integrate reviewed worker PRs and clean up settled Orca worktrees **into `benchmaxing` only**. Workers commit/push atomic PRs to `benchmaxing`; they do not merge. **Main remains immutable.** This current branch/merge authorization supersedes the original no-integration planning condition below only for the approved benchmark work.
+
+W7 reporting starts from published `benchmaxing` **`2640720f45a987c507f74a905f25d06948b86921`**. The two original smaller Bedrock models remain GPT-OSS 20B and Haiku 4.5; the separately authorized conditional Opus 4.8 reference is disclosed by model, arm, cohort, effective parameters and actual calls. It does not replace either smaller model or prove matched compute. Model calls remain governed by the root's inference lease and the rehearsal release; source-only checks never count as benchmark gain.
+
+All three sources remain in scope: AgentRx for native critical-step/cause diagnosis, HarnessRisk for raw native utility and actual final-file utility/safety, and historical AgentDojo results with the platform restriction preserved. AgentDojo is not executed or retried under this reporting task. Native external grading/oracles remain untouched; no hidden label reads, answer teaching, dropped failures, selected-cohort uplift claims or textual fallback promoted to actual utility.
+
+The first charts show saved v1 outcomes only. The v1 six-family pilot has no positive assisted gain. W2's general input-provenance correction is a separate v2 protocol: compare the same `tau:2`/`tau:3` development cases before/after, and report the next six untouched structural families separately. Development deltas do not establish causal or generalizable held-out uplift. Record exact source/code/input hashes, snapshot time, model/arm/cohort, actual compute, fixed denominators and UNKNOWN bounds for each publication.
+
+At the coordinator's 2026-10-11 07:05:14 UTC receipt (`msg_5af7f1e97fd8`), phase2 primary full-engine recovery had **0/12 scored provider cells**, and the separate operator extension **0/4**. The extension cannot replace the primary outcome. Both remain UNKNOWN until real native final-state and required approval/restart receipts arrive; accepted transport or passing source checks are not recovery evidence. Current publication and limits: [progress report](BENCHMARKMAXXING_PROGRESS.md), [chart source](benchmarkmaxxing/chart-source.json).
+
+## Historical original preparation and 120-minute pilot
 
 ## Objective and start condition
 
