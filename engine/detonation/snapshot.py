@@ -47,7 +47,7 @@ def _inputs(task, tool_results):
                 and not r["tool"].startswith(WRITE_PREFIXES)):
             # Private item metadata binds equal strings to one exact recorded read.
             found.append({
-                "id": f"in_{len(found):02d}", "kind": "web_page" if any(
+                "id": f"in_scalar_{len(found):02d}", "kind": "web_page" if any(
                     word in r["tool"] for word in ("url", "web")) else "attachment",
                 "source_tool": r["tool"], "label": r["tool"], "preview": r["result"][:160],
                 "item": {"_read_locator": {"index": index, "call_id": r["call_id"],
@@ -114,7 +114,8 @@ def without(snap, input_id):
     snap = copy.deepcopy(snap)
     snap["model_calls"] = []  # rerun from the start: recorded replies saw the removed input
     target = next(i for i in snap["inputs"] if i["id"] == input_id)
-    if isinstance(target["item"], dict) and set(target["item"]) == {"_read_locator"}:
+    if (target["id"].startswith("in_scalar_") and isinstance(target["item"], dict)
+            and set(target["item"]) == {"_read_locator"}):
         locator = target["item"]["_read_locator"]
         for index, r in enumerate(snap["tool_results"]):
             if (locator == {"index": index, "call_id": r["call_id"], "tool": r["tool"],

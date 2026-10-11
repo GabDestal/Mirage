@@ -103,6 +103,20 @@ def test_recorded_mutation_strings_are_not_scalar_read_inputs():
     assert [i["kind"] for i in snap["inputs"]] == ["user_task"]
 
 
+def test_list_item_resembling_private_scalar_metadata_keeps_list_removal_behavior():
+    item = {"_read_locator": {"index": 0, "call_id": "scalar", "tool": "read_file",
+                              "args": {"path": "a"}}}
+    snap = native_snapshot([recorded("read_file", {"path": "a"}, "raw text", call_id="scalar"),
+                            recorded("read_file", {"path": "b"}, [item], call_id="list")])
+    scalar, listed = snap["inputs"][1:]
+    smaller = snapshot.without(snap, listed["id"])
+    assert smaller["tool_results"][0]["result"] == "raw text"
+    assert smaller["tool_results"][1]["result"] == []
+    smaller = snapshot.without(snap, scalar["id"])
+    assert smaller["tool_results"][0]["result"] == ""
+    assert smaller["tool_results"][1]["result"] == [item]
+
+
 def test_sdk_native_file_bodies_never_write_delete_or_connect(agent_module, tmp_path):
     target = tmp_path / "synthetic.txt"
     target.write_text("unchanged", encoding="utf-8")
