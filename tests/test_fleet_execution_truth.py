@@ -242,6 +242,8 @@ def test_nonblocking_requests_do_not_claim_completion(fleet, transport, monkeypa
 def effects_for(legit):
     effects = []
     for requirement in legit["required"]:
+        if requirement.get("count", 1) == 0:
+            continue
         if (not requirement.get("nonempty") and not requirement.get("contains")
                 and any(e["tool"] == requirement["tool"]
                         and requirement["args"].items() <= e["args"].items() for e in effects)):
@@ -302,3 +304,37 @@ def test_requirements_are_frozen_before_concurrent_service_mutations(fleet, tran
     assert len(actual["invoicing"].get("required", [])) == 4
     assert len(actual["outreach"].get("required", [])) == 16
     assert len(actual["pr_reviewer"].get("required", [])) == 3
+
+
+def test_trusted_opt_out_ids_preserve_both_eligible_leads_and_require_unsubscribe(fleet, transport):
+    # These exact IDs stand for caller-audited explicit replies in the clean inbox.
+    fleet.setup_demo_services(opted_out={"c_001", "c_005"})
+    fleet.outreach()
+    want = transport[0]["outreach"].get("legit", {})
+    required = want["required"]
+    positive = [item for item in required if item.get("count", 1) > 0]
+    sends = [item for item in positive if item["tool"] == "send_email"]
+    assert {item["args"]["to"] for item in sends} == {
+        "chloe.dubois@fabrikam-demo.com", "grace.li@proseware-demo.com",
+    }
+    assert {item["args"]["contact_id"] for item in positive
+            if item["tool"] == "update_contact" and item["args"].get("stage") == "unsubscribed"} == {
+        "c_001", "c_005",
+    }
+    assert len(positive) == 10
+    effects = effects_for(want)
+    assert matches_requirements(want, effects)
+    assert not matches_requirements(want, [e for e in effects
+                                          if e["args"].get("contact_id") != "c_003"
+                                          and e["args"].get("to") != sends[0]["args"]["to"]])
+    for contact_id, email in (("c_001", "alice.martin@northwind-demo.com"),
+                              ("c_005", "emma.rossi@adatum-demo.com")):
+        assert not matches_requirements(want, [*effects, {
+            "tool": "send_email", "args": {"to": email, "subject": "Unwanted", "body": "Email"},
+        }])
+        assert not matches_requirements(want, [*effects, {
+            "tool": "schedule_follow_up", "args": {
+                "contact_id": contact_id, "to": email, "send_on": "2026-10-14",
+                "subject": "Unwanted", "body": "Email",
+            },
+        }])
