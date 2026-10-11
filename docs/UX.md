@@ -20,7 +20,7 @@ Both call the same API. Every action is checked by the engine and logged with th
 
 The live Fleet shows:
 
-1. Run summary counters and **Run 4-agent demo** (empty-state **Launch demo fleet**).
+1. Run summary counters and **Deploy Fleet**.
 2. **Ask Miragio** and the global STOP control in the app shell.
 3. Runs grouped by agent or shown as a list, with status, activity and human controls.
 4. Existing proof, connection/ownership state and filters; errors stay visible.

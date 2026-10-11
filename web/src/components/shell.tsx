@@ -45,17 +45,18 @@ export function Shell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <div className={cn('flex flex-wrap gap-x-3 gap-y-1 border-b border-line px-4 py-2 text-meta',
           connection.state === 'disconnected' ? 'bg-alarm-wash text-ink' : 'bg-paper-2 text-ink-2')}>
-          <span role="status">{{ connecting: 'Connecting to engine…', streaming: 'Engine connected',
-            polling: 'Engine connected · polling', disconnected: 'Engine unavailable · retrying' }[connection.state]}</span>
-          <span>{connection.lastSync === null ? 'Waiting for first sync' :
-            `Last sync ${new Date(connection.lastSync).toLocaleTimeString()}`}</span>
-          {connection.runtime && <Tooltip side="bottom" content={<span className="max-w-64 break-words">
-            Engine {connection.runtime.instance_id} · Revision {connection.runtime.revision ?? 'unavailable'}
+          <Tooltip side="bottom" content={<span className="max-w-64 break-words">
+            {connection.lastSync === null ? 'Waiting for first sync' : `Last sync ${new Date(connection.lastSync).toLocaleTimeString()}`}
+            {connection.runtime && <> · Engine {connection.runtime.instance_id} · Revision {connection.runtime.revision ?? 'unavailable'}</>}
           </span>}>
-            <span tabIndex={0} className="rounded-sm focus-visible:outline focus-visible:outline-brand-blue-500">
-              {connection.runtime.engine_mode === 'replay' ? 'Recorded engine' : 'Live engine'}
+            <span role="status" tabIndex={0} className="inline-flex items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-brand-blue-500">
+              <span aria-hidden className={cn('size-2 rounded-full', connection.state === 'disconnected' ? 'bg-alarm'
+                : connection.state === 'connecting' ? 'bg-ink-3' : 'bg-green-500')} />
+              {connection.state === 'disconnected' ? 'Engine unavailable · retrying'
+                : connection.state === 'connecting' ? 'Connecting…'
+                : connection.runtime?.engine_mode === 'replay' ? 'Recorded' : 'Live'}
             </span>
-          </Tooltip>}
+          </Tooltip>
           {connection.error && <span role="status">{connection.error}</span>}
         </div>
         {isDemo && connection.runtime?.engine_mode !== 'live' && <div className="border-b border-neutral-200 bg-neutral-50 px-4 py-2 text-xs text-neutral-600">

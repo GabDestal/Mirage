@@ -141,7 +141,7 @@ export function Fleet() {
               title={isDemo ? 'Restart the background recording; no real agents are launched.' : undefined}
             >
               <Play size={13} fill="currentColor" />
-              {startingDemo ? (isDemo ? 'Restarting…' : 'Starting…') : (isDemo ? 'Restart demo recording' : 'Run 4-agent demo')}
+              {startingDemo ? (isDemo ? 'Redeploying…' : 'Deploying…') : (isDemo ? 'Redeploy Fleet' : 'Deploy Fleet')}
             </button>
             <Button asChild variant="primary">
               <Link to="/">Ask Miragio</Link>
@@ -247,7 +247,7 @@ export function Fleet() {
               <h3>No agents matching current filter</h3>
               <p>Your fleet will show up in this view as soon as actions begin executing.</p>
               <button type="button" className="fleet-btn fleet-btn-primary" onClick={handleStartDemo}>
-                Launch demo fleet
+                Deploy Fleet
               </button>
             </div>
           ) : (
