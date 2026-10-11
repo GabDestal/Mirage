@@ -187,6 +187,18 @@ def test_recorded_write_remains_a_captured_write_and_never_becomes_a_read():
     assert effects[0]["tool"] == "send_email" and not effects[0].get("error")
 
 
+def test_exact_recorded_write_failure_remains_typed_instead_of_an_ack():
+    args = {"to": USER, "subject": "Brief", "body": "Synthetic meeting brief."}
+    snap = save_snapshot(calls=[{"tool": "send_email", "args": args}])
+    snap["tool_results"] = [recorded("send_email", args, None, error=f"ValueError: {PRIVATE}")]
+    effects, crash = sandbox.run_once(snap)
+    assert crash is None
+    observed = json.loads(effects[-1]["args"]["body"])
+    assert_unavailable(observed[0], effects[0])
+    assert observed[0]["value"]["error"] == "ValueError"
+    assert PRIVATE not in json.dumps(observed) + json.dumps(effects)
+
+
 def test_without_input_filters_exact_call_data_and_each_attempt_starts_fresh():
     args = {"day": "2026-10-11"}
     items = [{"id": "clean", "description": "Pricing."},
