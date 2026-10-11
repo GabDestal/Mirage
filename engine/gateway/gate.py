@@ -288,8 +288,8 @@ def _check(run, tool, args) -> GateDecision:
             decision, rule = "block", ("RUN_REVOKED", "Containment changed during this check.")
         elif not is_known(policy, tool):
             hit = None
-            decision, rule = "allow", ("UNKNOWN_TOOL",
-                                       f"{tool} is not one of the agent's tools; nothing can run.")
+            decision, rule = "block", ("UNKNOWN_TOOL",
+                                       f"{tool} is not registered; execution is blocked.")
             if is_probe(policy, tool):
                 run.probes.append(tool)
                 if len(run.probes) >= int(os.getenv("MIRAGE_ESCALATE_AFTER", "2")):
@@ -330,8 +330,10 @@ def _check(run, tool, args) -> GateDecision:
         if decision == "allow" and is_known(policy, tool):
             call["state"] = "admitted"
         elif decision == "freeze":
-            call.update(state="held", generation=run.containment_generation,
-                        was_held=True, released=False, rule_id=rule[0])
+            # Probe escalation contains the run, but an unregistered callback cannot be released.
+            call.update(state="held" if is_known(policy, tool) else "revoked",
+                        generation=run.containment_generation, was_held=True,
+                        released=False, rule_id=rule[0])
         if hit:
             spec = agents.get(run.agent)
             try:

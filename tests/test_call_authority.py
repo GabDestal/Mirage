@@ -358,6 +358,8 @@ def test_runtime_added_langgraph_callback_requires_registered_tool_admission(api
     except core.Blocked:
         pass
     assert effects == []
+    (run,) = gate.runs.values()
+    assert run.status == "failed"
     decision = next(e.payload for e in events.read() if e.type == "gate.decision")
     assert (decision["decision"], decision["rule_id"]) == ("block", "UNKNOWN_TOOL")
     assert not any(e.type == "incident.opened" for e in events.read())
