@@ -4,8 +4,8 @@
 Only the user can tell the coordinator to start the full rehearsal.
 This record covers the local synthetic demo, not production acceptance.
 
-Source inspected: `5c9e2df8a996efab41562a697c0bb20cc3e87525`.
-Later admitted-policy delta inspected: `f93f818d8c100cccf7e5eb120c433c44f4862798` (#155).
+Source inspected: base `5c9e2df8a996efab41562a697c0bb20cc3e87525`, then merged
+policy/restart deltas through `1e6052e073886abf36f54af10c48e8c521f4b86e` (#155/#157).
 The final code SHA, medium-clearance delivery and final accuracy review are pending.
 This documentation worker has run no agents, services, controls or provider calls.
 
@@ -16,6 +16,7 @@ This documentation worker has run no agents, services, controls or provider call
 | Protected four-agent fleet | Meeting assistant, invoicing, outreach and PR reviewer use the SDK and HTTP gate. Runs start before factory construction; failures keep a safe reason. | A failed model, factory or tool must not look completed, and healthy siblings can continue. |
 | Call authority | A held release belongs to the original run, checked call and containment generation. Its wait claims admission once; results must match the admitted call. | Approving one call cannot authorize an unchecked sibling or revive a retired hold. |
 | Admitted policy | The run captures its own agent specification and policy. Later same-name registration applies to future runs; a changed registration cannot claim an existing queued restart. | Another registration cannot loosen the current run's gate or frozen policy. |
+| Clean restart identity | Human approval queues one successor; admission matches agent, task, original lineage and the full copied specification. Failed runs can request human restart. | Wrong, duplicate, ambiguous or STOP-revoked claims cannot start the approved task. Queued is not running. |
 | Failure and task truth | Snapshots retain tool-error markers. Replay matches the exact tool and arguments. Verification checks the required recipient, content and entity inventory. | An empty read, failed send, incomplete brief or partial task cannot count as a useful fix. |
 | Proof accounting | Requested counts are positive and bounded. Harm recorded before a crash survives; failed attempts cannot certify a clean result. Parent collection failures retain sibling proof. | Missing or partial work cannot become an invented 3/3 pass. |
 | Runtime and transport | HTTP/SSE expose process identity, loaded revision, stream epoch, owners and typed proof jobs. Read-only reconnect discards stale responses. | Restored history is evidence, not a restored live agent or lock. |
@@ -48,7 +49,7 @@ The user-approved medium workflow below is **pending at the inspected source**:
 | Medium suspicion, inconclusive evidence | Error, crash, missing/partial/stale evidence or unresolved semantic doubt keeps the call contained. A no-harm count alone is insufficient. |
 | High risk, hard rule or escalation | Freeze and prove; recovery always needs a human, even if replay appears clean. |
 
-At `5c9e2df`, medium suspicion still uses `NEEDS_APPROVAL` without an incident.
+At the inspected source, medium suspicion still uses `NEEDS_APPROVAL` without an incident.
 The final engine feature must replace that behavior before these docs describe it
 as delivered. High/hard-rule/escalation recovery, manual Freeze/Unfreeze/Kill,
 STOP, fix merge and clean restart remain intentional human decisions.
@@ -92,11 +93,15 @@ rerun by this worker. The retained ledger gives the other repair heads/results.
 | Composition | Recorded command/result | Provenance |
 |---|---|---|
 | Policy pin #155, reviewed `4ebb19d60ec30f3d1e3dd47e19f535cd7d75d943` on base `5c9e2df` | Provider-off `pytest tests sdk/tests agents -q -p no:cacheprovider --tb=short`: 1176 passed. Separate focused 24 and coordinator 54 checks are not added to that total. | [Merged #155](https://github.com/GabDestal/Mirage/pull/155); squash `f93f818d8c100cccf7e5eb120c433c44f4862798`. |
+| Restart #157, reviewed `22f056cda15ea57303b4f57178c5c44b91cef0fb` on base `f93f818` | `MIRAGE_MODE=live MIRAGE_LAYER2=0 MIRAGE_JUDGE=0 uv run pytest -q`: 1203 passed with stable HEAD. `uv run pytest -q tests/test_restart_identity_authority.py tests/test_registered_policy_authority.py tests/test_restart.py tests/test_resume.py`: 58 passed; independent coordinator 58 separately. | [Merged #157](https://github.com/GabDestal/Mirage/pull/157); squash `1e6052e073886abf36f54af10c48e8c521f4b86e`, local C report below. |
+| Restart UI, same reviewed C head | From `web/`, `node tests/run-lifecycle-truth-selfcheck.mjs`: 32 passed; `--demo`: 6 passed. Typecheck/build/lint passed with existing warnings. | Synthetic render/REST consumer checks; no browser/provider acceptance. |
 | SDK metadata #143, reviewed `1c25fc26b97c206c670ef30b8dc6fcb9577e83ea` | `MIRAGE_LAYER2=0 MIRAGE_JUDGE=0 PYTHONPATH=sdk:. /Users/liamszefner/Business/hacks/Mirage/.venv/bin/python -m pytest sdk/tests -q --tb=short`: 87 passed. | Retained #137 ledger; coordinator independently matched 87. |
 | Transport #130, coordinator `116258461d6858543ea4c5d888e53dd2ed36690e` | From `web/`, `node tests/stream.test.mjs`: 24 passed, 0 failed. | Retained ledger. Separate final worker HTTP/SSE checks are provider-free wire evidence. |
 | Scripted backup #151, reviewed `34f59396f00a7db9f657a6af31a43ca52f711445` | `uv run pytest demo/test_acceptance_fleet.py -q --tb=short`: worker 27 passed; independent coordinator 27 reported separately. | Retained ledger; SCRIPTED component/jailed-child evidence, not primary fleet rehearsal. |
 
-Final C/medium commands, exact tested composition and source handoff are pending.
+The C full suite first hit a Git-provenance assertion because HEAD changed during
+the run; the unchanged source passed the stable-head rerun above. Final medium
+commands, exact tested composition and source handoff are pending.
 
 Current production-lane tools are in-memory synthetic mail/calendar/CRM/invoice/PR
 services. The source fleet seeds eight contacts and two clean events plus one
@@ -166,6 +171,9 @@ its removed checkouts are not active test targets. Portable local reports remain
 `/tmp/mirage-engine-audit-20261011.md`, `/tmp/mirage-agent-audit-20261011.md`,
 `/tmp/mirage-provider-access-regenerated-20261011.json`, and
 `/tmp/mirage-provider-usability-regenerated-20261011.json`.
+The C delivery packet is `/tmp/mirage-restart-identity-audit-20261011.md`; the engine
+closure checkpoint is `/tmp/mirage-engine-closure-checkpoint-20261011.md`.
+Their older PR/checkout status snapshots do not override later Git/coordinator facts.
 The draft handoff at `/tmp/mirage-ui-engine-repair-draft-handoff-20261011.md`
 predates closure of #137; current coordinator status supersedes its PR/worktree state.
 
