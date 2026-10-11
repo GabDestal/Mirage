@@ -30,6 +30,7 @@ try {
   const actions = await server.ssrLoadModule('/src/components/actions.tsx')
   const { Fleet } = await server.ssrLoadModule('/src/pages/fleet.tsx')
   const { RunPage } = await server.ssrLoadModule('/src/pages/trace.tsx')
+  const { IncidentPage } = await server.ssrLoadModule('/src/pages/incident.tsx')
   const { CommandMenu } = await server.ssrLoadModule('/src/components/command-menu.tsx')
   const stream = await server.ssrLoadModule('/src/api/stream.ts')
   const cache = client.queryClient
@@ -72,6 +73,16 @@ try {
   const renderTrace = () => renderToStaticMarkup(h(QueryClientProvider, { client: cache },
     h(MemoryRouter, { initialEntries: [`/runs/${encodeURIComponent(run.id)}`] },
       h(actions.ActionsProvider, {}, h(Routes, {}, h(Route, { path: '/runs/:id', element: h(RunPage) }))))))
+  const renderIncident = () => {
+    const incident = { id: 'incident/synthetic', run_id: run.id, status: 'open', next_action: 'detonate',
+      snapshot_id: 'snapshot/synthetic', inputs: [], bisection: [],
+      trigger: { call_id: 'call/synthetic', tool: 'send_email', args: { to: 'synthetic@example.invalid' },
+        layer: 'hard_rule', rule_id: 'synthetic-rule', explanation: 'Synthetic blocked action' } }
+    cache.setQueryData(['incidents', incident.id], incident)
+    return renderToStaticMarkup(h(QueryClientProvider, { client: cache },
+      h(MemoryRouter, { initialEntries: [`/incidents/${encodeURIComponent(incident.id)}`] },
+        h(actions.ActionsProvider, {}, h(Routes, {}, h(Route, { path: '/incidents/:id', element: h(IncidentPage) }))))))
+  }
   const text = (html) => html.replace(/<[^>]*>/g, ' ')
   const enabled = (html, label) => [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)]
     .some(([, attributes, contents]) => !/(?:^|\s)disabled(?:=|\s|$)/.test(attributes) && text(contents).trim() === label)
@@ -122,6 +133,13 @@ try {
       const menu = text(renderCommands())
       assert.match(menu, /Unfreeze Meeting assistant/)
       assert.match(menu, /Kill Meeting assistant/)
+    })
+    await test('recorded incident retains its explicit playback controls and evidence label', () => {
+      seed([{ ...run, status: 'frozen' }], runtime([], { engine_mode: 'replay' }))
+      const html = renderIncident()
+      assert.ok(enabled(html, 'Unfreeze'))
+      assert.ok(enabled(html, 'Kill'))
+      assert.match(html, /Recorded demonstration/)
     })
     await test('managed recorded control refusals preserve recording and send only one audited POST', async () => {
       const frozen = { ...run, status: 'frozen' }
@@ -210,6 +228,21 @@ try {
         const menu = text(renderCommands())
         assert.doesNotMatch(menu, /Unfreeze Meeting assistant|Kill Meeting assistant/)
         assert.match(menu, /Meeting assistant/, 'Historical run navigation stays available')
+      }
+    })
+    await test('incident controls require current live ownership while recorded proof remains readable', () => {
+      const frozen = { ...run, status: 'frozen' }
+      seed([frozen])
+      assert.ok(enabled(renderIncident(), 'Unfreeze'))
+      assert.ok(enabled(renderIncident(), 'Kill'))
+      for (const [info, state] of [[runtime([]), 'streaming'], [null, 'connecting'], [runtime([run.id]), 'disconnected']]) {
+        seed([frozen], info)
+        connection(info, state)
+        const html = renderIncident()
+        assert.ok(!enabled(html, 'Unfreeze'))
+        assert.ok(!enabled(html, 'Kill'))
+        assert.match(html, /Synthetic blocked action/)
+        assert.match(html, /Proof awaits detonation/)
       }
     })
     for (const status of ['running', 'frozen']) {
