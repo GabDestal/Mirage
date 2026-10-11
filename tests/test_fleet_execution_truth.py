@@ -22,7 +22,9 @@ from agents.services import store
 @pytest.fixture
 def fleet(monkeypatch):
     monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
+    monkeypatch.setenv("DEMO_USER_EMAIL", "demo-user@mirage-demo.com")
     module = importlib.import_module("agents.run_demo_fleet")
+    monkeypatch.setattr(module, "_legit", copy.deepcopy(getattr(module, "_legit", None)), raising=False)
     monkeypatch.setattr(module, "USER_EMAIL", "demo-user@mirage-demo.com")
     monkeypatch.setattr(core, "_sandbox", None)
     monkeypatch.setattr(store, "_state", None)
