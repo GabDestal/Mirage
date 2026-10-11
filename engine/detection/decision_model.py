@@ -97,7 +97,7 @@ def parse(text):
             raise ValueError("No JSON answer") from None
         answer = json.loads(match.group(0))
     if not isinstance(answer, dict):
-        raise ValueError("Expected a JSON object")
+        raise TypeError("Expected a JSON object")
     return answer
 
 
@@ -124,7 +124,7 @@ def classify(agent, task, tool, args, model_id=None):
         answer = parse(text)
         violates, policy, p, reason = (answer[k] for k in ("violates", "policy_id", "p", "reason"))
         if (type(violates) is not bool or type(p) not in (int, float) or not 0 <= p <= 1
-                or (policy is not None and policy not in tuple(f"P{i}" for i in range(1, 7)))
+                or (policy is not None and policy not in ("P1", "P2", "P3", "P4", "P5", "P6"))
                 or (violates and policy is None) or not isinstance(reason, str) or not reason.strip()):
             raise ValueError("Invalid decision fields")
         # Provider fields cannot impersonate the internal unavailable result.
