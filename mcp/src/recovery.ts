@@ -161,15 +161,19 @@ export class RecoverySupervisor implements RecoveryController {
         throw new Error("Engine configuration changed since the original recording.");
       if (digest(provenance.policy) !== provenance.policy_digest || digest(provenance.agent_spec) !== digest(registration.agent_spec))
         throw new Error("Prepared policy or factory identity does not match engine provenance.");
-      await privateJson(join(dir, "effective-policy.json"), provenance.policy);
+      const policyFile = join(dir, "effective-policy.json");
+      await privateJson(policyFile, provenance.policy);
       let verification: Proof | undefined, cleanControl: RecoveryReport["clean_control"];
       const needsVerification = candidateTree !== mergedTree || provenance.policy_digest !== context.policy_digest;
       if (needsVerification) {
         if (!this.config.liveVerification) throw new Error("Merged code or policy changed; a provider verification slot is required.");
         const verifyConfig = { ...this.config, env: { ...(this.config.env ?? process.env), ...originalConfig,
           PYTHON_DOTENV_DISABLED: "1" } };
-        const result = await verifyCurrentCode(verifyConfig, cwd, dir, snapshot, "candidate", context.snapshot_json);
-        const clean = await verifyCurrentCode(verifyConfig, cwd, dir, context.clean_snapshot, "clean", context.clean_snapshot_json);
+        const result = await verifyCurrentCode(verifyConfig, cwd, dir, snapshot, "candidate", context.snapshot_json, policyFile);
+        const clean = await verifyCurrentCode(verifyConfig, cwd, dir, context.clean_snapshot, "clean", context.clean_snapshot_json, policyFile);
+        const revision = provenance.policy.rule_revision;
+        if (typeof revision === "string" && [result, clean].some((proof) => !proof.policy_revisions?.includes(revision)))
+          throw new Error("Merged verification did not pin the current rule revision.");
         verification = { exit_code: 0, result, replay_errors: 0 };
         cleanControl = { snapshot: context.clean_snapshot, exit_code: 0, result: clean, replay_errors: 0 };
       }

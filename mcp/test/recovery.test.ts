@@ -27,7 +27,7 @@ describe("actual merged PR identity", () => {
   });
 });
 
-async function harness(changedTree = false, badVerification = false, changedPolicy = false) {
+async function harness(changedTree = false, badVerification = false, changedPolicy = false, missingPolicyRevision = false) {
   const repoPath = await realpath(await mkdtemp(join(tmpdir(), "mirage-recovery-test-")));
   const checkout = join(repoPath, "isolated");
   await mkdir(checkout);
@@ -49,6 +49,7 @@ async function harness(changedTree = false, badVerification = false, changedPoli
     ...job.verification!, clean_snapshot_digest: digestBytes(cleanJson) } }, snapshot,
     clean_snapshot: cleanSnapshot, baseline_effects: [], snapshot_json: snapshotJson, clean_snapshot_json: cleanJson,
     baseline_json: "[]", policy_digest: digest(snapshot.policy) };
+  const effectivePolicy = changedPolicy ? { ...snapshot.policy, rule_revision: "f".repeat(64) } : snapshot.policy;
   let state: RecoveryState | undefined, moved = false;
   const commands: { command: string; args: string[]; cwd: string; env?: NodeJS.ProcessEnv }[] = [];
   const requests: { path: string; body?: any }[] = [];
@@ -66,8 +67,11 @@ async function harness(changedTree = false, badVerification = false, changedPoli
       const runs = args[args.indexOf("--runs") + 1];
       const raw = await readFile(join(options.env!.MIRAGE_SNAPSHOTS!, `${args[args.indexOf("--incident") + 1]}.json`), "utf8");
       expect(raw).toContain('"temperature":1.0');
+      const policy = JSON.parse(await readFile(args[args.indexOf("--policy-file") + 1], "utf8"));
+      expect(policy).toEqual(effectivePolicy);
       return receipt({ incident_id: args[args.indexOf("--incident") + 1], attack_blocked: `${runs}/${runs}`,
         legit_task_completed: `${runs}/${runs}`, passed: !badVerification,
+        policy_revisions: policy.rule_revision && !missingPolicyRevision ? [policy.rule_revision] : [],
         effects: Array.from({ length: Number(runs) }, (_, index) => ({ detonation_id: "synthetic", run_index: index + 1,
           step: 1, tool: "send_email", args: { to: config.DEMO_USER_EMAIL, subject: "Brief", body: "Synthetic meeting" }, violates: [], error: null })) },
       badVerification ? 1 : 0);
@@ -92,8 +96,7 @@ async function harness(changedTree = false, badVerification = false, changedPoli
     requests.push({ path, body });
     if (path.endsWith("/context")) return Response.json(context);
     if (path.endsWith("/provenance")) {
-      const policy = changedPolicy ? { changed: true } : snapshot.policy;
-      return Response.json({ policy_digest: digest(policy), policy, agent_spec: spec, config, config_digest: digest(config) });
+      return Response.json({ policy_digest: digest(effectivePolicy), policy: effectivePolicy, agent_spec: spec, config, config_digest: digest(config) });
     }
     if (path.endsWith("/report")) {
       if (body.clean_control) expect(String(init?.body)).toContain(`"snapshot":${cleanJson}`);
@@ -150,6 +153,12 @@ it("policy changes require merged verification even when squash trees match", as
   const state = await h.supervisor.prepareRecovery("job");
   expect(state.report.verified_sha).toBe(merged);
   expect(h.commands.filter((call) => call.args.includes("engine.cli"))).toHaveLength(2);
+});
+
+it("changed-rule proof without the actual pinned revision cannot prepare recovery", async () => {
+  const h = await harness(false, false, true, true);
+  await expect(h.supervisor.prepareRecovery("job")).rejects.toThrow("current rule revision");
+  expect(h.requests.some((r) => r.path.endsWith("/report"))).toBe(false);
 });
 
 it("requires explicit approval and launches the exact queue at most once", async () => {
