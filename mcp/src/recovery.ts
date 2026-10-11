@@ -98,11 +98,12 @@ export class RecoverySupervisor implements RecoveryController {
     if (snapshot.model_id !== "ScriptedModel" || !source) return false;
     const original = await readFile(source.original_snapshot_path);
     const services = await readFile(this.config.checkpointPath);
+    const originalServices = await readFile(source.original_services_path);
     const effectiveModel = ["MEETING_ASSISTANT_MODEL_ID", "BEDROCK_AGENT_MODEL_ID", "BEDROCK_MODEL_ID"]
       .map((key) => source.nonsecret_environment[key]?.trim()).find(Boolean);
     return createHash("sha256").update(original).digest("hex") === source.original_snapshot_sha256
       && createHash("sha256").update(services).digest("hex") === source.original_services_sha256
-      && await realpath(this.config.checkpointPath) === await realpath(source.original_services_path)
+      && createHash("sha256").update(originalServices).digest("hex") === source.original_services_sha256
       && digest(JSON.parse(original.toString("utf8"))) === digest(snapshot)
       && source.task === snapshot.task && source.agent_name === snapshot.agent && source.entrypoint === snapshot.entrypoint
       && digest(source.legit) === digest(snapshot.legit) && source.effective_agent_model_id === effectiveModel

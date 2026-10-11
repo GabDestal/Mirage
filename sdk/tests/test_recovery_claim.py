@@ -53,7 +53,7 @@ def test_http_claim_selects_exact_approved_queue_and_executes_callback(monkeypat
     gate.reset()
     client = TestClient(app)
     monkeypatch.setattr(core, "_http", client)
-    core.register("assistant", ["send_email"], {"tools": ["send_email"], "email_to": ["user@mirage-demo.com"]})
+    core.register("assistant", ["send_email"], {"tools": ["send_email"], "email_to": ["user@northwind.example"]})
     human = {"actor": "synthetic-human", "reason": "Focused queue identity check"}
     originals = [core.open_run("assistant", "Exact original task")["id"] for _ in range(2)]
     queues = []
@@ -63,7 +63,7 @@ def test_http_claim_selects_exact_approved_queue_and_executes_callback(monkeypat
     effects = []
     with core.recovery_run("assistant", "Exact original task", restarted_from=originals[1]) as run:
         assert run["id"] == queues[1]
-        core.tool("send_email", {"to": "user@mirage-demo.com", "body": "Synthetic useful task"},
+        core.tool("send_email", {"to": "user@northwind.example", "body": "Synthetic useful task"},
                   lambda: effects.append("one brief"))
     assert effects == ["one brief"]
     assert client.get(f"/runs/{queues[1]}").json()["status"] == "completed"

@@ -1,7 +1,12 @@
 import { mkdtemp, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { createChatService } from "../src/chat.js";
+import { createServer } from "../src/server.js";
 import { digest, digestBytes, type CommandRunner, type RepairJob } from "../src/repair-supervisor.js";
 import { inspectMergedPullRequest, recoveryConfig, RecoverySupervisor, type RecoveryState } from "../src/recovery.js";
 
@@ -28,7 +33,7 @@ describe("actual merged PR identity", () => {
 });
 
 async function harness({ changedTree = false, badVerification = false, changedPolicy = false, missingPolicyRevision = false,
-  scriptedCapture = false, badCapture = false } = {}) {
+  scriptedCapture = false, badCapture = false, copiedCheckpoint = false, badCheckpoint = false } = {}) {
   const repoPath = await realpath(await mkdtemp(join(tmpdir(), "mirage-recovery-test-")));
   const checkout = join(repoPath, "isolated");
   await mkdir(checkout);
@@ -122,7 +127,10 @@ async function harness({ changedTree = false, badVerification = false, changedPo
       original_services_path: checkpointPath, original_services_sha256: digestBytes(await readFile(checkpointPath, "utf8")),
       nonsecret_environment: config, captured_at: "2026-10-11", code_root: repoPath, source_sha256: { "agents/example.py": tree } };
     await writeFile(sourcePath, JSON.stringify(sourceReceipt));
-    const loaded = await recoveryConfig(runtime, { MIRAGE_RECOVERY_CHECKPOINT: checkpointPath, MIRAGE_RECOVERY_CONFIG_SOURCE: sourcePath });
+    const copiedPath = join(repoPath, "private-checkpoint.json");
+    if (copiedCheckpoint) await writeFile(copiedPath, badCheckpoint ? "{}" : await readFile(checkpointPath));
+    const loaded = await recoveryConfig(runtime, { MIRAGE_RECOVERY_CHECKPOINT: copiedCheckpoint ? copiedPath : checkpointPath,
+      MIRAGE_RECOVERY_CONFIG_SOURCE: sourcePath });
     configSourceDigest = digest(sourceReceipt);
     expect(loaded!.configSourceDigest).toBe(configSourceDigest);
     configured = loaded as typeof runtime;
@@ -194,6 +202,64 @@ it("refuses a scripted model override when its trusted original snapshot hash ch
   const h = await harness({ scriptedCapture: true, badCapture: true });
   await expect(h.supervisor.prepareRecovery("job")).rejects.toThrow("configuration");
   expect(h.commands).toHaveLength(0);
+});
+
+it("accepts a byte-identical private checkpoint copy without changing source provenance", async () => {
+  const h = await harness({ scriptedCapture: true, copiedCheckpoint: true });
+  expect((await h.supervisor.prepareRecovery("job")).status).toBe("prepared");
+});
+
+it("refuses a private checkpoint copy with different bytes", async () => {
+  const h = await harness({ scriptedCapture: true, copiedCheckpoint: true, badCheckpoint: true });
+  await expect(h.supervisor.prepareRecovery("job")).rejects.toThrow("configuration");
+  expect(h.commands.some((command) => command.command === "orca")).toBe(false);
+});
+
+it("routes operator-only prepare and approved launch without model or approval calls", async () => {
+  const state = { status: "prepared", report: {} } as RecoveryState;
+  const prepareRecovery = vi.fn(async () => state), launchApprovedRecovery = vi.fn(async () => state);
+  const stream = vi.fn(async () => { throw new Error("A model must not be called"); });
+  const service = createChatService({ provider: { stream }, recovery: { prepareRecovery, launchApprovedRecovery } });
+  await new Promise<void>((resolve) => service.http.listen(0, "127.0.0.1", resolve));
+  const address = service.http.address();
+  if (!address || typeof address === "string") throw new Error("Missing loopback address");
+  const post = (path: string, body: unknown, headers: Record<string, string> = {}) => fetch(`http://127.0.0.1:${address.port}${path}`,
+    { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
+  try {
+    expect((await post("/chat/recovery/job/prepare", {}, { origin: "https://untrusted.invalid" })).status).toBe(403);
+    expect((await post("/chat/recovery/job/prepare", { approve: true })).status).toBe(400);
+    expect((await post("/chat/recovery/incident/launch", { queued_run_id: "new", reason: "auto approve" })).status).toBe(400);
+    expect(prepareRecovery).not.toHaveBeenCalled(); expect(launchApprovedRecovery).not.toHaveBeenCalled();
+    expect((await post("/chat/recovery/job/prepare", {})).status).toBe(200);
+    expect((await post("/chat/recovery/incident/launch", { queued_run_id: "new" })).status).toBe(200);
+    expect(prepareRecovery).toHaveBeenCalledExactlyOnceWith("job");
+    expect(launchApprovedRecovery).toHaveBeenCalledExactlyOnceWith("incident", "new");
+    expect(stream).not.toHaveBeenCalled();
+  } finally { await service.close(); }
+});
+
+it("MCP preparation never approves and queue launch fails closed without human confirmation", async () => {
+  const prepareRecovery = vi.fn(async () => ({ status: "prepared", report: {} }) as RecoveryState);
+  const launchApprovedRecovery = vi.fn(async () => ({ status: "running", report: {} }) as RecoveryState);
+  const server = createServer({ recovery: { prepareRecovery, launchApprovedRecovery } });
+  const client = new Client({ name: "recovery-test", version: "1" }, { capabilities: { elicitation: { form: {} } } });
+  let approve = false;
+  client.setRequestHandler(ElicitRequestSchema, async () => approve
+    ? { action: "accept", content: { confirm: "launch new", reason: "Human reviewed this approved queue" } } : { action: "decline" });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await server.connect(a); await client.connect(b);
+  try {
+    const tools = (await client.listTools()).tools.map((tool) => tool.name);
+    expect(tools).toContain("prepare_recovery"); expect(tools).toContain("launch_approved_recovery");
+    expect(tools).not.toContain("approve_restart");
+    await client.callTool({ name: "prepare_recovery", arguments: { job_id: "job" } });
+    expect(prepareRecovery).toHaveBeenCalledExactlyOnceWith("job");
+    expect((await client.callTool({ name: "launch_approved_recovery", arguments: { incident_id: "incident", queued_run_id: "new" } })).isError).toBe(true);
+    expect(launchApprovedRecovery).not.toHaveBeenCalled();
+    approve = true;
+    await client.callTool({ name: "launch_approved_recovery", arguments: { incident_id: "incident", queued_run_id: "new" } });
+    expect(launchApprovedRecovery).toHaveBeenCalledExactlyOnceWith("incident", "new");
+  } finally { await client.close(); await server.close(); }
 });
 
 it("requires explicit approval and launches the exact queue at most once", async () => {

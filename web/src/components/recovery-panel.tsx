@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { ApiError, api, queryClient, useEvents, type Run } from '@/api/client'
 import { useConnection } from '@/api/stream'
+import { getRepair, incidentRepairs } from '@/api/repair'
 import { ACTOR, HumanReasonDialog, liveRunOwned, useAsk } from '@/components/actions'
 import { Button } from '@/components/ui/button'
 import { isDemo } from '@/lib/demo'
@@ -28,6 +29,12 @@ export function RecoveryPanel({ incidentId, repairJobId, run }: { incidentId: st
   const live = !isDemo && run.env === 'prod' && connection.runtime?.engine_mode === 'live'
     && ['streaming', 'polling'].includes(connection.state) && !connection.error
   const available = live && !stopOn(events)
+  const repairs = useQuery({ queryKey: ['repair-jobs', 'incident', incidentId], enabled: live && !repairJobId,
+    queryFn: ({ signal }) => incidentRepairs(incidentId, signal), refetchInterval: 5_000 })
+  const jobId = repairJobId ?? repairs.data?.at(-1)?.id
+  const repair = useQuery({ queryKey: ['repair-jobs', jobId], enabled: live && !!jobId,
+    queryFn: ({ signal }) => getRepair(jobId!, signal),
+    refetchInterval: (query) => ['pr_open', 'failed'].includes(query.state.data?.status ?? '') ? false : 2_000 })
   const recovery = useQuery({ queryKey, enabled: live,
     queryFn: async ({ signal }) => {
       try { return await api<RecoverySummary>(`/incidents/${encodeURIComponent(incidentId)}/recovery`, undefined, signal) }
@@ -39,7 +46,7 @@ export function RecoveryPanel({ incidentId, repairJobId, run }: { incidentId: st
     await Promise.all([queryClient.invalidateQueries({ queryKey }), queryClient.invalidateQueries({ queryKey: ['runs'] }),
       queryClient.invalidateQueries({ queryKey: ['incidents'] })])
   }
-  const prepare = useMutation({ mutationFn: () => supervisor<RecoverySummary>(`${encodeURIComponent(repairJobId!)}/prepare`),
+  const prepare = useMutation({ mutationFn: () => supervisor<RecoverySummary>(`${encodeURIComponent(jobId!)}/prepare`),
     onSuccess: refresh, retry: false })
   const launch = useMutation({ mutationFn: (queue: string) => supervisor<RecoverySummary>(`${encodeURIComponent(incidentId)}/launch`, { queued_run_id: queue }),
     onSettled: refresh, retry: false })
@@ -58,7 +65,8 @@ export function RecoveryPanel({ incidentId, repairJobId, run }: { incidentId: st
   const contained = ['killed', 'halted', 'failed'].includes(run.status)
   return <section className="mt-5 flex flex-col items-start gap-3" aria-labelledby={`recovery-${incidentId}`}>
     <h3 id={`recovery-${incidentId}`} className="font-semibold">Recover the original task</h3>
-    <p className="max-w-prose text-ink-2" role="status">{state ? recoveryMessage(state)
+    <p className="max-w-prose text-ink-2" role="status">{state?.status === 'running' && !connection.runtime?.owned_run_ids.includes(state.new_run_id ?? '')
+      ? 'The engine records this task as running; its live launcher ownership is unavailable. Review the new trace.' : state ? recoveryMessage(state)
       : 'Merge the verified repair PR into special-improvements, then check its merged revision.'}</p>
     {state ? <>
       <a href={state.report.pull_request.url} target="_blank" rel="noreferrer" className="text-control underline underline-offset-4">
@@ -78,7 +86,7 @@ export function RecoveryPanel({ incidentId, repairJobId, run }: { incidentId: st
       : 'Connect to the live engine to prepare or approve recovery.'}</p> : null}
     {state?.new_run_id ? <Link to={`/runs/${encodeURIComponent(state.new_run_id)}`} className="text-control underline underline-offset-4">Open new task trace</Link> : null}
     <div className="flex flex-wrap gap-2">
-      {!state ? <Button disabled={!available || !repairJobId || busy || recovery.isPending} onClick={() => prepare.mutate()}>
+      {!state ? <Button disabled={!available || repair.data?.status !== 'pr_open' || busy || recovery.isPending} onClick={() => prepare.mutate()}>
         {prepare.isPending ? 'Checking merged revision…' : 'Check merged repair'}</Button> : null}
       {state?.status === 'prepared' && !contained ? <Button variant="destructive" disabled={!available || busy || !liveRunOwned(run, connection)}
         onClick={() => ask('kill', run)}>Kill compromised run</Button> : null}

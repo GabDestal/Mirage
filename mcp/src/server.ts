@@ -6,6 +6,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { RepairController } from "./repair-supervisor.js";
 import { publicRepairJob } from "./repair-supervisor.js";
+import type { RecoveryController } from "./recovery.js";
 import { registerRules } from "./rules.js";
 
 // Hand-typed subset of contracts/models.py.
@@ -57,7 +58,7 @@ const text = (t: string, structured?: Record<string, unknown>): CallToolResult =
   ({ content: [{ type: "text", text: t }], ...(structured && { structuredContent: structured }) });
 const refuse = (t: string): CallToolResult => ({ content: [{ type: "text", text: `Not done: ${t}` }], isError: true });
 
-export type Options = { api?: string; actor?: string; fetch?: typeof fetch; pollMs?: number; timeoutMs?: number; repair?: RepairController };
+export type Options = { api?: string; actor?: string; fetch?: typeof fetch; pollMs?: number; timeoutMs?: number; repair?: RepairController; recovery?: RecoveryController };
 
 /** Engine HTTP client shared by the MCP tools and the chat service's detonation watcher. */
 export function engineClient(opts: Options = {}) {
@@ -148,6 +149,24 @@ export function createServer(opts: Options = {}) {
   const NOT_CONFIRMED = "needs your confirmation in a client that supports it (MCP elicitation). " +
     "Declined, cancelled, wrong phrase, or no form support: nothing was sent to Mirage.";
   registerRules(server, { call, confirm, actor });
+  for (const action of ["prepare_recovery", "launch_approved_recovery"] as const) {
+    const prepare = action === "prepare_recovery";
+    server.registerTool(action, {
+      title: prepare ? "Check merged repair" : "Launch an approved clean task",
+      description: prepare ? "Inspect the manually merged verified repair and register its exact factory before human restart approval. Never merges or approves."
+        : "Execute an exact queue already approved by the human in Mirage. Never creates or approves a restart. Requires human confirmation to launch.",
+      inputSchema: prepare ? { job_id: z.string().regex(/^[\w-]+$/) }
+        : { incident_id: z.string().regex(/^[\w-]+$/), queued_run_id: z.string().regex(/^[\w-]+$/) },
+      annotations: { readOnlyHint: false, destructiveHint: !prepare, idempotentHint: false, openWorldHint: true },
+    }, safe(async (input: { job_id?: string; incident_id?: string; queued_run_id?: string }) => {
+      if (demo || !opts.recovery) return refuse("The live local recovery launcher is unavailable.");
+      if (!prepare && !await confirm(`Launch the already approved clean task ${input.queued_run_id}? This executes the original useful task with fresh context.`,
+        `launch ${input.queued_run_id}`, "Launch the human-approved clean task")) return refuse(NOT_CONFIRMED);
+      const state = prepare ? await opts.recovery.prepareRecovery(input.job_id!)
+        : await opts.recovery.launchApprovedRecovery(input.incident_id!, input.queued_run_id!);
+      return text(`Recovery status: ${state.status}. Queue creation alone does not establish task completion.`, { recovery: state });
+    }));
+  }
 
   /** POST a long action; with wait, follow /events until one of `until` arrives, else return the cursor. */
   async function follow(incidentId: string, path: string, until: string[], extra: any, body: unknown, wait: boolean) {
