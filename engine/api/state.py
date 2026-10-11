@@ -5,7 +5,7 @@ dev runner, `mirage detonate`) and keeps them across restarts. Replay mode folds
 played so far.
 """
 
-from contracts.models import BisectionRow, Incident, Run, SandboxJob, Verdict
+from contracts.models import BisectionRow, Incident, RepairJob, Run, SandboxJob, Verdict
 
 NEXT_ACTION = {"open": "detonate", "confirmed": "find_cause", "root_caused": "send_fix",
                "fix_verified": "open_pr"}  # any other status: "none"
@@ -13,6 +13,16 @@ INCIDENT_STATUS = {"detonation.started": "detonating",
                    "bisection.step": "bisecting", "bisection.completed": "root_caused",
                    "handoff.created": "fix_pending", "fix.verified": "fix_verified",
                    "pr.opened": "pr_open"}
+
+
+def repair_jobs(events):
+    """Public repair progress is durable; private prompts and ledgers are never projected."""
+    jobs = {}
+    for event in events:
+        if event.type == "repair.job.updated":
+            job = RepairJob.model_validate(event.payload)
+            jobs[job.id] = job
+    return jobs
 
 
 def fold(events):
