@@ -1,6 +1,5 @@
 import { useState, useMemo, type FormEvent } from 'react'
 import {
-  Sparkles,
   Plus,
   Pencil,
   Trash2,
@@ -18,17 +17,14 @@ import {
   activateRule,
   createRule,
   draftFromFields,
-  extractRuleFromNaturalLanguage,
   previewRule,
   ruleSentence,
   useRuleAgents,
   useRules,
-  type RuleDraftRequest,
   type RulePreview,
   type RuleRevision,
 } from '@/api/rules'
 import { Button } from '@/components/ui/button'
-import { Miragio } from '@/components/miragio'
 import { agentName } from '@/lib/runs'
 import './rules.css'
 
@@ -117,10 +113,6 @@ export type UnifiedRule = {
 export function Rules() {
   const agents = useRuleAgents()
   const rules = useRules()
-
-  // Natural language state
-  const [nlPrompt, setNlPrompt] = useState('')
-  const [isProcessingNl, setIsProcessingNl] = useState(false)
 
   // Filter & Search state
   const [searchQuery, setSearchQuery] = useState('')
@@ -233,46 +225,6 @@ export function Rules() {
     })
   }, [unifiedRules, scopeFilter, searchQuery])
 
-  // Handle Natural Language submission via Miragio
-  async function handleNlSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!nlPrompt.trim() || isProcessingNl) return
-
-    setIsProcessingNl(true)
-    try {
-      const registered = agents.data ?? []
-      if (!registered.length) {
-        throw new Error('No registered agents found. Ensure your agent is connected to the engine.')
-      }
-
-      const extracted = extractRuleFromNaturalLanguage(nlPrompt, registered)
-      const draft: RuleDraftRequest = {
-        agent: extracted.agent,
-        allow: {
-          tools: extracted.tools,
-          email_to: extracted.email_to,
-          url_hosts: [],
-        },
-      }
-
-      // Save draft to engine
-      const revision = await createRule(draft)
-      await queryClient.invalidateQueries({ queryKey: ['rules'] })
-      setNlPrompt('')
-      toast.success(
-        `Miragio created rule draft for ${agentName(revision.agent)}! Preview and activate it in the table.`,
-        { duration: 4000 }
-      )
-
-      // Open review modal for immediate 1-click preview & activation
-      void openReviewModal(revision)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not interpret rule from prompt.')
-    } finally {
-      setIsProcessingNl(false)
-    }
-  }
-
   // Open Add Rule Modal
   function handleOpenAdd() {
     const defaultAgent = agents.data?.[0]?.name ?? ''
@@ -371,7 +323,7 @@ export function Rules() {
         <div>
           <h1 className="rules-title">Rules & Policies</h1>
           <p className="rules-subtitle">
-            Safety boundaries, P1–P6 guardrails, and restrictive agent policies. Add or update rules manually or ask Miragio in plain English.
+            Safety boundaries, P1–P6 guardrails, and restrictive agent policies.
           </p>
         </div>
         <div className="rules-header-stats">
@@ -381,45 +333,6 @@ export function Rules() {
           </div>
         </div>
       </header>
-
-      {/* Miragio Natural Language Rule Bar */}
-      <section className="rules-nl-card" aria-label="Ask Miragio to add a rule">
-        <div className="rules-nl-header">
-          <div className="rules-nl-title-group">
-            <Miragio className="rules-miragio-avatar" animate />
-            <div>
-              <h2 className="rules-nl-title">Add rules with Miragio</h2>
-              <p className="rules-nl-desc">Describe the restriction you want in natural language. Miragio will draft the exact policy.</p>
-            </div>
-          </div>
-          <span className="rules-nl-badge">Natural Language</span>
-        </div>
-
-        <form className="rules-nl-form" onSubmit={handleNlSubmit}>
-          <div className="rules-nl-input-wrapper">
-            <Sparkles className="rules-nl-sparkle-icon" />
-            <input
-              type="text"
-              className="rules-nl-input"
-              value={nlPrompt}
-              onChange={(e) => setNlPrompt(e.target.value)}
-              placeholder='e.g. "Only allow Meeting assistant to read calendar and email demo-user@mirage-demo.com"'
-              disabled={isProcessingNl}
-            />
-          </div>
-          <Button type="submit" variant="primary" disabled={!nlPrompt.trim() || isProcessingNl}>
-            {isProcessingNl ? (
-              <>
-                <RefreshCw className="size-4 animate-spin" /> Processing…
-              </>
-            ) : (
-              <>
-                <Sparkles className="size-4" /> Add with Miragio
-              </>
-            )}
-          </Button>
-        </form>
-      </section>
 
       {/* Table Toolbar: Filter, Search, and Manual Add */}
       <div className="rules-toolbar">

@@ -19,6 +19,46 @@ from engine.gateway import gate
 router = APIRouter(prefix="/rules")
 
 
+DEMO_AGENTS = {
+    "meeting_assistant": AgentSpec(
+        name="meeting_assistant",
+        owner="demo",
+        tools=["read_calendar", "send_email", "export_contacts", "search_contacts"],
+        allow={"tools": ["read_calendar", "send_email", "export_contacts", "search_contacts"],
+               "email_to": ["*@mirage-demo.com", "*@synthetic.example", "*@contoso-demo.com"],
+               "url_hosts": []},
+        entrypoint="tests.sandbox_agents:ignores_invite",
+    ),
+    "pr_reviewer": AgentSpec(
+        name="pr_reviewer",
+        owner="demo",
+        tools=["read_pull_request", "list_pull_requests", "submit_review"],
+        allow={"tools": ["read_pull_request", "list_pull_requests", "submit_review"],
+               "email_to": ["*@mirage-demo.com", "*@synthetic.example"],
+               "url_hosts": []},
+        entrypoint="tests.sandbox_agents:pr_review",
+    ),
+    "outreach": AgentSpec(
+        name="outreach",
+        owner="demo",
+        tools=["read_calendar", "send_email", "search_contacts"],
+        allow={"tools": ["read_calendar", "send_email", "search_contacts"],
+               "email_to": ["*@mirage-demo.com", "*@contoso-demo.com", "*@synthetic.example"],
+               "url_hosts": []},
+        entrypoint="tests.sandbox_agents:outreach",
+    ),
+    "support": AgentSpec(
+        name="support",
+        owner="demo",
+        tools=["read_ticket", "send_email", "search_contacts"],
+        allow={"tools": ["read_ticket", "send_email", "search_contacts"],
+               "email_to": ["*@mirage-demo.com", "*@proseware-demo.com", "*@synthetic.example"],
+               "url_hosts": []},
+        entrypoint="tests.sandbox_agents:support",
+    ),
+}
+
+
 def _stream():
     from engine.api import server
 
@@ -28,8 +68,6 @@ def _stream():
 def _writable():
     from engine.api import server
 
-    if server.REPLAY:
-        raise HTTPException(409, "Rules cannot be changed in replay mode")
     if server.PUBLIC:
         raise HTTPException(403, "Rule changes require the trusted local operator interface")
 
@@ -38,10 +76,12 @@ def _catalogue():
     from engine.api import server
 
     stream = _stream()
-    if not server.REPLAY:
-        return gate.agents
-    return {event.payload["name"]: AgentSpec.model_validate(event.payload)
-            for event in stream if event.type == "agent.registered"}
+    registered = {event.payload["name"]: AgentSpec.model_validate(event.payload)
+                  for event in stream if event.type == "agent.registered"}
+    combined = {**gate.agents, **registered}
+    if not combined and server.REPLAY:
+        return dict(DEMO_AGENTS)
+    return combined
 
 
 def _spec(agent):
