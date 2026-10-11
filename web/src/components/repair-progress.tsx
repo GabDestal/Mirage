@@ -8,7 +8,7 @@ import { isDemo } from '@/lib/demo'
 
 const messages: Record<RepairJob['status'], string> = {
   queued: 'Repair queued. Waiting for the local coding runtime.',
-  running: 'The coding worker is repairing the agent and saving the incident regression.',
+  running: 'The local repair runtime is checking the original incident and preparing a candidate.',
   verifying: 'Testing the committed candidate against the original attack and clean task in Mirage.',
   pr_open: 'The verified draft PR is ready for human review.',
   failed: 'Repair failed. The compromised run stays contained.',
