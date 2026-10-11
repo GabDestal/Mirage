@@ -145,7 +145,8 @@ export function assertSanitized(value: unknown) {
   const visit = (item: unknown) => {
     if (!item || typeof item !== "object") return;
     for (const [key, entry] of Object.entries(item)) {
-      if (/(?:token|password|authorization|api_key|capability|credential)/i.test(key) && entry != null && entry !== "")
+      // Strings only: live model calls carry numeric usage counters such as input_tokens.
+      if (/(?:token|password|authorization|api_key|capability|credential)/i.test(key) && typeof entry === "string" && entry !== "")
         throw new Error("Regression context contains a private credential field.");
       visit(entry);
     }

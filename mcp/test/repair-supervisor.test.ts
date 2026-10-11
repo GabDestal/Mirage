@@ -70,6 +70,7 @@ test("candidate scope refuses dirty state, evaluator edits and non-agent files",
 
 test("durable regression refuses capabilities and credentials while preserving fake canary", () => {
   assertSanitized({ task: "Synthetic meeting", text: "FLAG{team26-canary}" });
+  assertSanitized({ usage_metadata: { input_tokens: 360, total_tokens: 593, input_token_details: { cache_read: 0 } } });
   for (const item of [{ prompt: "Bearer private-value" }, { token: "private-value" }, { text: "dcap_private" }])
     expect(() => assertSanitized(item)).toThrow(/credential/);
 });
