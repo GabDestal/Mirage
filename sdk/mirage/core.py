@@ -143,7 +143,7 @@ def check(name, args, run):
             raise Blocked(gate.explanation)
         _deny(run, gate.explanation)
     if gate.decision == "freeze":
-        _wait(run, gate.call_id)  # only this checked call waits; a human decides
+        _wait(run, gate.call_id)  # only this checked call can claim its release
     return gate.call_id
 
 
