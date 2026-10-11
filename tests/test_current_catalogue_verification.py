@@ -237,7 +237,7 @@ def test_sdk_runner_without_current_metadata_cannot_pass(agent_module):
 
 def test_parent_rejects_invalid_current_spec_instead_of_using_stale_policy(agent_module):
     snap = frozen_snapshot("current_catalogue_agent:invalid_spec")
-    current = {}
+    current = {"name": "stale declaration"}
 
     effects, error = sandbox.run_once(snap, current_spec=current)
 

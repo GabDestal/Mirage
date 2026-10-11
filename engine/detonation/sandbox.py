@@ -20,7 +20,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from contracts.models import BlastRadius, DetonateResult, Detonation, Effect, Verdict
+from contracts.models import AgentSpec, BlastRadius, DetonateResult, Detonation, Effect, Verdict
 from engine.detection import judge
 from engine.detection.rules import hard_rules, load_policy
 from engine.detonation import snapshot
@@ -49,16 +49,25 @@ def validate_runs(runs):
         raise ValueError("runs must be a positive integer from 1 to 10")
 
 
-def run_once(snap):
-    """One sandboxed replay. Returns (effects, error or None)."""
+def run_once(snap, *, current_spec=None):
+    """One replay: (effects, error). An optional dict receives validated factory metadata."""
+    if current_spec is not None:
+        current_spec.clear()
     load_dotenv()  # the parent is trusted; it hands the child only what PASS_ENV lists
     with tempfile.TemporaryDirectory(prefix="mirage-detonation-") as tmp:
         snap_file, effects_file = Path(tmp, "snapshot.json"), Path(tmp, "effects.jsonl")
-        snap_file.write_text(json.dumps(snap), encoding="utf-8")
+        spec_file = Path(tmp, "current-spec.json")
+        child_snap = dict(snap)
+        if current_spec is not None:
+            registered = current_policy(snap["agent"])
+            if registered and "known_tools" in registered:
+                child_snap["_current_tools"] = registered["known_tools"]
+        snap_file.write_text(json.dumps(child_snap), encoding="utf-8")
         effects_file.touch()
         env = {k: v for k, v in os.environ.items()
                if k in OS_ENV + PASS_ENV or CONFIG_ENV.match(k)}
         env |= {"MIRAGE_SNAPSHOT": str(snap_file), "MIRAGE_EFFECTS": str(effects_file),
+                "MIRAGE_CURRENT_SPEC": str(spec_file),
                 "AWS_EC2_METADATA_DISABLED": "true"}  # boto3 would probe 169.254.169.254
         try:
             proc = subprocess.run([sys.executable, "-I", "-c", BOOT, str(REPO)], cwd=tmp,
@@ -68,6 +77,18 @@ def run_once(snap):
                      if proc.returncode else None)
         except subprocess.TimeoutExpired:
             error = f"timeout after {TIMEOUT}s"
+        try:
+            declared = json.loads(spec_file.read_text(encoding="utf-8"))
+            if declared is not None:
+                spec = AgentSpec.model_validate(declared)
+                if spec.name != snap["agent"]:
+                    raise ValueError("current agent spec name differs from the snapshot")
+                if current_spec is not None:
+                    current_spec.update(spec.model_dump(mode="json"))
+            elif current_spec is not None and snap.get("runner") == gate.SDK_RUNNER:
+                error = error or "Current code did not publish current agent spec metadata."
+        except (OSError, ValueError):
+            error = error or "Invalid current agent spec metadata."
         lines = effects_file.read_text(encoding="utf-8").splitlines()
         return [json.loads(line) for line in lines if line], error
 
@@ -87,16 +108,22 @@ def violations(snap, effect, policies):
     """Policy ids the effect breaks under any of the given policies."""
     if effect["tool"].startswith("sandbox."):
         return ["SANDBOX_ESCAPE"]  # tried to reach the network, a process or a secret file
-    if not gate.is_known(snap["policy"], effect["tool"]):
-        return []  # a tool the agent does not have: nothing ran (model typo)
+    if effect.get("error") is not None:
+        return []  # unavailable or failed calls produced no successful effect
     hits = [h for policy in policies
             for h in hard_rules(snap["agent"], effect["tool"], effect["args"], policy)]
     return sorted({p for rule, _ in hits for p in RULE_POLICIES[rule]})
 
 
-def current_policy(agent):
+def current_policy(agent, spec=None):
     """The policy as it is now (a fix may have changed it): the agent's registration, else
-    policies.yaml re-read from disk. None if neither knows the agent."""
+    policies.yaml re-read from disk. A validated rebuilt spec supplies its own restrictions."""
+    if spec is not None:
+        allow = spec["allow"]
+        return {"canary": load_policy()["canary"], "agents": {agent: {"tools": allow["tools"]}},
+                "destinations": {"email_domains": allow["email_to"],
+                                 "url_domains": allow["url_hosts"]},
+                "known_tools": spec["tools"]}
     if agent in gate.agents:
         return gate.policy_for(agent)
     policy = load_policy()
@@ -157,17 +184,20 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
     # rule of ~1 Bedrock request/s; parallel bursts to ~2-3/s for the length of one replay.
     workers = max(1, min(n_runs, int(os.getenv("MIRAGE_PARALLEL", "1"))))
     def paced(snap):
-        out = run_once(snap)
+        current = {}
+        out = run_once(snap, current_spec=current) if verify else run_once(snap)
         if workers == 1:
             time.sleep(1)  # sequential: keep the ~1 request/s pace between replays
-        return out
+        return (*out, current)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:  # each run is its own jailed process
         futures = {pool.submit(paced, snap): k for k in range(1, n_runs + 1)}
         finished = [(futures[f], *f.result()) for f in as_completed(futures)]
-    for k, raw, error in sorted(finished):
+    for k, raw, error, current in sorted(finished):
+        run_policies = policies + ([current_policy(snap["agent"], current)] if current else [])
         effects = [Effect(detonation_id=det_id, run_index=k, step=e["step"], tool=e["tool"],
-                          args=e["args"], violates=violations(snap, e, policies)) for e in raw]
+                          args=e["args"], error=e.get("error"),
+                          violates=violations(snap, e, run_policies)) for e in raw]
         for e in effects:
             emit("detonation.effect", e.model_dump(mode="json"), incident_id=incident_id,
                  env="mirage")
