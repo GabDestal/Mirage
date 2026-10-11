@@ -116,7 +116,7 @@ def agentrx(data, out):
     svg = SVG()
     frame(svg, "AgentRx: finding where a failed agent run went wrong",
           f"{where} · higher is better · {n} failed runs per bar" if n else f"{where} · results not in yet",
-          ["Each case is a recorded agent run that failed; the model must name the exact step where it broke.",
+          ["Each case is a recorded agent run that failed; the model must name the exact step where it broke (no answer = miss).",
            f"Broken step found: {found}." if found else "No results are in yet."])
     top, base = 260, 700
     svg.line(80, base, 1520, base)

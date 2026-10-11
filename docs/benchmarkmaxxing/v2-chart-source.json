@@ -1,0 +1,74 @@
+{
+  "agentdojo": {
+    "splits": {
+      "dev": {
+        "unprotected": {
+          "attacker_success": {
+            "k": 11,
+            "n": 20
+          },
+          "utility_under_attack": {
+            "k": 8,
+            "n": 20
+          },
+          "clean_utility": {
+            "k": 9,
+            "n": 10
+          },
+          "unknown": 5,
+          "blocks": 0
+        },
+        "gate": {
+          "attacker_success": {
+            "k": 3,
+            "n": 20
+          },
+          "utility_under_attack": {
+            "k": 4,
+            "n": 20
+          },
+          "clean_utility": {
+            "k": 6,
+            "n": 10
+          },
+          "unknown": 2,
+          "blocks": 13
+        }
+      }
+    },
+    "source": "docs/benchmarkmaxxing/v2-inputs/agentdojo_v2_summary.json",
+    "model": null
+  },
+  "agentrx": {
+    "models": [
+      {
+        "label": "GPT-OSS-20B",
+        "simple": {
+          "k": 2,
+          "n": 6,
+          "scored": 5
+        },
+        "assisted": {
+          "k": 3,
+          "n": 6,
+          "scored": 6
+        }
+      },
+      {
+        "label": "Haiku 4.5",
+        "simple": {
+          "k": 3,
+          "n": 6,
+          "scored": 6
+        },
+        "assisted": {
+          "k": 0,
+          "n": 6,
+          "scored": 3
+        }
+      }
+    ],
+    "split": "heldout_families",
+    "source": "docs/benchmarkmaxxing/v2-inputs/agentrx_v3_summary.json"
+  }
+}
