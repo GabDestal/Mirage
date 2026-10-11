@@ -21,14 +21,15 @@ def main(argv=None):
     det = sub.add_parser("detonate", help="Check a fix: rerun the current agent code in the "
                          "sandbox; passes when the attack is blocked n/n and the task done n/n")
     det.add_argument("--incident", required=True)
-    det.add_argument("--runs", type=int, default=3)
+    det.add_argument("--runs", type=int, choices=range(1, 11), metavar="1..10", default=3)
     det.add_argument("--remove-input")
     det.add_argument("--json", action="store_true", help="print the DetonateResult as JSON")
     det.add_argument("--from-freeze", action="store_true",
                      help="operator replay: continue the frozen run as it was (no fix check)")
     bis = sub.add_parser("bisect", help="Remove one input at a time to prove the cause")
     bis.add_argument("--incident", required=True)
-    bis.add_argument("--runs", type=int, default=2, help="detonations per removed input")
+    bis.add_argument("--runs", type=int, choices=range(1, 11), metavar="1..10", default=2,
+                     help="detonations per removed input")
     pr = sub.add_parser("pr", help="Report the fix PR for an incident")
     pr.add_argument("--incident", required=True)
     pr.add_argument("--url", required=True)
