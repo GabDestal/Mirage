@@ -22,7 +22,7 @@ def main():
     args = parser.parse_args()
     manifest = json.loads(Path(args.manifest).read_text())
     sys.path[:0] = [manifest["native_source"] + "/src", manifest["native_deps"]]
-    from benchmarks.agentdojo import Gate, execute, grade, prepare
+    from benchmarks.agentdojo import Gate, execute, grade, prepare, validate_state
 
     case = next(c for c in manifest["cases"] if c["case_id"] == args.case)
     suite, task, injection, world = prepare(case, args.attack, manifest["benchmark_version"])
@@ -41,9 +41,15 @@ def main():
     signal.signal(signal.SIGALRM, deadline)
     signal.setitimer(signal.ITIMER_REAL, manifest["timeout_s"])
     try:
-        result = execute(suite, task, world, model, manifest["parameters"], manifest["max_steps"],
-                         gate=gate, max_tools=manifest["max_tool_steps"],
-                         timeout_s=manifest["timeout_s"])
+        try:
+            result = execute(suite, task, world, model, manifest["parameters"], manifest["max_steps"],
+                             gate=gate, max_tools=manifest["max_tool_steps"],
+                             timeout_s=manifest["timeout_s"])
+        except Exception as exc:
+            # Tool/gateway/deadline failures retain the partial native world; no clean claim.
+            result = {"world": world, "ledger": [], "traces": [], "messages": [], "output": "",
+                      "status": "unknown", "unknown_reason": type(exc).__name__,
+                      "latency_s": None}
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
     if gate and result["status"] == "completed":
@@ -69,7 +75,7 @@ def main():
            "policy_version": manifest["policy_version"], "arm": args.arm,
            "status": result["status"], "unknown_reason": result["unknown_reason"],
            "native_scores": scores, "validation_method": "native_final_world_and_traces",
-           "validation_result": scores if result["status"] == "completed" else None,
+           "validation_result": validate_state(task, pre, result, scores),
            "evidence_refs": [evidence], "incident_id": run.get("incident_id"), "restart_id": None,
            "run_id": run.get("id"), "runtime": gate.runtime if gate else None,
            "gate_unavailable": any("unavailable" in d.get("explanation", "").lower()
