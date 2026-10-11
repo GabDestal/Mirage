@@ -148,7 +148,7 @@ def test_containment_and_later_freeze_generation_never_release_callback(held, ap
     denied(result, mode)
     assert polls == [{"timeout": 60, "call_id": call_id}]
     expected = {"reject": "killed", "kill": "killed", "stop": "halted", "freeze": "frozen",
-                "stale-grant": "running" if mode == "openai" else "failed"}[action]
+                "stale-grant": "failed"}[action]
     assert run.status == expected
 
 
@@ -168,6 +168,45 @@ def test_sibling_approval_never_releases_the_original_callback(held, api):
     release.set()
     denied(result, mode)
     assert effects == [] and run.tool_results == [] and run.status == "killed"
+
+
+def test_denied_sibling_cannot_cancel_the_exact_human_grant(held, api, monkeypatch):
+    run, call_id, result, release, effects, _, _ = held
+    entered, sibling_release = threading.Event(), threading.Event()
+    sibling_effects = []
+    original_post = core._post
+
+    def delayed_block(path, body=None, handle=None):
+        response = original_post(path, body, handle)
+        if path == "/gateway/check" and body.args.get("body") == "Synthetic denied sibling":
+            assert response["decision"] == "block" and response["rule_id"] == "RUN_FROZEN"
+            entered.set()
+            assert sibling_release.wait(5)
+        return response
+
+    def sibling():
+        token = core._run.set({"id": run.id, "token": run.token})
+        try:
+            return core.tool("send_email", {"to": langgraph.USER, "body": "Synthetic denied sibling"},
+                             lambda: sibling_effects.append(langgraph.USER))
+        finally:
+            core._run.reset(token)
+
+    monkeypatch.setattr(core, "_post", delayed_block)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        blocked = pool.submit(sibling)
+        try:
+            assert entered.wait(3)
+            assert api.post(f"/approvals/{call_id}/approve", json=HUMAN).status_code == 200
+            sibling_release.set()
+            assert isinstance(blocked.exception(timeout=3), mirage.Blocked)
+            assert run.status == "running" and sibling_effects == []
+            release.set()
+            result.result(timeout=3)
+        finally:
+            sibling_release.set()
+    assert effects == [langgraph.USER] and run.status == "completed"
+    assert len(run.tool_results) == 1 and run.tool_results[0]["call_id"] == call_id
 
 
 @pytest.mark.parametrize("identity", ["unknown", "other-run", "consumed"])
@@ -201,7 +240,29 @@ def test_invalid_bound_wait_is_a_safe_denial_before_callback(held, api, monkeypa
     result.exception(timeout=3)
     assert effects == []
     denied(result, mode)
+    assert run.status == "failed"
     assert len(run.tool_results) == (1 if identity == "consumed" else 0)
+
+
+def test_denial_reporting_outage_preserves_blocked_and_never_runs_callback(
+        held, api, monkeypatch):
+    run, call_id, result, release, effects, _, mode = held
+    assert api.post(f"/approvals/{call_id}/approve", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run.id}/freeze", json=HUMAN).status_code == 200
+    assert api.post(f"/runs/{run.id}/unfreeze", json=HUMAN).status_code == 200
+
+    def unavailable(*args, **kwargs):
+        raise OSError("Synthetic private failure-reporting outage")
+
+    monkeypatch.setattr(core, "complete", unavailable)
+    release.set()
+    denied(result, mode)
+    assert effects == [] and run.tool_results == []
+    error = result.exception(timeout=3)
+    if mode == "openai":
+        error = error.__cause__
+    assert any("OSError" in note for note in error.__notes__)
+    assert "private" not in str(error.__notes__)
 
 
 def test_unbound_running_status_cannot_grant_a_held_callback(monkeypatch):
@@ -218,14 +279,18 @@ def test_bound_conflict_is_safe_and_never_retried(monkeypatch):
 
     def conflict(request):
         requests.append(request)
-        return httpx.Response(409, json={"detail": "Synthetic private server error"})
+        return (httpx.Response(409, json={"detail": "Synthetic private server error"})
+                if request.method == "GET" else httpx.Response(204))
 
     with httpx.Client(transport=httpx.MockTransport(conflict),
                       base_url="http://synthetic.invalid") as client:
         monkeypatch.setattr(core, "_http", client)
         with pytest.raises(mirage.Blocked, match="no longer authorized") as blocked:
             core._wait({"id": "synthetic-run", "token": "synthetic-token"}, "original-call")
-    assert "private" not in str(blocked.value) and len(requests) == 1
+    assert "private" not in str(blocked.value)
+    assert [r.method for r in requests] == ["GET", "POST"]
+    assert requests[1].url.path == "/runs/synthetic-run/complete"
+    assert requests[1].content == b'{"error":"Blocked"}'
 
 
 def test_frozen_polls_keep_the_original_call_identity(monkeypatch):
