@@ -1,6 +1,6 @@
 # Mirage UI and engine connection plan
 
-Status: original source audit/planning, 2026-10-10, plus M1 startup implementation in section 0. Source audit: `84d1c0969ed04927ebad5bd32d8b5c09a08205d8`. Historical links and runtime observations remain pinned; future proposals are not acceptance claims.
+Status: original source audit/planning, 2026-10-10, plus M1 startup implementation and 2026-10-11 evidence-provenance update in section 0. Source audit: `84d1c0969ed04927ebad5bd32d8b5c09a08205d8`. Historical links and runtime observations remain pinned; future proposals are not acceptance claims.
 
 ## 0. Milestone 1 startup implementation and scope
 
@@ -15,6 +15,10 @@ Only chat receives credentials, through root `.env` or absolute `MIRAGE_CHAT_ENV
 Demo overrides `--port`, `--engine-port`, `--chat-port` beat `MIRAGE_DEMO_*_PORT` defaults, require distinct non-attach ports and always fail if occupied. Conflicting proxy/mode/fixture/origin/state settings fail rather than attach or kill another session. Startup failure/Ctrl+C terminates only owned child process groups and deletes only its temporary state. Full prerequisites/options are in [START.md](../START.md).
 
 `npm run demo:selfcheck` uses stub children/temporary paths to check flag/environment precedence, strict ports, routing/origins/isolation, read-only readiness, failure/timeout and owned shutdown; existing web typecheck/build also apply. Managed lifecycle, evidence reset and chat/UI presentation are companion worker changes requiring composed acceptance. Recorded handoff is not a live snapshot capability; fixture fix/PR evidence cannot establish coding-agent verification, a real fix PR or human merge. Launcher selfchecks claim no provider-live or real-service acceptance.
+
+**Current provenance (2026-10-11):** [M1 combined acceptance](DEMO_MILESTONE_1_ACCEPTANCE.md) records its exact tested compositions and real Miragio calls against recorded engine evidence. It does not accept the source fleet or fresh M2 proof. The current protected fleet is meeting assistant/invoicing/outreach/PR reviewer; the managed fixture substitutes support, reports 40 contacts, broadens the meeting task and uses a different poisoned invite. Current source tools are in-memory synthetic services seeded with eight contacts and two clean events plus one injected event. Standalone `python -m agents.<name>` modules are unprotected; use `agents.run_demo_fleet` or explicit UI demo start on an owned isolated live engine. [START.md](../START.md#protected-source-fleet-fresh-m2-synthetic-rehearsal) supplies that separate startup path without adding a managed live profile.
+
+[Demo evidence](DEMO_EVIDENCE.md) separates current source, recorded M1, historical metrics and the two 2026-10-11 offline audits. Remaining M2 gates include truthful errors/completion, resolved composite-tool effects, validated configuration and fail-closed containment, honest replay/verification counts and per-story legitimate-task checks, then a fresh provider/UI/sandbox/fix rehearsal on one exact composition. Google/HubSpot integration and public cloud-fixer access remain separate gates. Pending worker changes are not claimed merged or accepted here; a later composed acceptance report must supply the evidence.
 
 ## 1. Outcome and boundaries
 

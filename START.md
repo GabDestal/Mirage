@@ -5,6 +5,12 @@
 M1 has **four recorded background agents and recorded engine evidence**; Miragio
 uses **real Bedrock and real MCP tools** against that recorded engine.
 
+The recording includes meeting assistant, outreach, support and PR reviewer, with
+40-record example evidence. The current protected source fleet uses invoicing in
+place of support, eight seeded contacts, a narrower meeting task and a different
+poisoned invite. These are different evidence sources; see [demo evidence and remaining
+gates](docs/DEMO_EVIDENCE.md). Neither path currently uses real Google/HubSpot tools.
+
 ### First-time setup
 
 Start at the main repo root below (adjust the path if your checkout is elsewhere).
@@ -108,6 +114,61 @@ npm run demo:selfcheck --prefix web
 npm run typecheck --prefix web
 npm run build --prefix web
 ```
+
+## Protected source fleet (fresh M2 synthetic rehearsal)
+
+This separate path starts actual Bedrock-driven agents under the SDK and live gate,
+with **synthetic in-memory tools**. It supplies startup instructions, not fresh M2
+acceptance. Use the repo root in four terminals after installing the dependencies
+above. Keep the current credentials/model configuration; start no recorded launcher
+alongside it. Use free dedicated ports **8020/8021/5175**; if occupied, choose another
+consistent set without stopping or attaching to the existing service.
+
+Terminal 1 creates new absolute state paths and one owned engine process. Set mode
+before import so later dotenv loading cannot select replay for the live gate:
+
+```sh
+MIRAGE_M2_STATE=$(mktemp -d "/tmp/mirage-m2.XXXXXX")
+MIRAGE_MODE=live MIRAGE_DB="$MIRAGE_M2_STATE/events.db" \
+  MIRAGE_SNAPSHOTS="$MIRAGE_M2_STATE/snapshots" \
+  MIRAGE_TOKENS="$MIRAGE_M2_STATE/handoff_tokens.json" \
+  uv run uvicorn engine.api.server:app --host 127.0.0.1 --port 8020
+```
+
+Terminal 2 starts real Miragio against that same engine:
+
+```sh
+MIRAGE_UI_MODE=live MIRAGE_API=http://127.0.0.1:8020 MIRAGE_CHAT_PORT=8021 \
+  MIRAGE_CHAT_ORIGINS=http://localhost:5175,http://127.0.0.1:5175,http://localhost:8021,http://127.0.0.1:8021 \
+  npm run chat --prefix mcp
+```
+
+Terminal 3 starts the attach-only UI with matching proxies:
+
+```sh
+MIRAGE_API=http://127.0.0.1:8020 MIRAGE_CHAT_API=http://127.0.0.1:8021 \
+  npm run dev --prefix web -- --mode live --host 127.0.0.1 --port 5175 --strictPort
+```
+
+Terminal 4 starts the protected fleet, not the individual unprotected modules:
+
+```sh
+MIRAGE_MODE=live MIRAGE_URL=http://127.0.0.1:8020 uv run python -m agents.run_demo_fleet
+```
+
+Open [http://127.0.0.1:5175](http://127.0.0.1:5175). Alternatively, use **Start demo**
+in that UI instead of Terminal 4: live `POST /demo/start` resets the engine's state
+and spawns the same protected fleet; only use it on this owned isolated instance.
+`/demo/reset` also clears its history, snapshots and tokens. A 204 start response
+means spawning was requested, not that all four tasks succeeded. Support and
+false-positive live scenarios remain unimplemented.
+
+Do not reset during proof work or run a standalone CLI job concurrently against
+these stores: job authority is process-local. For a later fix check, use the live
+handoff's exact state paths and incident, not an M1 recorded incident. After proof
+work settles, stop the directly launched fleet with Ctrl+C, then stop the owned
+engine/chat/web in their terminals. Keep the temporary state for evidence review;
+this manual workflow does not provide the M1 launcher's automatic cleanup.
 
 ## Existing manual attach workflow
 
