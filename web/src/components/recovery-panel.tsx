@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { isDemo } from '@/lib/demo'
 import { stopOn } from '@/lib/runs'
 import { recoveryMessage, type RecoverySummary } from './recovery-state'
+import { repairSettled } from './repair-state'
 
 async function supervisor<T>(path: string, body: unknown = {}): Promise<T> {
   const response = await fetch(`/chat/recovery/${path}`, { method: 'POST',
@@ -34,7 +35,7 @@ export function RecoveryPanel({ incidentId, repairJobId, run }: { incidentId: st
   const jobId = repairJobId ?? repairs.data?.at(-1)?.id
   const repair = useQuery({ queryKey: ['repair-jobs', jobId], enabled: live && !!jobId,
     queryFn: ({ signal }) => getRepair(jobId!, signal),
-    refetchInterval: (query) => ['pr_open', 'failed'].includes(query.state.data?.status ?? '') ? false : 2_000 })
+    refetchInterval: (query) => repairSettled(query.state.data) ? false : 2_000 })
   const recovery = useQuery({ queryKey, enabled: live,
     queryFn: async ({ signal }) => {
       try { return await api<RecoverySummary>(`/incidents/${encodeURIComponent(incidentId)}/recovery`, undefined, signal) }
@@ -68,7 +69,7 @@ export function RecoveryPanel({ incidentId, repairJobId, run }: { incidentId: st
     {contained && run.status_reason ? <p className="text-control text-ink-2" role="status">Original run: {run.status_reason}</p> : null}
     <p className="max-w-prose text-ink-2" role="status">{state?.status === 'running' && !connection.runtime?.owned_run_ids.includes(state.new_run_id ?? '')
       ? 'The engine records this task as running; its live launcher ownership is unavailable. Review the new trace.' : state ? recoveryMessage(state)
-      : 'Merge the verified repair PR into special-improvements, then check its merged revision.'}</p>
+      : 'After the fix is merged, we redeploy the agent on the fixed code.'}</p>
     {state ? <>
       <a href={state.report.pull_request.url} target="_blank" rel="noreferrer" className="text-control underline underline-offset-4">
         Merged repair PR #{state.report.pull_request.number}</a>

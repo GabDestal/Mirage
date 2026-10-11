@@ -43,10 +43,12 @@ All POST bodies with a human action carry `{actor, reason}`.
 | POST | `/incidents/{id}/pr` | Body `PullRequest` `{url}`. The fix PR (coding agent or human). Emits `pr.opened`. Incident → `pr_open`. CLI: `engine.cli pr --incident X --url Y`. |
 | POST | `/incidents/{id}/verify` | Run the fix check. Same output as `mirage detonate`. With `MIRAGE_PUBLIC=1` (API exposed through a tunnel) it needs `Authorization: Bearer <mirage_token>`. |
 | POST | `/incidents/{id}/repair-jobs` | Required `{actor, reason}`; returns a queued `RepairJob` (201). Requires a confirmed incident and original harmful ledger. Duplicate active jobs return 409. Replay refuses (409). |
+| GET | `/repair-jobs` | Public `RepairJob[]` in creation order; the supervisor finds open repair PRs to refresh. |
 | GET | `/repair-jobs/{job_id}` | Public `RepairJob` progress, folded from the existing event store. |
 | GET | `/incidents/{id}/repair-jobs` | Public `RepairJob[]` in creation order, for restoring incident progress after refresh. |
 | GET | `/repair-jobs/{job_id}/context` | Private supervisor only: `RepairJobContext {job, snapshot, clean_snapshot, baseline_effects, snapshot_json, clean_snapshot_json, baseline_json, policy_digest, incident, report}`. Never included in chat or SSE. |
 | POST | `/repair-jobs/{job_id}/report` | Private supervisor only: `RepairJobReport` imports external candidate CLI/GitHub evidence; returns the updated job. No shell launch, merge or restart. |
+| POST | `/repair-jobs/{job_id}/pull-request` | Private supervisor only: a fresh `gh pr view` `RepairPullRequest` for a `pr_open` job. Same url/number/base and `headRefOid == candidate_sha` (409 otherwise). Records `OPEN → MERGED | CLOSED` (or reopen) as `repair.job.updated`; MERGED is final; an unchanged receipt is a no-op. |
 
 ### Repair job contract (special-improvements, M1)
 
@@ -96,6 +98,9 @@ and the PR receipt; raw report evidence stays private. Passing reports emit exis
 contained. Mismatches return 409 without certifying success; supervisor must report failure.
 `verifying` requires the committed candidate SHA; final `pr_open` must match that latest SHA.
 An explicit repeated `verifying` update may bind a new committed retry before its CLI runs.
+After `pr_open` the job status stays `pr_open`; `pull_request.state` is the live PR state. The
+operator supervisor re-reads every OPEN repair PR (`MIRAGE_REPAIR_PR_POLL_MS`, default 15 s) and
+reports changes through `/pull-request`. A CLOSED (unmerged) PR lets the operator start a new job.
 Controlled errors: `interrupted | launch_failed | worker_failed | verification_failed |
 evidence_mismatch | pr_failed | context_changed`. Failed is terminal.
 
