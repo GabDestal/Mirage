@@ -202,6 +202,31 @@ def test_reject_revokes_even_when_human_audit_fails(api, monkeypatch):
     assert effects == []
 
 
+def test_failed_kill_cannot_be_undone_by_stale_approval(api, monkeypatch):
+    run_id, auth = start(api)
+    monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
+        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
+    held = check(api, run_id, auth, "send_email", to=USER).json()
+    original = gate.emit
+
+    def fail(kind, *args, **kwargs):
+        if kind == "human.action":
+            raise OSError("synthetic kill audit failure")
+        return original(kind, *args, **kwargs)
+
+    with monkeypatch.context() as fault:
+        fault.setattr(gate, "emit", fail)
+        assert api.post(f"/runs/{run_id}/kill", json=HUMAN).status_code == 500
+    response = api.post(f"/approvals/{held['call_id']}/approve", json=HUMAN)
+    monkeypatch.setattr(gate.decision_model, "judge", lambda *args: None)
+    effects = []
+    if response.status_code == 200:
+        protected(handle(run_id, auth), USER, effects)
+    assert effects == []
+    assert response.status_code in (404, 409, 500)
+    assert gate.runs[run_id].status == "killed"
+
+
 @pytest.mark.parametrize("action", ["freeze", "kill", "stop"])
 def test_sqlite_write_failure_does_not_leave_original_run_authorized(api, monkeypatch, action):
     run_id, auth = start(api)
