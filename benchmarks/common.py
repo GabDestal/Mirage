@@ -93,13 +93,19 @@ class Bedrock:
         self.tokens = {"input": 0, "output": 0}
         self.last_call = 0.0
 
+    def parameters(self, parameters):
+        # Opus 4.8 rejects `temperature` (AGENTS.md: omit it where the model refuses it).
+        if "opus-4-8" in self.model_id:
+            return {k: v for k, v in parameters.items() if k != "temperature"}
+        return parameters
+
     def converse(self, messages, system, tools, parameters):
         time.sleep(max(0, 1.1 - (time.monotonic() - self.last_call)))
         self.last_call = time.monotonic()
         self.calls += 1  # attempts count even when the provider rejects the request
         response = self.client.converse(
             modelId=self.model_id, messages=messages, system=[{"text": system}],
-            toolConfig={"tools": tools}, inferenceConfig=parameters)
+            toolConfig={"tools": tools}, inferenceConfig=self.parameters(parameters))
         usage = response.get("usage", {})
         self.tokens["input"] += usage.get("inputTokens", 0)
         self.tokens["output"] += usage.get("outputTokens", 0)

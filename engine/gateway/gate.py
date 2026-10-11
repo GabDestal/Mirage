@@ -299,7 +299,8 @@ def _check(run, tool, args) -> GateDecision:
     hit = hard_rule(run.agent, tool, args, policy) if evaluate else None
     judged = None  # layer 2: only outbound calls the hard rules allowed
     if evaluate and not hit:
-        judged = decision_model.judge(run.agent, run.task, tool, args)
+        judged = decision_model.judge(run.agent, run.task, tool, args,
+                                      context=list(run.tool_results))
         if judged and "policy_id" in judged and not judged["review"]:
             hit = (None, judged["explanation"])
     review = judged if judged and judged.get("review") else None
