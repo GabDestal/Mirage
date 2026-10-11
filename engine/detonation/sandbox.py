@@ -54,44 +54,61 @@ def run_once(snap, *, current_spec=None):
     """One replay: (effects, error). An optional dict receives validated factory metadata."""
     if current_spec is not None:
         current_spec.clear()
-    load_dotenv()  # the parent is trusted; it hands the child only what PASS_ENV lists
-    with tempfile.TemporaryDirectory(prefix="mirage-detonation-") as tmp:
-        snap_file, effects_file = Path(tmp, "snapshot.json"), Path(tmp, "effects.jsonl")
-        spec_file = Path(tmp, "current-spec.json")
-        child_snap = dict(snap)
-        if current_spec is not None:
-            registered = current_policy(snap["agent"])
-            if registered and "known_tools" in registered:
-                child_snap["_current_tools"] = registered["known_tools"]
-        snap_file.write_text(json.dumps(child_snap), encoding="utf-8")
-        effects_file.touch()
-        env = {k: v for k, v in os.environ.items()
-               if k in OS_ENV + PASS_ENV or CONFIG_ENV.match(k)}
-        env |= {"MIRAGE_SNAPSHOT": str(snap_file), "MIRAGE_EFFECTS": str(effects_file),
-                "MIRAGE_CURRENT_SPEC": str(spec_file),
-                "AWS_EC2_METADATA_DISABLED": "true"}  # boto3 would probe 169.254.169.254
-        try:
-            proc = subprocess.run([sys.executable, "-I", "-c", BOOT, str(REPO)], cwd=tmp,
-                                  env=env, capture_output=True, text=True, timeout=TIMEOUT,
-                                  check=False)
-            error = ((proc.stderr.strip()[-600:] or f"child exited with code {proc.returncode}")
-                     if proc.returncode else None)
-        except subprocess.TimeoutExpired:
-            error = f"timeout after {TIMEOUT}s"
-        try:
-            declared = json.loads(spec_file.read_text(encoding="utf-8"))
-            if declared is not None:
-                spec = AgentSpec.model_validate(declared)
-                if spec.name != snap["agent"]:
-                    raise ValueError("current agent spec name differs from the snapshot")
-                if current_spec is not None:
-                    current_spec.update(spec.model_dump(mode="json"))
-            elif current_spec is not None and snap.get("runner") == gate.SDK_RUNNER:
-                error = error or "Current code did not publish current agent spec metadata."
-        except (OSError, ValueError):
-            error = error or "Invalid current agent spec metadata."
-        lines = effects_file.read_text(encoding="utf-8").splitlines()
-        return [json.loads(line) for line in lines if line], error
+    effects, error = [], None
+    try:
+        load_dotenv()  # the parent is trusted; it hands the child only what PASS_ENV lists
+        with tempfile.TemporaryDirectory(prefix="mirage-detonation-") as tmp:
+            snap_file, effects_file = Path(tmp, "snapshot.json"), Path(tmp, "effects.jsonl")
+            spec_file = Path(tmp, "current-spec.json")
+            child_snap = dict(snap)
+            if current_spec is not None:
+                registered = current_policy(snap["agent"])
+                if registered and "known_tools" in registered:
+                    child_snap["_current_tools"] = registered["known_tools"]
+            snap_file.write_text(json.dumps(child_snap), encoding="utf-8")
+            effects_file.touch()
+            env = {k: v for k, v in os.environ.items()
+                   if k in OS_ENV + PASS_ENV or CONFIG_ENV.match(k)}
+            env |= {"MIRAGE_SNAPSHOT": str(snap_file), "MIRAGE_EFFECTS": str(effects_file),
+                    "MIRAGE_CURRENT_SPEC": str(spec_file),
+                    "AWS_EC2_METADATA_DISABLED": "true"}  # boto3 would probe 169.254.169.254
+            try:
+                proc = subprocess.run([sys.executable, "-I", "-c", BOOT, str(REPO)], cwd=tmp,
+                                      env=env, capture_output=True, text=True, timeout=TIMEOUT,
+                                      check=False)
+                error = ((proc.stderr.strip()[-600:] or f"child exited with code {proc.returncode}")
+                         if proc.returncode else None)
+            except subprocess.TimeoutExpired:
+                error = f"timeout after {TIMEOUT}s"
+            except Exception as exc:  # noqa: BLE001 - still collect effects after capture failure
+                error = type(exc).__name__
+            try:
+                declared = json.loads(spec_file.read_text(encoding="utf-8"))
+                if declared is not None:
+                    spec = AgentSpec.model_validate(declared)
+                    if spec.name != snap["agent"]:
+                        raise ValueError("current agent spec name differs from the snapshot")
+                    if current_spec is not None:
+                        current_spec.update(spec.model_dump(mode="json"))
+                elif current_spec is not None and snap.get("runner") == gate.SDK_RUNNER:
+                    error = error or "Current code did not publish current agent spec metadata."
+            except (OSError, ValueError):
+                error = error or "Invalid current agent spec metadata."
+            # Decode each line independently so a later corrupt byte cannot erase earlier harm.
+            with effects_file.open("rb") as ledger:
+                for line in ledger:
+                    if not line.strip():
+                        continue
+                    try:
+                        effect = Effect(detonation_id="pending", run_index=1,
+                                        **json.loads(line.decode("utf-8")))
+                        effects.append(effect.model_dump(mode="json", exclude_none=True,
+                                                         include={"step", "tool", "args", "error"}))
+                    except (ValueError, TypeError):
+                        error = error or "ValueError: invalid effects ledger"
+    except Exception as exc:  # noqa: BLE001 - preserve effects on failed collection or cleanup
+        error = error or type(exc).__name__
+    return effects, error
 
 
 def _crash_reason(snap, error):
@@ -192,7 +209,13 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
 
     with ThreadPoolExecutor(max_workers=workers) as pool:  # each run is its own jailed process
         futures = {pool.submit(paced, snap): k for k in range(1, n_runs + 1)}
-        finished = [(futures[f], *f.result()) for f in as_completed(futures)]
+        finished = []
+        for f in as_completed(futures):
+            try:
+                raw, error, current = f.result()
+            except Exception as exc:  # noqa: BLE001 - keep sibling proof on any failed future
+                raw, error, current = [], type(exc).__name__, {}
+            finished.append((futures[f], raw, error, current))
     for k, raw, error, current in sorted(finished):
         run_policies = policies + ([current_policy(snap["agent"], current)] if current else [])
         effects = [Effect(detonation_id=det_id, run_index=k, step=e["step"], tool=e["tool"],
