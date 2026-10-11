@@ -213,13 +213,20 @@ def test_current_verifier_can_tighten_policy_without_rewriting_the_original(api)
     assert sandbox.violations(snap, effect, [snap["policy"], sandbox.current_policy(AGENT["name"])]) == ["P1", "P5"]
 
 
-def test_approved_restart_pins_policy_before_queued_sdk_takeover(api):
+@pytest.mark.parametrize("replacement", [
+    wider_registration(),
+    {**AGENT, "owner": "another-synthetic-owner"},
+    {**AGENT, "tools": ["read_calendar", "send_email", "upload_records"]},
+    {**AGENT, "entrypoint": "tests.sandbox_agents:ignores_invite"},
+    {**AGENT, "legit": {"tool": "send_email", "to": ATTACKER}},
+], ids=["allow", "owner", "catalogue", "factory", "legit"])
+def test_approved_restart_pins_policy_before_queued_sdk_takeover(api, replacement):
     old_id, _ = start(api)
     assert api.post(f"/runs/{old_id}/kill", json=HUMAN).status_code == 200
     queued = api.post(f"/runs/{old_id}/restart", json=HUMAN)
     assert queued.status_code == 200
     original = copy.deepcopy(gate.policy_for(AGENT["name"]))
-    assert api.post("/agents", json=wider_registration()).status_code == 200
+    assert api.post("/agents", json=replacement).status_code == 200
     body = {"agent": AGENT["name"], "task": "Prepare a brief", "restarted_from": old_id}
     assert api.post("/runs", json=body).status_code == 409
     assert api.get(f"/runs/{queued.json()['id']}").json()["status"] == "queued"
