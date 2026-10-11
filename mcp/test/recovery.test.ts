@@ -64,7 +64,8 @@ async function harness({ changedTree = false, badVerification = false, changedPo
   const run: CommandRunner = async (command, args, options) => {
     commands.push({ command, args, ...options });
     if (command === "gh") return receipt(pr);
-    if (command === "orca") return receipt({ ok: true, result: { worktree: { path: checkout, id: `repo::${checkout}` } } });
+    if (command === "orca") return receipt({ ok: true, result: { worktree: args[1] === "show"
+      ? { path: repoPath, repoId: "registered-repo" } : { path: checkout, id: `repo::${checkout}` } } });
     if (command === "git") {
       let stdout = "";
       if (args[0] === "rev-parse") stdout = args[1] === "HEAD" ? (moved ? candidate : merged)
@@ -149,7 +150,8 @@ it("reuses equal-tree squash proof and registers before recording preparation", 
   expect(state.report.verified_sha).toBe(candidate);
   expect(state.report.merged_sha).toBe(merged);
   expect(h.commands.some((call) => call.args.includes("engine.cli"))).toBe(false);
-  const create = h.commands.find((call) => call.command === "orca")!;
+  const create = h.commands.find((call) => call.command === "orca" && call.args[1] === "create")!;
+  expect(create.args.slice(create.args.indexOf("--repo"), create.args.indexOf("--repo") + 2)).toEqual(["--repo", "id:registered-repo"]);
   expect(create.args).toContain("special-improvements");
   expect(create.args.slice(create.args.indexOf("--setup"), create.args.indexOf("--setup") + 2)).toEqual(["--setup", "skip"]);
   expect(h.requests.findIndex((r) => r.path === "factory_registered")).toBeLessThan(h.requests.findIndex((r) => r.path.endsWith("/report")));

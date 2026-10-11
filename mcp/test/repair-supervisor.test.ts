@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { assertSanitized, digest, digestBytes, inspectCandidate, parseVerification, privateDirectory, runCommand, RepairSupervisor, serializeEvidenceReport, verifyPullRequest } from "../src/repair-supervisor.js";
+import { assertSanitized, digest, digestBytes, inspectCandidate, parseVerification, privateDirectory, resolveOrcaRepository, runCommand, RepairSupervisor, serializeEvidenceReport, verifyPullRequest } from "../src/repair-supervisor.js";
 import type { CommandRunner } from "../src/repair-supervisor.js";
 import { mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -15,6 +15,21 @@ test("actual local process exit and bounded output are observed without a shell"
   expect(actual.code).toBe(7);
   expect(JSON.parse(actual.stdout)).toEqual({ ok: true });
   await expect(runCommand(process.execPath, ["-e", "setTimeout(()=>{},10000)"], { cwd: process.cwd(), timeoutMs: 10 })).rejects.toThrow(/timed out/);
+});
+
+test("Orca repository selection binds the exact managed checkout metadata and refuses failed or mismatched lookups", async () => {
+  const repoPath = "/synthetic/managed-checkout";
+  const run: CommandRunner = async (command, args, options) => {
+    expect(command).toBe("installed-orca");
+    expect(args).toEqual(["worktree", "show", "--worktree", `path:${repoPath}`, "--json"]);
+    expect(options.cwd).toBe(repoPath);
+    return receipt({ ok: true, result: { worktree: { path: repoPath, repoId: "registered-repo" } } });
+  };
+  expect(await resolveOrcaRepository(run, "installed-orca", repoPath)).toBe("id:registered-repo");
+  for (const bad of [receipt({ ok: false }), receipt({}, 1), { code: 0, stdout: "invalid JSON", stderr: "" },
+    receipt({ ok: true, result: { worktree: { path: "/other/checkout", repoId: "registered-repo" } } }),
+    receipt({ ok: true, result: { worktree: { path: repoPath, repoId: "" } } })])
+    await expect(resolveOrcaRepository(async () => bad, "installed-orca", repoPath)).rejects.toThrow("configured managed checkout");
 });
 
 test("candidate requires complete JSON, actual zero exit, all useful runs and no harmful effects", () => {
@@ -90,7 +105,8 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
     if (command === "orca") {
       let value: unknown = {};
       if (args[1] === "run-create") value = { run: { id: "operator_run" } };
-      if (args[0] === "worktree") value = { worktree: { id: "repo::candidate", path: cwd } };
+      if (args[0] === "worktree" && args[1] === "show") value = { worktree: { path: repo, repoId: "registered-repo" } };
+      if (args[0] === "worktree" && args[1] === "create") value = { worktree: { id: "repo::candidate", path: cwd } };
       if (args[1] === "worker-start") {
         workerStarted = true;
         const folder = join(cwd, "tests/regression/inc_001");
@@ -147,8 +163,10 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
       clean_control: { result: { incident_id: "inc_clean", legit_task_completed: "1/1" } }, pull_request: { headRefOid: head, baseRefName: "special-improvements" } });
     const cli = commands.filter((call) => call.command === "test-python");
     expect(new Set(cli.map((call) => call.env!.MIRAGE_DB)).size).toBe(3);
-    expect(commands.find((call) => call.args[0] === "worktree")?.args).toContain("--no-parent");
-    expect(commands.find((call) => call.args[0] === "worktree")?.args).toContain("special-improvements");
+    const created = commands.find((call) => call.args[0] === "worktree" && call.args[1] === "create")!;
+    expect(created.args).toContain("--no-parent");
+    expect(created.args).toContain("special-improvements");
+    expect(created.args.slice(created.args.indexOf("--repo"), created.args.indexOf("--repo") + 2)).toEqual(["--repo", "id:registered-repo"]);
     expect(commands.some((call) => call.args.includes("/verify"))).toBe(false);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
