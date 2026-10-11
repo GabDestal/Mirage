@@ -127,6 +127,34 @@ def test_current_catalogue_new_read_does_not_receive_a_write_ack():
     assert_unavailable(observed[0], effects[0])
 
 
+def test_ambiguous_unrecorded_tool_fails_without_fabricating_success():
+    snap = save_snapshot(calls=[{"tool": "resolve_customer", "args": {"id": "b"}}])
+    snap["fidelity_tools"] = ["resolve_customer", "send_email"]
+    observed, effects = probe(snap)
+    assert_unavailable(observed[0], effects[0])
+
+
+def test_missing_read_does_not_consume_another_exact_call_result():
+    answer = {"id": "contact-a"}
+    snap = save_snapshot([recorded("get_contact", {"contact_id": "contact-a"}, answer)], [
+        {"tool": "get_contact", "args": {"contact_id": "contact-b"}},
+        {"tool": "get_contact", "args": {"contact_id": "contact-a"}}])
+    observed, effects = probe(snap)
+    assert_unavailable(observed[0], effects[0])
+    assert observed[1] == {"typed_error": False, "value": answer}
+
+
+def test_recorded_error_consumes_its_position_before_a_later_success():
+    snap = save_snapshot(calls=[{"tool": "read_calendar", "args": {}}] * 2)
+    snap["tool_results"] = [
+        recorded("read_calendar", {}, None, error=f"LookupError: {PRIVATE}", call_id="first"),
+        recorded("read_calendar", {}, {"events": []}, call_id="second")]
+    observed, effects = probe(snap)
+    assert_unavailable(observed[0], effects[0])
+    assert observed[1] == {"typed_error": False, "value": {"events": []}}
+    assert not effects[1].get("error")
+
+
 def test_declared_write_is_captured_without_running_a_real_service():
     snap = save_snapshot(calls=[{"tool": "send_email", "args": {
         "to": USER, "subject": "Brief", "body": "Synthetic meeting brief."}}])
