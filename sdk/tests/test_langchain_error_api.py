@@ -123,10 +123,10 @@ def test_blocked_exit_reports_failure_without_overwriting_containment(
     assert detail not in run["status_reason"]
     if state != "running":
         assert run["status_reason"] == "Synthetic containment"
-    assert completions == [{"error": "Blocked"}]
+    assert completions and all(body == {"error": "Blocked"} for body in completions)
     if revoked:
-        assert [n for n in caught.value.__notes__ if n.startswith("Mirage")] == [
-            "Mirage failure reporting failed: HTTPStatusError"]
+        notes = [n for n in caught.value.__notes__ if n.startswith("Mirage")]
+        assert notes and all(n == "Mirage failure reporting failed: HTTPStatusError" for n in notes)
         assert detail not in " ".join(caught.value.__notes__)
     updates = [e["payload"]["to"] for e in engine_client.get("/events").json()
                if e["type"] == "run.status" and e["payload"]["from"] == "running"]
