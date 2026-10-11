@@ -58,6 +58,7 @@ def post(api, action):
 
 def test_managed_boot_flag_is_opt_in(monkeypatch):
     monkeypatch.setenv("MIRAGE_MODE", "replay")
+    monkeypatch.setattr("engine.config.MODE", "replay")
     monkeypatch.setenv("MIRAGE_FIXTURE", str(FLEET))
     monkeypatch.setenv("MIRAGE_REPLAY_SPEED", "inf")
     monkeypatch.delenv("MIRAGE_REPLAY_MANAGED", raising=False)

@@ -335,7 +335,7 @@ def test_graceful_shutdown_drains_active_and_cancels_queued(api, held):
 def test_replay_mode_does_not_launch_sandbox(api, monkeypatch):
     calls = []
     monkeypatch.setattr(sandbox, "detonate", lambda *a, **k: calls.append(a))
-    monkeypatch.setenv("MIRAGE_MODE", "replay")
+    monkeypatch.setattr(gate, "MODE", "replay")
     freeze(api)  # even a direct gate invocation in replay mode must not schedule
     monkeypatch.setattr(server, "REPLAY", server.Replay(
         server.FIXTURES / "sample_demo.jsonl", float("inf")))
