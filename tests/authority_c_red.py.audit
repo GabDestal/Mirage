@@ -1,0 +1,124 @@
+"""Synthetic authority races through the SDK's protected callbacks; no provider calls."""
+
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+import httpx
+import pytest
+from fastapi.testclient import TestClient
+from mirage import core
+
+from engine.api import server
+from engine.gateway import gate
+from engine.store import events
+from tests.test_api import AGENT, ATTACKER, HUMAN, USER, check, start
+
+
+@pytest.fixture
+def api(monkeypatch):
+    monkeypatch.setattr(server, "REPLAY", None)
+    gate.reset()
+    with TestClient(server.app, raise_server_exceptions=False) as client:
+        monkeypatch.setattr(core, "_http", client)
+        monkeypatch.setattr(core, "_sandbox", None)
+        assert client.post("/agents", json={**AGENT, "entrypoint": ""}).status_code == 200
+        yield client
+    gate.reset()
+
+
+
+def handle(run_id, auth):
+    return {"id": run_id, "token": auth["Authorization"].removeprefix("Bearer ")}
+
+
+
+def protected(run, to, effects, callback=None):
+    token = core._run.set(run)
+    try:
+        return core.tool("send_email", {"to": to, "body": "Synthetic brief"},
+                         callback or (lambda: effects.append(to) or {"status": "sent"}))
+    except (core.Blocked, httpx.HTTPStatusError):
+        return "blocked"
+    finally:
+        core._run.reset(token)
+
+
+
+def test_queued_restart_cannot_be_claimed_by_a_different_task(api):
+    run_id, _ = start(api)
+    assert api.post(f"/runs/{run_id}/kill", json=HUMAN).status_code == 200
+    queued = api.post(f"/runs/{run_id}/restart", json=HUMAN).json()
+    started = api.post("/runs", json={"agent": AGENT["name"], "task": "Different task"})
+    assert started.status_code == 409 or started.json()["run_id"] != queued["id"]
+    assert gate.runs[queued["id"]].status == "queued"
+
+
+
+def test_sdk_cannot_forge_restart_lineage_without_a_human_queued_restart(api):
+    run_id, _ = start(api)
+    response = api.post("/runs", json={"agent": AGENT["name"], "task": "Prep my meetings",
+                                       "restarted_from": run_id})
+    assert response.status_code == 409
+
+
+
+def test_two_starters_cannot_claim_the_same_approved_restart(api, monkeypatch):
+    run_id, _ = start(api)
+    assert api.post(f"/runs/{run_id}/kill", json=HUMAN).status_code == 200
+    queued = api.post(f"/runs/{run_id}/restart", json=HUMAN).json()
+    first_paused, second_at_boundary, release = (
+        threading.Event(), threading.Event(), threading.Event())
+    first_thread = []
+    original_status, original_lock = gate.set_status, server.jobs.lock
+
+    class ObservedLock:
+        def __enter__(self):
+            if first_paused.is_set() and threading.get_ident() != first_thread[0]:
+                second_at_boundary.set()
+            return original_lock.__enter__()
+
+        def __exit__(self, *args):
+            return original_lock.__exit__(*args)
+
+    def paused_status(run, to, actor, reason):
+        if run.id == queued["id"] and to == "running":
+            if not first_paused.is_set():
+                first_thread.append(threading.get_ident())
+                first_paused.set()
+            else:
+                second_at_boundary.set()
+            assert release.wait(5)
+        return original_status(run, to, actor, reason)
+
+    monkeypatch.setattr(server.jobs, "lock", ObservedLock())
+    monkeypatch.setattr(gate, "set_status", paused_status)
+    body = {"agent": AGENT["name"], "task": "Prep my meetings", "restarted_from": run_id}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(api.post, "/runs", json=body)
+        try:
+            assert first_paused.wait(2)
+            second = pool.submit(api.post, "/runs", json=body)
+            assert second_at_boundary.wait(2)
+        finally:
+            release.set()
+        responses = [first.result(3), second.result(3)]
+    claims = [r for r in responses if r.status_code == 200
+              and r.json()["run_id"] == queued["id"]]
+    assert len(claims) == 1
+    assert any(r.status_code == 409 for r in responses)
+
+
+
+@pytest.mark.parametrize("action", ["restart", "resume"])
+def test_duplicate_human_recovery_does_not_queue_two_successors(api, action):
+    run_id, _ = start(api)
+    if action == "restart":
+        assert api.post(f"/runs/{run_id}/kill", json=HUMAN).status_code == 200
+    else:
+        assert api.post("/stop", json=HUMAN).status_code == 200
+    path = f"/runs/{run_id}/{action}"
+    first = api.post(path, json=HUMAN)
+    second = api.post(path, json=HUMAN)
+    assert first.status_code == 200
+    assert second.status_code == 409 or second.json()["id"] == first.json()["id"]
+    assert len([r for r in gate.runs.values() if r.restarted_from == run_id]) == 1
