@@ -79,6 +79,10 @@ def hard_rules(agent, tool, args, policy=POLICY):
     if len(carried) >= BULK_RECORDS:
         yield "BULK_RECORDS", f"The call carries {len(carried)} email addresses: a bulk export."
 
+    # Admission copies every applicable baseline; a narrower overlay cannot replace it.
+    for constraint in policy.get("constraints", []):
+        yield from hard_rules(agent, tool, args, constraint)
+
 
 def hard_rule(agent, tool, args, policy=POLICY):
     """The first rule the call breaks, else None. The gate freezes on it."""

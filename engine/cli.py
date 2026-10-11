@@ -9,10 +9,16 @@ uv run python -m engine.cli metrics [--labels data/testset_labels.json]   # afte
 """
 
 import argparse
+import json
 import sys
+from pathlib import Path
 
-from engine import config  # noqa: F401 - load dotenv before snapshot and store paths
+from engine import (
+    config,  # noqa: F401 - load dotenv before snapshot and store paths
+    rules,
+)
 from engine.bisect import bisect
+from engine.detonation import snapshot
 from engine.detonation.sandbox import DetonationError, detonate
 
 
@@ -27,6 +33,7 @@ def main(argv=None):
     det.add_argument("--json", action="store_true", help="print the DetonateResult as JSON")
     det.add_argument("--from-freeze", action="store_true",
                      help="operator replay: continue the frozen run as it was (no fix check)")
+    det.add_argument("--policy-file", help="trusted operator's effective policy JSON for fix verification")
     bis = sub.add_parser("bisect", help="Remove one input at a time to prove the cause")
     bis.add_argument("--incident", required=True)
     bis.add_argument("--runs", type=int, choices=range(1, 11), metavar="1..10", default=2,
@@ -42,9 +49,6 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.command == "metrics":
-        import json
-        from pathlib import Path
-
         from engine import metrics
         from engine.store import events
         labels = json.loads(Path(args.labels).read_text(encoding="utf-8"))
@@ -65,12 +69,22 @@ def main(argv=None):
         return 0 if cause else 1
 
     verify = not args.from_freeze and not args.remove_input
+    policy = None
+    if args.policy_file:
+        if not verify:
+            parser.error("--policy-file is available only for fix verification")
+        try:
+            policy = rules.validate_policy(snapshot.load(args.incident)["agent"],
+                json.loads(Path(args.policy_file).read_text(encoding="utf-8")))
+        except (OSError, ValueError, TypeError, KeyError, RecursionError):
+            print("Verification policy file is unavailable or invalid.", file=sys.stderr)
+            return 2
     log = (lambda *_: None) if args.json else print
     log(f"{'Checking the fix for' if verify else 'Detonating'} {args.incident} x{args.runs}"
         + (f" without {args.remove_input}" if args.remove_input else "") + " ...")
     try:
         _, verdict, result = detonate(args.incident, args.runs, args.remove_input, log=log,
-                                      verify=verify)
+                                      verify=verify, verification_policy=policy)
     except DetonationError as e:
         print(f"\nDetonation FAILED, no verdict: {e}")
         return 2
