@@ -1,6 +1,6 @@
 # Benchmark pilot results
 
-Generated 2026-10-11T03:49:41.591342+00:00.
+Generated 2026-10-11T03:50:50.474954+00:00.
 
 Small pilot; fixed manifests determine denominators. Missing results, scores, timeouts and adapter failures remain UNKNOWN. Incomplete execution cannot establish prevention or utility from default native zero/positive fields; raw fields remain available for audit and known harm survives failures. Bounds are missing-outcome bounds, not statistical confidence intervals; numeric native scores retain their [0,1] range.
 
@@ -104,5 +104,7 @@ Selected rows: 80. Rows recording at least one call: 4. Reconciliation issues: 0
 | AgentRx | completed | none | 2 |
 | AgentRx | unknown | adapter_or_provider_failure:JSONDecodeError | 2 |
 | AgentRx | unknown | awaiting_inference_slot | 76 |
+
+Awaiting fixed selected-row manifests for: agentdojo, harnessrisk. Their denominators and coverage are not evaluated; saved rows alone cannot define the selected cohort.
 
 Raw native scores, validation, per-metric values, calls/tokens/latency, evidence references and pins are saved in scorecard JSON. No relative reduction is inferred when baseline compromises are zero. No benchmark, model, arm, cohort or split is pooled.

@@ -236,6 +236,10 @@ def render(tables: list[dict], rows: list[dict], issues: list, pins: list, overh
         lines.append(f"| {benchmark} | {status} | {reason or 'none'} | {count} |")
     if issues:
         lines += ["", "Reconciliation issues are saved in scorecard JSON. Duplicates are not resolved by choosing the most favorable or latest result; known harm is retained."]
+    absent = sorted(set(METRICS) - {str(r["benchmark"]).lower() for r in rows})
+    if absent:
+        lines += ["", "Awaiting fixed selected-row manifests for: " + ", ".join(absent) +
+                  ". Their denominators and coverage are not evaluated; saved rows alone cannot define the selected cohort."]
     lines += ["", "Raw native scores, validation, per-metric values, calls/tokens/latency, evidence references and pins are saved in scorecard JSON. No relative reduction is inferred when baseline compromises are zero. No benchmark, model, arm, cohort or split is pooled.", ""]
     return "\n".join(lines)
 
