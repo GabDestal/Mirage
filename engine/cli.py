@@ -11,6 +11,7 @@ uv run python -m engine.cli metrics [--labels data/testset_labels.json]   # afte
 import argparse
 import sys
 
+from engine import config  # noqa: F401 - load dotenv before snapshot and store paths
 from engine.bisect import bisect
 from engine.detonation.sandbox import DetonationError, detonate
 
