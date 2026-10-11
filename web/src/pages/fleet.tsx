@@ -73,10 +73,10 @@ export function Fleet() {
       if (e.key === 'j') setSelected((i) => Math.min(i + 1, visibleRuns.length - 1))
       else if (e.key === 'k') setSelected((i) => Math.max(i - 1, 0))
       else if (e.key === 'Enter' && run) navigate(`/runs/${run.id}`)
-      else if (key === 'u' && run?.status === 'frozen' && liveRunOwned(run, connection)) {
+      else if (key === 'u' && run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection))) {
         e.preventDefault()
         ask('unfreeze', run)
-      } else if ((key === 'x' || (command && key === 'backspace')) && run && liveRunOwned(run, connection) && (run.status === 'running' || run.status === 'frozen')) {
+      } else if ((key === 'x' || (command && key === 'backspace')) && run && (isDemo || liveRunOwned(run, connection)) && (run.status === 'running' || run.status === 'frozen')) {
         e.preventDefault()
         ask('kill', run)
       } else if (e.key === 'Escape') setSelected(-1)
