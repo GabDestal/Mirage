@@ -34,7 +34,7 @@ try {
   assert.ok(!render({ status: 'running' }, true).includes('Retry repair'))
   const ready = render({ status: 'pr_open', candidate_sha: 'd'.repeat(40), pr_url: 'https://github.com/GabDestal/Mirage/pull/201',
     verification: { attack_blocked: '3/3', legit_task_completed: '3/3', clean_task_completed: '1/1' } })
-  assert.ok(ready.includes('Review draft PR') && ready.includes('clean task 1/1') && ready.includes('dddddddddddd'))
+  assert.ok(ready.includes('Review draft PR') && ready.includes('Clean task</dt><dd>1/1') && ready.includes('dddddddddddd'))
   assert.ok(ready.includes('noopener noreferrer') && ready.includes('separately approves a clean restart'))
   assert.ok(!render({ status: 'pr_open', pr_url: 'javascript:alert(1)' }).includes('href='))
   assert.ok(!ready.includes('prompt') && !ready.includes('token') && !ready.includes('terminal transcript'))
