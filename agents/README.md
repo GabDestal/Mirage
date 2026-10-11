@@ -17,9 +17,16 @@ and limits of historical results.
 - `agents/<name>/agent.py` exposes:
   - `build_agent(model=None, middleware=())` → a `create_agent` graph. `model=None` uses `chat_model()`.
     The fleet's module-level protected factories supply importable replay entrypoints.
-  - Current meeting factory uses `MEETING_ASSISTANT_MODEL_ID` and `clean_tool_names`
-    (`agents/common/model.py`). The other three use the shared model without that sanitizer.
-    Shared model selection is `BEDROCK_AGENT_MODEL_ID`, then `BEDROCK_MODEL_ID`.
+  - Each factory uses its own override: `MEETING_ASSISTANT_MODEL_ID`, `INVOICING_MODEL_ID`,
+    `OUTREACH_MODEL_ID` or `PR_REVIEWER_MODEL_ID`, then `BEDROCK_AGENT_MODEL_ID`, then
+    `BEDROCK_MODEL_ID`. Blank overrides fall through. All four reuse `clean_tool_names`
+    (`agents/common/model.py`), keep caller middleware, and use temperature 0 in `us-east-1`.
+  - Models created by `chat_model()` share one installed LangChain `InMemoryRateLimiter`
+    per Python process: one provider model turn per second, capacity one. Recorded SDK
+    replies bypass model calls. This does not coordinate separate fleet, gateway, chat
+    or sandbox processes, or provider-internal retries; it is no cross-process provider
+    rate guarantee. [Repair acceptance](../docs/UI_ENGINE_REPAIR_ACCEPTANCE_20261011.md)
+    separates its offline wiring evidence from fresh provider acceptance.
   - `TASK`: the default task string for the demo.
 - `python -m agents.<name>` runs `TASK` once with Bedrock **without Mirage protection**
   and prints tool arguments/results (`agents/common/run.py`). It does not create SDK/UI runs.
