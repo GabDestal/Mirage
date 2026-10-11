@@ -262,6 +262,9 @@ export class RepairSupervisor implements RepairController {
       const worktree = created.worktree;
       if (!worktree?.path || !worktree?.id) throw new Error("Orca did not return an isolated repair checkout.");
       const cwd = worktree.path as string;
+      if (await realpath(cwd) === this.config.repoPath || worktree.isMainWorktree || worktree.parentWorktreeId)
+        throw new Error("Orca did not provide an independent feature checkout.");
+      failure = "context_changed";
       const initial = await this.command("git", ["rev-parse", "HEAD"], { cwd });
       if (initial !== job.base_sha) throw new Error("Repair checkout base differs from the pinned revision.");
       failure = "verification_failed";

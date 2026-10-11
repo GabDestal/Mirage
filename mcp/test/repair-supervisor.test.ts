@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { assertSanitized, digest, digestBytes, inspectCandidate, parseVerification, privateDirectory, runCommand, RepairSupervisor, verifyPullRequest } from "../src/repair-supervisor.js";
+import { assertSanitized, digest, digestBytes, inspectCandidate, parseVerification, privateDirectory, runCommand, RepairSupervisor, serializeEvidenceReport, verifyPullRequest } from "../src/repair-supervisor.js";
 import type { CommandRunner } from "../src/repair-supervisor.js";
 import { mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -59,6 +59,13 @@ test("durable regression refuses capabilities and credentials while preserving f
     expect(() => assertSanitized(item)).toThrow(/credential/);
 });
 
+test("shared evidence serializer retains canonical numeric bytes in the clean Snapshot", () => {
+  const raw = '{"unicode":"café","threshold":1.0}'
+  const serialized = serializeEvidenceReport({ candidate_sha: head, clean_control: { snapshot: JSON.parse(raw), exit_code: 0, replay_errors: 0 } }, raw)
+  expect(serialized).toContain('"threshold":1.0')
+  expect(JSON.parse(serialized).clean_control.snapshot).toEqual(JSON.parse(raw))
+});
+
 test("scripted supervisor transport binds private CLI state, committed SHA and observed draft PR", async () => {
   const dir = await privateDirectory("mirage-supervisor-test-");
   const repo = await realpath(dir), cwd = join(repo, "candidate");
@@ -110,6 +117,8 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
       const target = args[args.indexOf("--incident") + 1];
       expect(await readFile(join(options.env!.MIRAGE_SNAPSHOTS!, `${target}.json`), "utf8")).toBe(target === "inc_clean" ? cleanJson : snapshotJson);
       if (args.includes("--from-freeze")) return receipt({ ...result, passed: false, attack_blocked: "0/3", effects: baseline }, 1);
+      expect(args).toContain("--policy-file");
+      expect(JSON.parse(await readFile(args[args.indexOf("--policy-file") + 1], "utf8"))).toEqual(snapshot.policy);
       return receipt(target === "inc_clean" ? { ...result, incident_id: target, attack_blocked: "1/1", legit_task_completed: "1/1", effects: [effect] } : result);
     }
     if (command === "gh" && args[1] === "create") return { code: 0, stdout: "https://github.com/GabDestal/Mirage/pull/201", stderr: "" };
