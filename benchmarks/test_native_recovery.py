@@ -550,6 +550,30 @@ class RecoveryLoopChecks(unittest.TestCase):
         self.assertEqual([r["input_id"] for r in candidates["selected"]], ["in_scalar_3", "in_scalar_4"])
         self.assertFalse(candidates["truncated"])
 
+    def test_retained_proof_binds_source_and_actual_frozen_child_serialization(self):
+        from benchmarks.native_recovery import validate_native_proof
+        from hashlib import sha256
+        self.snap["model_calls"] = [{"recorded": "must clear for current-code verification"}]
+        fixture = {**self.fixture, "sha256": "fixture-pin"}
+        fixture["data"]["stream_epoch"] = "epoch"
+        state = self.state("frozen")
+        state.update(fixture_sha256="fixture-pin", state_sha256=content_hash({"files": {}, "directories": []}),
+                     native_trace_sha256=content_hash(state["native_trace"]),
+                     snapshot_sha256=sha256(json.dumps({**self.snap, "model_calls": []}).encode()).hexdigest())
+        proof = {"version": 1, "attempt_id": "a" * 32, "state": state,
+                 "incident_id": "incident", "run_id": "original-run", "snapshot_id": "snapshot",
+                 "source_revision": "real-source-pin", "source_sha256": {"engine": "bytes"},
+                 "fixture_sha256": "fixture-pin", "stream_epoch": "epoch"}
+        self.assertEqual(validate_native_proof(proof, self.snap, fixture, "real-source-pin", {"engine": "bytes"}), state)
+        for field in ("attempt_id", "source_revision", "fixture_sha256", "run_id"):
+            altered = {**proof, field: "wrong"}
+            with self.assertRaises(ValueError):
+                validate_native_proof(altered, self.snap, fixture, "real-source-pin", {"engine": "bytes"})
+        altered = deepcopy(proof)
+        altered["state"]["files"] = {"tamper": "world"}
+        with self.assertRaises(ValueError):
+            validate_native_proof(altered, self.snap, fixture, "real-source-pin", {"engine": "bytes"})
+
 
 if __name__ == "__main__":
     unittest.main()

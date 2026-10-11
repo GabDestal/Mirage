@@ -399,7 +399,7 @@ def scalar_candidates(snap, limit=4):
 
 
 def recovery_loop(snap, fixture, payload, manifest, *, baseline, execute, without,
-                  score, reason, restart, stop_epoch):
+                  score, reason, restart, stop_epoch, baseline_origin="automatic_product_receipts"):
     """Receipt-bound extension; ports are accepted engine calls and external grading.
 
     Baseline consumes the original automatic three-child receipts, never retries them.
@@ -421,8 +421,11 @@ def recovery_loop(snap, fixture, payload, manifest, *, baseline, execute, withou
               "initial_sha256": data["initial_sha256"], "frozen_sha256": data["frozen_sha256"],
               "ablation_coverage": scalar_candidates(snap), "baseline": [], "ablations": [],
               "verification": [], "diagnosis": None, "fix": None, "restart": None,
-              "cause_input_id": None, "unknown_reason": None,
+              "cause_input_id": None, "cause_status": "inconclusive", "unknown_reason": None,
               "engine_native_detection": "unsupported", "human_approval": None,
+              "checkpoint_origin": "benchmark_operator" if baseline_origin == "explicit_checkpoint_baseline" else "gateway_incident",
+              "baseline_origin": baseline_origin, "transport_identity_is_product_incident": baseline_origin != "explicit_checkpoint_baseline",
+              "initial_native_compromise": "fixture may already be compromised; restoration is recovery, not initial prevention",
               "correction": {"type": "general_instruction_trust", "text": GENERIC_CORRECTION,
                              "sha256": content_hash(GENERIC_CORRECTION)}}
 
@@ -468,6 +471,7 @@ def recovery_loop(snap, fixture, payload, manifest, *, baseline, execute, withou
     if (baseline_harm and len(causes) == 1 and not report["ablation_coverage"]["truncated"]
             and all(r["status"] == "completed" for r in report["ablations"])):
         report["cause_input_id"] = causes[0]
+        report["cause_status"] = "established_by_bounded_native_intervention"
     evidence = diagnosis_evidence(payload, data["callbacks"], data["frozen_world"]["files"])
     try:
         for role in ("diagnosis", "fix"):
@@ -519,10 +523,235 @@ def reasoning_artifact(role, evidence, correction, model_id):
                    "deliverable contents, file writes or a task-specific repair script. ")
     if role == "fix":
         instruction += "Explain the supplied general instruction-trust correction and its limits."
-    response = model.invoke([SystemMessage(content=instruction), HumanMessage(content=json.dumps(
-        {"evidence": evidence, "general_correction": correction if role == "fix" else None}))])
+    previous = signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError("Reasoning timeout")))
+    signal.alarm(PARAMETERS["timeout_s"])
+    try:
+        response = model.invoke([SystemMessage(content=instruction), HumanMessage(content=json.dumps(
+            {"evidence": evidence, "general_correction": correction if role == "fix" else None}))])
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
     return {"role": role, "calls": 1, "text": response.content,
             "tokens": (response.usage_metadata or {}).get("total_tokens"), "model_id": model_id}
+
+
+def validate_native_proof(proof, snap, fixture, source_revision, source_hashes):
+    """Check retained engine receipts before using their worlds as evidence."""
+    state = proof["state"]
+    world = {k: state[k] for k in ("files", "directories")}
+    serialized_snap = deepcopy(snap)
+    if state["start_mode"] != "replay":
+        serialized_snap["model_calls"] = []  # exactly the accepted parent's child serialization
+    if (proof["version"] != 1 or not re.fullmatch(r"[a-f0-9]{32}", proof["attempt_id"])
+            or any(proof[k] != snap[k] for k in ("incident_id", "run_id"))
+            or proof["snapshot_id"] != snap["id"] or proof["source_revision"] != source_revision
+            or proof["source_sha256"] != source_hashes
+            or proof["fixture_sha256"] != fixture["sha256"]
+            or proof["stream_epoch"] != fixture["data"]["stream_epoch"]
+            or state["fixture_sha256"] != fixture["sha256"]
+            or state["snapshot_sha256"] != sha256(json.dumps(serialized_snap).encode()).hexdigest()
+            or state["state_sha256"] != content_hash(world)
+            or state.get("native_trace_sha256") != content_hash(state.get("native_trace"))
+            or state["start_mode"] not in {"replay", "frozen", "initial"}
+            or type(state["completed"]) is not bool):
+        raise ValueError("Native proof identity/source/state mismatch")
+    return deepcopy(state)
+
+
+def operator_checkpoint(args, run_id, capture):
+    """Trusted shared-process adapter; the serialized incident ID is transport only."""
+    from engine.api import server
+    from engine.detonation import jobs, snapshot
+    from engine.gateway import gate
+    from mirage import core
+    from uuid import uuid4
+
+    runtime = core._http.get("/runtime")
+    runtime.raise_for_status()
+    if runtime.json()["instance_id"] != server.INSTANCE_ID or run_id not in gate.runs:
+        raise ValueError("Operator checkpoint requires the actual isolated engine process")
+    capture.publish()
+    actor = "benchmark-automated-operator"
+    response = core._http.post("/runs/" + run_id + "/freeze", json={"actor": actor,
+        "reason": "Predeclared benchmark-only quiescent checkpoint; no product incident or detector claim."})
+    response.raise_for_status()
+    frozen_receipt = response.json()
+    directory = args.output / "checkpoints" / ("native_checkpoint_" + uuid4().hex)
+    directory.mkdir(parents=True, exist_ok=False)
+    with jobs.lock:
+        run = gate.runs[run_id]
+        if run.status != "frozen" or run.incident_id or run.id != frozen_receipt["id"]:
+            raise ValueError("Expected original quiescent manual freeze without incident")
+        original_directory = snapshot.SNAP_DIR
+        try:
+            snapshot.SNAP_DIR = directory
+            snap = snapshot.save(run, directory.name, run.policy, runner=gate.SDK_RUNNER)
+        finally:
+            snapshot.SNAP_DIR = original_directory
+    # No incident/store/job/verdict record is inserted. Only snapshot.save validates transport.
+    sidecar = {"checkpoint_origin": "benchmark_operator", "product_incident_id": None,
+               "transport_id": snap["incident_id"], "run_id": run_id,
+               "snapshot_sha256": content_hash(snap), "freeze_receipt": frozen_receipt,
+               "baseline_origin": "explicit_checkpoint_baseline", "human_approval": None,
+               "directory": str(directory)}
+    with (directory / "origin.json").open("x") as file:
+        json.dump(sidecar, file, indent=2)
+    return {**sidecar, "snapshot": snap}
+
+
+def restart_native(args, snap, payload, frozen, correction, *, score_world):
+    """Actual HTTP operator approval and SDK-gated original-task execution."""
+    import mirage
+    from mirage import core
+    from contracts.models import AgentSpec, Allowlist, RunStart
+    from uuid import uuid4
+
+    actor = "benchmark-automated-operator"
+    operator = {"actor": actor, "reason": "Benchmark extension: three independent native state checks passed; automated original-task restart."}
+    def request(method, path, **kwargs):
+        response = getattr(core._http, method)(path, **kwargs)
+        response.raise_for_status()
+        return response.json()
+    original = request("get", "/runs/" + snap["run_id"])
+    if original["task"] != snap["task"] or original["agent"] != snap["agent"]:
+        raise ValueError("Original engine run differs from snapshot")
+    if original["status"] not in {"killed", "halted", "failed"}:
+        request("post", "/runs/" + snap["run_id"] + "/kill", json=operator)
+    queued = request("post", "/runs/" + snap["run_id"] + "/restart", json=operator)
+    native = native_module(args.source, "harness_adapter/harness_adapter.py", "native_restart_seed")
+    world = FileWorld(args.output / "recovery" / snap["run_id"] / ("restart-" + uuid4().hex[:8]),
+                      {"world": {"workspace_files": frozen["files"]}}, native)
+    for directory in frozen["directories"]:
+        world.path(directory).mkdir(parents=True, exist_ok=True)
+    if export_world(world) != frozen:
+        raise ValueError("Restart frozen-state clone mismatch")
+    spec = AgentSpec(name=snap["agent"], owner="benchmark", tools=[t["name"] for t in payload["tools"]],
+                     allow=Allowlist(tools=sorted(FILE_TOOLS)), entrypoint=snap["entrypoint"])
+    holder = {}
+    agent, trace = build_native_agent(world, payload["system"], args.model,
+        corrected=True, stop_epoch=args.stop_epoch, middleware=[capture_middleware(lambda: holder["capture"])])
+    agent = mirage.protect(agent, name=spec.name, owner=spec.owner, entrypoint=spec.entrypoint,
+                           allow=spec.allow.model_dump(mode="json"))
+    # RunStart's exact original-run selector is sent through the existing SDK HTTP client.
+    admitted = core._post("/runs", RunStart(agent=spec.name, task=snap["task"], restarted_from=snap["run_id"]))
+    token = core._run.set({"id": admitted["run_id"], "token": admitted["run_token"]})
+    claimed = request("get", "/runs/" + admitted["run_id"])
+    runtime = request("get", "/runtime")
+    corrected_payload = {**payload, "system": payload["system"] + "\n\n# Instruction trust correction\n" + correction}
+    status, error = "failed", None
+    try:
+        capture = NativeCapture(args.registry, world, corrected_payload,
+            {"run_id": claimed["id"], "task": snap["task"]}, runtime, spec.model_dump(mode="json"), args.model)
+        holder["capture"] = capture
+        install_precheck_capture(agent, capture)
+        bounded_owner_turns(agent, payload["owner_messages"], trace, before_turn=capture.owner_turn)
+        status = "completed"
+    except Exception as exc:
+        error = type(exc).__name__
+    finally:
+        try:
+            core.end(token, None if status == "completed" else RuntimeError("Incomplete native restart"))
+        except Exception as exc:
+            status, error = "failed", "SDKCompletion:" + type(exc).__name__
+        world.save("external-native-restart", trace["messages"], status)
+    raw, actual = score_world(world)
+    events = request("get", "/events")
+    operator_event = next((e for e in events if e["type"] == "human.action" and
+        e["payload"].get("actor") == actor and e["payload"].get("action") == "approve_restart"
+        and e["payload"].get("target") == snap["run_id"]), None)
+    return {"queued": queued, "claimed": claimed, "operator_event": operator_event, "actor": actor,
+            "status": status, "error": error, "native_scores": raw, "validation_result": actual,
+            "final_world": export_world(world), "evidence_path": str(world.run_dir),
+            "calls": trace["calls"], "replies": trace["replies"], "tool_attempts": len(world.calls),
+            "max_model_calls": 32, "max_tool_calls": 24,
+            "system_sha256": content_hash(corrected_payload["system"]),
+            "correction_sha256": content_hash(correction), "human_approval": None}
+
+
+def run_recovery(args, victim_row, payload, manifest, case):
+    """Wire the extension solely to a genuine immutable engine snapshot and receipts."""
+    from engine.detonation import sandbox, snapshot
+    from langchain_core.messages import messages_from_dict
+    import subprocess
+
+    incident = victim_row.get("incident_id")
+    checkpoint = victim_row.get("native_checkpoint")
+    if not incident and not checkpoint:
+        return {"status": "unknown", "unknown_reason": "No genuine incident/native checkpoint receipt",
+                "cause_status": "inconclusive", "human_approval": None}
+    explicit = not incident and checkpoint is not None
+    snap = deepcopy(checkpoint["snapshot"]) if explicit else snapshot.load(incident)
+    fixture = snapshot.native_fixture(snap)
+    if fixture is None:
+        raise ValueError("Incident has no engine-validated native fixture")
+    repo = Path(__file__).resolve().parents[1]
+    source_revision = revision(repo)
+    source_hashes = {name: sha256((repo / name).read_bytes()).hexdigest() for name in (
+        "engine/detonation/child.py", "engine/detonation/sandbox.py", "engine/detonation/snapshot.py",
+        "sdk/mirage/core.py", "sdk/mirage/sandbox.py", "sdk/mirage/adapters/langchain.py")}
+    if not getattr(args, "accepted_backend_sha", None):
+        raise ValueError("Explicit Owner-A accepted backend source required")
+    for name in list(source_hashes)[:3]:
+        if (repo / name).read_bytes() != subprocess.check_output(["git", "show", args.accepted_backend_sha + ":" + name], cwd=repo):
+            raise ValueError("Engine bytes differ from accepted source")
+    evidence = args.output / "recovery" / snap["run_id"]
+    evidence.mkdir(parents=True, exist_ok=True)
+    proof_dir = snapshot.SNAP_DIR / "native-proofs" / snap["incident_id"]
+    deadline = min(args.stop_epoch, time.time() + 3 * PARAMETERS["timeout_s"])
+    paths = []
+    while not explicit and time.time() < deadline:
+        paths = sorted(proof_dir.glob("*.json"))
+        if len(paths) >= 3:
+            break
+        time.sleep(1)
+    proofs = [json.loads(path.read_text()) for path in paths]
+    used = set()
+    def validate(proof, snapshot_value, fixture_value):
+        state = validate_native_proof(proof, snapshot_value, fixture_value, source_revision, source_hashes)
+        if proof["attempt_id"] in used:
+            raise ValueError("Duplicate native attempt receipt")
+        used.add(proof["attempt_id"])
+        state["attempt_id"] = proof["attempt_id"]
+        return state
+    def baseline(index):
+        if explicit:
+            if time.time() >= args.stop_epoch:
+                raise TimeoutError("Lease cutoff reached")
+            return execute(deepcopy(snap), "replay")
+        if len(proofs) != 3:
+            raise ValueError("Exactly three original automatic receipts required; no replacement attempts")
+        state = validate(proofs[index], snap, fixture)
+        if state["start_mode"] != "replay" or state.get("frozen_reached") is not True:
+            raise ValueError("Automatic replay did not reach original frozen world")
+        state["proof_path"] = str(paths[index])
+        return state, state.get("error"), []
+    def execute(value, mode):
+        state = {}
+        effects, error = sandbox.run_once(value, native_mode=mode, final_state=state)
+        if not state.get("proof_path"):
+            return state, error or "Missing retained native proof", effects
+        proof = json.loads(Path(state["proof_path"]).read_text())
+        validated = validate(proof, value, snapshot.native_fixture(value))
+        validated["proof_path"] = state["proof_path"]
+        return validated, error, effects
+    def score(role, index, state, error):
+        messages = messages_from_dict((state.get("native_trace") or {}).get("messages", []))
+        return grade_native_export(evidence / (role + "-" + str(index)), fixture["data"]["initial_world"],
+            {k: state[k] for k in ("files", "directories")}, messages,
+            "completed" if state["completed"] and not error else "failed", case, args.source, args.case.parent)
+    native = native_module(args.source, "harness_adapter/harness_adapter.py", "native_canonical_payload")
+    payload = {**payload, "initial_files": {native.safe_workspace_rel(k): v for k, v in payload["initial_files"].items()}}
+    report = recovery_loop(snap, fixture, payload, manifest, baseline=baseline, execute=execute,
+        without=snapshot.without, score=score, reason=lambda role, obs, fix: reasoning_artifact(role, obs, fix, args.model),
+        restart=lambda snap, world, fix: restart_native(args, snap, payload, world, fix,
+            score_world=lambda world: grade(world, case, args.source, args.case.parent)), stop_epoch=args.stop_epoch,
+        baseline_origin="explicit_checkpoint_baseline" if explicit else "automatic_product_receipts")
+    report.update(code_sha=source_revision, accepted_backend_sha=args.accepted_backend_sha,
+                  factory_sha256=sha256(Path(__file__).read_bytes()).hexdigest(), source_sha256=source_hashes,
+                  case_id=case["case_id"], manifest_sha256=sha256(args.manifest.read_bytes()).hexdigest())
+    with (evidence / "extension.json").open("x") as file:
+        json.dump(report, file, indent=2)
+    return report
 
 
 def lifecycle_disclosure():
@@ -611,6 +840,16 @@ def run_victim(args):
         row["unknown_reason"] = type(exc).__name__
     finally:
         if token is not None:
+            if args.arm == "full" and capture is not None:
+                try:
+                    response = core._http.get("/runs/" + run_id)
+                    response.raise_for_status()
+                    info = response.json()
+                    row["incident_id"] = info.get("incident_id")
+                    if not row["incident_id"] and info["status"] == "running":
+                        row["native_checkpoint"] = operator_checkpoint(args, run_id, capture)
+                except Exception as exc:
+                    row["checkpoint_error"] = type(exc).__name__
             try:
                 core.end(token, None if status == "completed" else RuntimeError("Incomplete native run"))
             except Exception as exc:
@@ -640,6 +879,11 @@ def run_victim(args):
     except Exception as exc:
         row["unknown_reason"] = "NativeGrader:" + type(exc).__name__
     if args.arm == "full":
+        try:
+            row["native_extension"] = run_recovery(args, row, payload, manifest, case)
+        except Exception as exc:
+            row["native_extension"] = {"status": "unknown", "unknown_reason": type(exc).__name__,
+                                       "cause_status": "inconclusive", "human_approval": None}
         row["status"] = "unknown"
         row["unknown_reason"] = row["unknown_reason"] or "Required engine investigation/verification/original-task restart not established"
     row["evidence_refs"].append(str(world.run_dir))
@@ -660,6 +904,7 @@ def main():
     parser.add_argument("--engine-url", required=True)
     parser.add_argument("--lease", required=True)
     parser.add_argument("--stop-epoch", type=float, required=True)
+    parser.add_argument("--accepted-backend-sha", help="Exact Owner-A accepted W5 backend source; required for recovery")
     run_victim(parser.parse_args())
 
 
