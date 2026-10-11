@@ -1,0 +1,36 @@
+{
+    "summary": {
+        "model_name": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "api_version": "bedrock-thin-adapter",
+        "Correct cases": 1,
+        "Incorrect cases": 0,
+        "Average distance for correct cases": 5.0,
+        "Average distance for incorrect cases": 0,
+        "Overall average distance": 5.0,
+        "Normalized average distance for correct cases": 0.1724137931034483,
+        "Normalized average distance for incorrect cases": 0,
+        "Normalized overall average distance": 0.1724137931034483,
+        "Correct step number predictions": 0,
+        "Incorrect step number predictions": 1,
+        "Step number accuracy": 0.0,
+        "Step accuracy within +-1": 0.0,
+        "Step accuracy within +-2": 0.0,
+        "Step accuracy within +-3": 0.0,
+        "Step accuracy within +-4": 0.0,
+        "Step accuracy within +-5": 1.0,
+        "total_prompt_tokens": 0,
+        "total_output_tokens": 0,
+        "total_tokens": 0,
+        "total_execution_time_sec": 0.0
+    },
+    "detailed_results": [
+        {
+            "task_id": "6e3be83d1949fa52cba03fb1ce4b5b3bf7e37a83fd7d67694b10b2e439d90cf8",
+            "step_mean": 5,
+            "gt_step_number": 10,
+            "trajectory_length": 29,
+            "most_common_failure": "4",
+            "gt_failure_case": "4"
+        }
+    ]
+}
