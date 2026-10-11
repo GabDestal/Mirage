@@ -1,11 +1,32 @@
 {
-  "generated_at": "2026-10-11T06:36:24.512385+00:00",
+  "generated_at": "2026-10-11T06:54:28.955298+00:00",
   "fixed_cells": 24,
-  "attempted_cells": 12,
-  "actual_calls": 20,
+  "attempted_cells": 24,
+  "actual_calls": 32,
   "maximum_calls": 60,
   "orphaned_stages": [],
   "stage_overhead": [
+    {
+      "case_id": "magentic:2dfc4c37-fec1-4518-84a7-10095d30ad75",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "static",
+      "calls": 1,
+      "input_characters": 5267,
+      "usage": {
+        "inputTokens": 1426,
+        "outputTokens": 257,
+        "totalTokens": 1683,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 2.735,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_constraint_source"
+      }
+    },
     {
       "case_id": "magentic:2dfc4c37-fec1-4518-84a7-10095d30ad75",
       "model_id": "openai.gpt-oss-20b-1:0",
@@ -35,6 +56,27 @@
         "totalTokens": 15033
       },
       "latency_s": 0.972,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_constraint_source"
+      }
+    },
+    {
+      "case_id": "magentic:3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "static",
+      "calls": 1,
+      "input_characters": 5267,
+      "usage": {
+        "inputTokens": 1426,
+        "outputTokens": 257,
+        "totalTokens": 1683,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 2.719,
       "stop_reason": "end_turn",
       "error": {
         "type": "ValueError",
@@ -113,6 +155,27 @@
     },
     {
       "case_id": "magentic:42d4198c-5895-4f0a-b0c0-424a66465d83",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 34254,
+      "usage": {
+        "inputTokens": 10870,
+        "outputTokens": 512,
+        "totalTokens": 11382,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 5.918,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "JSONDecodeError",
+        "message": "Expecting value: line 1 column 1 (char 0)"
+      }
+    },
+    {
+      "case_id": "magentic:42d4198c-5895-4f0a-b0c0-424a66465d83",
       "model_id": "openai.gpt-oss-20b-1:0",
       "arm": "simple_diagnosis",
       "stage": "diagnosis",
@@ -180,6 +243,84 @@
     },
     {
       "case_id": "magentic:42576abe-0deb-4869-8c63-225c2d75a95a",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 13508,
+      "usage": {
+        "inputTokens": 3834,
+        "outputTokens": 139,
+        "totalTokens": 3973,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 2.653,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_or_missing_evidence_indices"
+      }
+    },
+    {
+      "case_id": "magentic:2dfc4c37-fec1-4518-84a7-10095d30ad75",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 26702,
+      "usage": {
+        "inputTokens": 9211,
+        "outputTokens": 270,
+        "totalTokens": 9481,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 3.795,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "magentic:42d4198c-5895-4f0a-b0c0-424a66465d83",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "static",
+      "calls": 1,
+      "input_characters": 5267,
+      "usage": {
+        "inputTokens": 1426,
+        "outputTokens": 257,
+        "totalTokens": 1683,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 2.668,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_constraint_source"
+      }
+    },
+    {
+      "case_id": "magentic:3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 26615,
+      "usage": {
+        "inputTokens": 8903,
+        "outputTokens": 257,
+        "totalTokens": 9160,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 3.567,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "magentic:42576abe-0deb-4869-8c63-225c2d75a95a",
       "model_id": "openai.gpt-oss-20b-1:0",
       "arm": "simple_diagnosis",
       "stage": "diagnosis",
@@ -191,6 +332,24 @@
         "totalTokens": 3689
       },
       "latency_s": 1.435,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "magentic:2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 18512,
+      "usage": {
+        "inputTokens": 5547,
+        "outputTokens": 205,
+        "totalTokens": 5752,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 3.274,
       "stop_reason": "end_turn",
       "error": null
     },
@@ -275,6 +434,69 @@
       "error": null
     },
     {
+      "case_id": "magentic:2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "static",
+      "calls": 1,
+      "input_characters": 5267,
+      "usage": {
+        "inputTokens": 1426,
+        "outputTokens": 257,
+        "totalTokens": 1683,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 2.742,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_constraint_source"
+      }
+    },
+    {
+      "case_id": "magentic:52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "static",
+      "calls": 1,
+      "input_characters": 5267,
+      "usage": {
+        "inputTokens": 1426,
+        "outputTokens": 257,
+        "totalTokens": 1683,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 2.735,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_constraint_source"
+      }
+    },
+    {
+      "case_id": "magentic:42576abe-0deb-4869-8c63-225c2d75a95a",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "evidence_assisted_diagnosis",
+      "stage": "static",
+      "calls": 1,
+      "input_characters": 5267,
+      "usage": {
+        "inputTokens": 1426,
+        "outputTokens": 257,
+        "totalTokens": 1683,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 2.778,
+      "stop_reason": "end_turn",
+      "error": {
+        "type": "ValueError",
+        "message": "invalid_constraint_source"
+      }
+    },
+    {
       "case_id": "magentic:52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5",
       "model_id": "openai.gpt-oss-20b-1:0",
       "arm": "simple_diagnosis",
@@ -287,6 +509,24 @@
         "totalTokens": 11180
       },
       "latency_s": 1.519,
+      "stop_reason": "end_turn",
+      "error": null
+    },
+    {
+      "case_id": "magentic:52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5",
+      "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "arm": "simple_diagnosis",
+      "stage": "diagnosis",
+      "calls": 1,
+      "input_characters": 39108,
+      "usage": {
+        "inputTokens": 13427,
+        "outputTokens": 317,
+        "totalTokens": 13744,
+        "cacheReadInputTokens": 0,
+        "cacheWriteInputTokens": 0
+      },
+      "latency_s": 3.986,
       "stop_reason": "end_turn",
       "error": null
     },
@@ -441,21 +681,21 @@
       "arm": "simple_diagnosis",
       "metric": "critical_step_correct",
       "N": 6,
-      "scored": 0,
-      "U": 6,
-      "S_or_score_sum": 0,
-      "coverage": 0.0,
+      "scored": 4,
+      "U": 2,
+      "S_or_score_sum": 1,
+      "coverage": 0.6666666666666666,
       "bounds": [
-        0.0,
-        1.0
+        0.16666666666666666,
+        0.5
       ],
       "raw_values": [
+        1,
+        0,
+        0,
         null,
         null,
-        null,
-        null,
-        null,
-        null
+        0
       ]
     },
     {
@@ -463,21 +703,21 @@
       "arm": "simple_diagnosis",
       "metric": "root_cause_correct",
       "N": 6,
-      "scored": 0,
-      "U": 6,
-      "S_or_score_sum": 0,
-      "coverage": 0.0,
+      "scored": 4,
+      "U": 2,
+      "S_or_score_sum": 3,
+      "coverage": 0.6666666666666666,
       "bounds": [
-        0.0,
-        1.0
+        0.5,
+        0.8333333333333334
       ],
       "raw_values": [
+        1,
+        1,
+        0,
         null,
         null,
-        null,
-        null,
-        null,
-        null
+        1
       ]
     },
     {
@@ -763,7 +1003,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -774,17 +1014,60 @@
       },
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "simple_diagnosis",
-      "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
-      "native_scores": {},
-      "validation_method": null,
+      "status": "completed",
+      "unknown_reason": null,
+      "native_scores": {
+        "critical_step_correct": true,
+        "root_cause_correct": true,
+        "native_analysis": {
+          "summary": {
+            "model_name": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "api_version": "bedrock-thin-adapter",
+            "Correct cases": 1,
+            "Incorrect cases": 0,
+            "Average distance for correct cases": 0.0,
+            "Average distance for incorrect cases": 0,
+            "Overall average distance": 0.0,
+            "Normalized average distance for correct cases": 0.0,
+            "Normalized average distance for incorrect cases": 0,
+            "Normalized overall average distance": 0.0,
+            "Correct step number predictions": 1,
+            "Incorrect step number predictions": 0,
+            "Step number accuracy": 1.0,
+            "Step accuracy within +-1": 1.0,
+            "Step accuracy within +-2": 1.0,
+            "Step accuracy within +-3": 1.0,
+            "Step accuracy within +-4": 1.0,
+            "Step accuracy within +-5": 1.0,
+            "total_prompt_tokens": 0,
+            "total_output_tokens": 0,
+            "total_tokens": 0,
+            "total_execution_time_sec": 0.0
+          },
+          "detailed_results": [
+            {
+              "task_id": "2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf",
+              "step_mean": 5,
+              "gt_step_number": 5,
+              "trajectory_length": 5,
+              "most_common_failure": "8",
+              "gt_failure_case": "8"
+            }
+          ]
+        }
+      },
+      "validation_method": "released_native_label_loader_and_analysis; scorer_only",
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/c5af970eca0fdc96/diagnosis.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 5752
+      },
+      "latency_s": 4.402,
       "native_id": "2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf.json",
@@ -793,7 +1076,37 @@
       "payload_sha": "571ebeceece3af69aaf271679a55329e713b176e24f72ee3889a7373fc3799c0",
       "family_id": "0ada20f1cf1d5554",
       "trace_messages": 5,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "diagnosis",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 5547,
+            "outputTokens": 205,
+            "totalTokens": 5752,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 3.274,
+          "stop_reason": "end_turn",
+          "error": null
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "prediction": {
+        "critical_failure_step": 5,
+        "failure_category": 8,
+        "explanation": "The execution failed due to Azure OpenAI's content filter triggering a jailbreak detection policy violation. The WebSurfer agent successfully performed a web search and retrieved search results, but when the Orchestrator attempted to process the WebSurfer's response and update its task ledger (which involves calling the LLM to analyze progress), the Azure OpenAI API rejected the request with a 'ResponsibleAIPolicyViolation' error. This is a guardrails/safety mechanism triggering, not a failure in the agent's logic or tool invocation. The system then produced a final answer of '20' without proper data collection or analysis, indicating the failure prevented legitimate task completion.",
+        "evidence_steps": [
+          4,
+          5
+        ]
+      },
+      "metric_unknown_reasons": {}
     },
     {
       "benchmark": "AgentRx",
@@ -802,7 +1115,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -814,16 +1127,20 @@
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "evidence_assisted_diagnosis",
       "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
+      "unknown_reason": "stage_failure:static",
       "native_scores": {},
       "validation_method": null,
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/1d3ca6c0b61a5ca5/static.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 1683
+      },
+      "latency_s": 2.744,
       "native_id": "2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/2aa5dd83fbcd0dce9a3dd4592106e5b5edf738008d932e357d477bba80e59ccf.json",
@@ -832,7 +1149,35 @@
       "payload_sha": "571ebeceece3af69aaf271679a55329e713b176e24f72ee3889a7373fc3799c0",
       "family_id": "0ada20f1cf1d5554",
       "trace_messages": 5,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "static",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 1426,
+            "outputTokens": 257,
+            "totalTokens": 1683,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 2.742,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "ValueError",
+            "message": "invalid_constraint_source"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": [
+        "dynamic",
+        "checker",
+        "diagnosis"
+      ]
     },
     {
       "benchmark": "AgentRx",
@@ -992,7 +1337,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -1003,17 +1348,60 @@
       },
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "simple_diagnosis",
-      "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
-      "native_scores": {},
-      "validation_method": null,
+      "status": "completed",
+      "unknown_reason": null,
+      "native_scores": {
+        "critical_step_correct": false,
+        "root_cause_correct": true,
+        "native_analysis": {
+          "summary": {
+            "model_name": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "api_version": "bedrock-thin-adapter",
+            "Correct cases": 1,
+            "Incorrect cases": 0,
+            "Average distance for correct cases": 4.0,
+            "Average distance for incorrect cases": 0,
+            "Overall average distance": 4.0,
+            "Normalized average distance for correct cases": 0.2,
+            "Normalized average distance for incorrect cases": 0,
+            "Normalized overall average distance": 0.2,
+            "Correct step number predictions": 0,
+            "Incorrect step number predictions": 1,
+            "Step number accuracy": 0.0,
+            "Step accuracy within +-1": 0.0,
+            "Step accuracy within +-2": 0.0,
+            "Step accuracy within +-3": 0.0,
+            "Step accuracy within +-4": 1.0,
+            "Step accuracy within +-5": 1.0,
+            "total_prompt_tokens": 0,
+            "total_output_tokens": 0,
+            "total_tokens": 0,
+            "total_execution_time_sec": 0.0
+          },
+          "detailed_results": [
+            {
+              "task_id": "2dfc4c37-fec1-4518-84a7-10095d30ad75",
+              "step_mean": 13,
+              "gt_step_number": 17,
+              "trajectory_length": 20,
+              "most_common_failure": "4",
+              "gt_failure_case": "4"
+            }
+          ]
+        }
+      },
+      "validation_method": "released_native_label_loader_and_analysis; scorer_only",
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/14847915a187a18f/diagnosis.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 9481
+      },
+      "latency_s": 4.925,
       "native_id": "2dfc4c37-fec1-4518-84a7-10095d30ad75",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/2dfc4c37-fec1-4518-84a7-10095d30ad75.json",
@@ -1022,7 +1410,38 @@
       "payload_sha": "2444e70a295892950d26b95ef52c5e02b1b26ae23a7bc4f0d4f8cb5bacf33c79",
       "family_id": "2821cbc8ac62b6b7",
       "trace_messages": 20,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "diagnosis",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 9211,
+            "outputTokens": 270,
+            "totalTokens": 9481,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 3.795,
+          "stop_reason": "end_turn",
+          "error": null
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "prediction": {
+        "critical_failure_step": 13,
+        "failure_category": 4,
+        "explanation": "The agent misinterpreted the tool output from WebSurfer at step 13. WebSurfer clicked on 'Domestic' which sorted the worldwide box office table by domestic gross, but this does NOT provide the top 10 domestic box office list. The sorted table shown still displays worldwide rankings with domestic gross as a secondary sort column. The agent then incorrectly extracted the top 10 domestic movies from this sorted worldwide list (step 17), treating the first 10 rows of the sorted table as the authoritative domestic top 10. This is a critical misinterpretation: the user specifically requested data 'According to Box Office Mojo's 2020 Worldwide Box Office list' for worldwide AND 'top 10 highest-grossing domestic movies' - which requires navigating to the separate 'Domestic' tab/page, not sorting the worldwide list by domestic gross. The final answer of 5 is therefore based on incorrect domestic data.",
+        "evidence_steps": [
+          9,
+          13,
+          17
+        ]
+      },
+      "metric_unknown_reasons": {}
     },
     {
       "benchmark": "AgentRx",
@@ -1031,7 +1450,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -1043,16 +1462,20 @@
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "evidence_assisted_diagnosis",
       "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
+      "unknown_reason": "stage_failure:static",
       "native_scores": {},
       "validation_method": null,
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/fdefd25fe2fea603/static.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 1683
+      },
+      "latency_s": 2.737,
       "native_id": "2dfc4c37-fec1-4518-84a7-10095d30ad75",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/2dfc4c37-fec1-4518-84a7-10095d30ad75.json",
@@ -1061,7 +1484,35 @@
       "payload_sha": "2444e70a295892950d26b95ef52c5e02b1b26ae23a7bc4f0d4f8cb5bacf33c79",
       "family_id": "2821cbc8ac62b6b7",
       "trace_messages": 20,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "static",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 1426,
+            "outputTokens": 257,
+            "totalTokens": 1683,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 2.735,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "ValueError",
+            "message": "invalid_constraint_source"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": [
+        "dynamic",
+        "checker",
+        "diagnosis"
+      ]
     },
     {
       "benchmark": "AgentRx",
@@ -1265,7 +1716,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -1276,17 +1727,60 @@
       },
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "simple_diagnosis",
-      "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
-      "native_scores": {},
-      "validation_method": null,
+      "status": "completed",
+      "unknown_reason": null,
+      "native_scores": {
+        "critical_step_correct": false,
+        "root_cause_correct": false,
+        "native_analysis": {
+          "summary": {
+            "model_name": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "api_version": "bedrock-thin-adapter",
+            "Correct cases": 0,
+            "Incorrect cases": 1,
+            "Average distance for correct cases": 0,
+            "Average distance for incorrect cases": 13.0,
+            "Overall average distance": 13.0,
+            "Normalized average distance for correct cases": 0,
+            "Normalized average distance for incorrect cases": 0.7647058823529411,
+            "Normalized overall average distance": 0.7647058823529411,
+            "Correct step number predictions": 0,
+            "Incorrect step number predictions": 1,
+            "Step number accuracy": 0.0,
+            "Step accuracy within +-1": 0.0,
+            "Step accuracy within +-2": 0.0,
+            "Step accuracy within +-3": 0.0,
+            "Step accuracy within +-4": 0.0,
+            "Step accuracy within +-5": 0.0,
+            "total_prompt_tokens": 0,
+            "total_output_tokens": 0,
+            "total_tokens": 0,
+            "total_execution_time_sec": 0.0
+          },
+          "detailed_results": [
+            {
+              "task_id": "3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4",
+              "step_mean": 17,
+              "gt_step_number": 4,
+              "trajectory_length": 17,
+              "most_common_failure": "4",
+              "gt_failure_case": "5"
+            }
+          ]
+        }
+      },
+      "validation_method": "released_native_label_loader_and_analysis; scorer_only",
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/0cab7398e33a00ac/diagnosis.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 9160
+      },
+      "latency_s": 4.683,
       "native_id": "3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4.json",
@@ -1295,7 +1789,41 @@
       "payload_sha": "6c03e7df1d054ebc1d04973b8340786aa3760cf72b268d4b2e75f83e8a0e7fb7",
       "family_id": "ed2ebfdab0825ae7",
       "trace_messages": 17,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "diagnosis",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 8903,
+            "outputTokens": 257,
+            "totalTokens": 9160,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 3.567,
+          "stop_reason": "end_turn",
+          "error": null
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "prediction": {
+        "critical_failure_step": 17,
+        "failure_category": 4,
+        "explanation": "The agent terminated with a final answer of 'Once Upon a Time' without having collected the necessary price data to support this conclusion. The trace shows that WebSurfer was instructed to gather all-time high and all-time low prices for cards banned alongside Oko, Thief of Crowns (Once Upon a Time and Veil of Summer), but the execution stalled at step 16 ('Next speaker WebSurfer') and timed out at step 17. The agent then produced a final answer based on incomplete information—it never actually retrieved the price history data needed to compare price decreases across the banned cards. The answer appears to be a guess rather than a derived conclusion from collected evidence. This represents a misinterpretation of incomplete tool output (or lack thereof), as the agent concluded without verifying that the required price comparison data had been obtained.",
+        "evidence_steps": [
+          11,
+          13,
+          14,
+          15,
+          16,
+          17
+        ]
+      },
+      "metric_unknown_reasons": {}
     },
     {
       "benchmark": "AgentRx",
@@ -1304,7 +1832,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -1316,16 +1844,20 @@
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "evidence_assisted_diagnosis",
       "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
+      "unknown_reason": "stage_failure:static",
       "native_scores": {},
       "validation_method": null,
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/3f4d73c0d80cc645/static.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 1683
+      },
+      "latency_s": 2.721,
       "native_id": "3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/3af8028c2a59e28ca88baff0e6d91f2a9f170c5ef91003f1c8406755a2760ad4.json",
@@ -1334,7 +1866,35 @@
       "payload_sha": "6c03e7df1d054ebc1d04973b8340786aa3760cf72b268d4b2e75f83e8a0e7fb7",
       "family_id": "ed2ebfdab0825ae7",
       "trace_messages": 17,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "static",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 1426,
+            "outputTokens": 257,
+            "totalTokens": 1683,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 2.719,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "ValueError",
+            "message": "invalid_constraint_source"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": [
+        "dynamic",
+        "checker",
+        "diagnosis"
+      ]
     },
     {
       "benchmark": "AgentRx",
@@ -1538,7 +2098,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -1550,16 +2110,20 @@
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "simple_diagnosis",
       "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
+      "unknown_reason": "stage_failure:diagnosis",
       "native_scores": {},
       "validation_method": null,
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/c8ec0218d1fd9e4f/diagnosis.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 3973
+      },
+      "latency_s": 2.655,
       "native_id": "42576abe-0deb-4869-8c63-225c2d75a95a",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/42576abe-0deb-4869-8c63-225c2d75a95a.json",
@@ -1568,7 +2132,31 @@
       "payload_sha": "2aadbe8c08ab20b465027c17c4a44534a4fb6a77fd3eba96ddd971279490ba35",
       "family_id": "31e6d2bf60f3f895",
       "trace_messages": 5,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "diagnosis",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 3834,
+            "outputTokens": 139,
+            "totalTokens": 3973,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 2.653,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "ValueError",
+            "message": "invalid_or_missing_evidence_indices"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": []
     },
     {
       "benchmark": "AgentRx",
@@ -1577,7 +2165,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -1589,16 +2177,20 @@
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "evidence_assisted_diagnosis",
       "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
+      "unknown_reason": "stage_failure:static",
       "native_scores": {},
       "validation_method": null,
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/d1328e0827bb25bf/static.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 1683
+      },
+      "latency_s": 2.78,
       "native_id": "42576abe-0deb-4869-8c63-225c2d75a95a",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/42576abe-0deb-4869-8c63-225c2d75a95a.json",
@@ -1607,7 +2199,35 @@
       "payload_sha": "2aadbe8c08ab20b465027c17c4a44534a4fb6a77fd3eba96ddd971279490ba35",
       "family_id": "31e6d2bf60f3f895",
       "trace_messages": 5,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "static",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 1426,
+            "outputTokens": 257,
+            "totalTokens": 1683,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 2.778,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "ValueError",
+            "message": "invalid_constraint_source"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": [
+        "dynamic",
+        "checker",
+        "diagnosis"
+      ]
     },
     {
       "benchmark": "AgentRx",
@@ -1811,7 +2431,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -1823,16 +2443,20 @@
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "simple_diagnosis",
       "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
+      "unknown_reason": "stage_failure:diagnosis",
       "native_scores": {},
       "validation_method": null,
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/91f6e07510b95be9/diagnosis.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 11382
+      },
+      "latency_s": 5.92,
       "native_id": "42d4198c-5895-4f0a-b0c0-424a66465d83",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/42d4198c-5895-4f0a-b0c0-424a66465d83.json",
@@ -1841,7 +2465,31 @@
       "payload_sha": "23253f51afda42b72f3fb93f587eed387aa141441cfb27a802582e7ffd3d6b99",
       "family_id": "b72431a93312d19f",
       "trace_messages": 20,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "diagnosis",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 10870,
+            "outputTokens": 512,
+            "totalTokens": 11382,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 5.918,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "JSONDecodeError",
+            "message": "Expecting value: line 1 column 1 (char 0)"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": []
     },
     {
       "benchmark": "AgentRx",
@@ -1850,7 +2498,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -1862,16 +2510,20 @@
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "evidence_assisted_diagnosis",
       "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
+      "unknown_reason": "stage_failure:static",
       "native_scores": {},
       "validation_method": null,
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/503944a0c5575bcf/static.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 1683
+      },
+      "latency_s": 2.669,
       "native_id": "42d4198c-5895-4f0a-b0c0-424a66465d83",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/42d4198c-5895-4f0a-b0c0-424a66465d83.json",
@@ -1880,7 +2532,35 @@
       "payload_sha": "23253f51afda42b72f3fb93f587eed387aa141441cfb27a802582e7ffd3d6b99",
       "family_id": "b72431a93312d19f",
       "trace_messages": 20,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "static",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 1426,
+            "outputTokens": 257,
+            "totalTokens": 1683,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 2.668,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "ValueError",
+            "message": "invalid_constraint_source"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": [
+        "dynamic",
+        "checker",
+        "diagnosis"
+      ]
     },
     {
       "benchmark": "AgentRx",
@@ -2156,7 +2836,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -2167,17 +2847,60 @@
       },
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "simple_diagnosis",
-      "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
-      "native_scores": {},
-      "validation_method": null,
+      "status": "completed",
+      "unknown_reason": null,
+      "native_scores": {
+        "critical_step_correct": false,
+        "root_cause_correct": true,
+        "native_analysis": {
+          "summary": {
+            "model_name": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "api_version": "bedrock-thin-adapter",
+            "Correct cases": 1,
+            "Incorrect cases": 0,
+            "Average distance for correct cases": 10.0,
+            "Average distance for incorrect cases": 0,
+            "Overall average distance": 10.0,
+            "Normalized average distance for correct cases": 0.47619047619047616,
+            "Normalized average distance for incorrect cases": 0,
+            "Normalized overall average distance": 0.47619047619047616,
+            "Correct step number predictions": 0,
+            "Incorrect step number predictions": 1,
+            "Step number accuracy": 0.0,
+            "Step accuracy within +-1": 0.0,
+            "Step accuracy within +-2": 0.0,
+            "Step accuracy within +-3": 0.0,
+            "Step accuracy within +-4": 0.0,
+            "Step accuracy within +-5": 0.0,
+            "total_prompt_tokens": 0,
+            "total_output_tokens": 0,
+            "total_tokens": 0,
+            "total_execution_time_sec": 0.0
+          },
+          "detailed_results": [
+            {
+              "task_id": "52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5",
+              "step_mean": 21,
+              "gt_step_number": 11,
+              "trajectory_length": 21,
+              "most_common_failure": "4",
+              "gt_failure_case": "4"
+            }
+          ]
+        }
+      },
+      "validation_method": "released_native_label_loader_and_analysis; scorer_only",
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/b6fa9da125c729d0/diagnosis.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 13744
+      },
+      "latency_s": 5.118,
       "native_id": "52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5.json",
@@ -2186,7 +2909,42 @@
       "payload_sha": "50a178d9311027e813cf5db5362e4ea978919c484da69a6e0a1c6dcc79d967db",
       "family_id": "57cd768da3f04a19",
       "trace_messages": 21,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "diagnosis",
+          "status": "completed",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 13427,
+            "outputTokens": 317,
+            "totalTokens": 13744,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 3.986,
+          "stop_reason": "end_turn",
+          "error": null
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "prediction": {
+        "critical_failure_step": 21,
+        "failure_category": 4,
+        "explanation": "The agent failed to properly interpret and act on the search results. At step 21, WebSurfer performed a search for 'top-rated Isabelle Adjani films under 2 hours available on Vudu' and received search results that included references to specific films (The Slap, The Story of Adele H, Barocco, The Tenant) with their release years and descriptions. However, the agent never actually clicked on or navigated to any of these results to verify: (1) the exact IMDB ratings, (2) the precise runtimes to confirm they are under 2 hours, or (3) the actual availability on Vudu/Fandango at Home. Instead, the system encountered a content filter error and terminated with an unsubstantiated final answer of 'The Tenant' without completing the verification steps. The critical failure was the misinterpretation of search result snippets as sufficient evidence, when the task explicitly required checking multiple specific criteria (IMDB rating, runtime <2 hours, Vudu availability) that were never systematically verified.",
+        "evidence_steps": [
+          9,
+          10,
+          13,
+          14,
+          17,
+          18,
+          21
+        ]
+      },
+      "metric_unknown_reasons": {}
     },
     {
       "benchmark": "AgentRx",
@@ -2195,7 +2953,7 @@
       "split": "within_seen_domain_heldout_task_families",
       "cohort": "within_seen_domain_unseen_task_families_v1",
       "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
-      "code_sha": "581193cd70d9967be3e570e7a6554baea408234f",
+      "code_sha": "6b5e720bedb817752955b848192ca6ea6e403eeb",
       "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       "parameters": {
         "inferenceConfig": {
@@ -2207,16 +2965,20 @@
       "policy_version": "agentrx-native-derived-nl-phase2-v1",
       "arm": "evidence_assisted_diagnosis",
       "status": "unknown",
-      "unknown_reason": "awaiting_explicit_root_lease",
+      "unknown_reason": "stage_failure:static",
       "native_scores": {},
       "validation_method": null,
       "validation_result": null,
-      "evidence_refs": [],
+      "evidence_refs": [
+        "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/families/stages/608b7b20aa3e17f1/static.json"
+      ],
       "incident_id": null,
       "restart_id": null,
-      "calls": 0,
-      "tokens": null,
-      "latency_s": null,
+      "calls": 1,
+      "tokens": {
+        "totalTokens": 1683
+      },
+      "latency_s": 2.736,
       "native_id": "52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5",
       "domain": "magentic",
       "trace_path": "data/magentic_dataset/52f7224e9c79431e7926afe317782711a0028750693e7456cde22ef6f4bd8bd5.json",
@@ -2225,7 +2987,35 @@
       "payload_sha": "50a178d9311027e813cf5db5362e4ea978919c484da69a6e0a1c6dcc79d967db",
       "family_id": "57cd768da3f04a19",
       "trace_messages": 21,
-      "annotation_record_present": true
+      "annotation_record_present": true,
+      "stages": [
+        {
+          "stage": "static",
+          "status": "unknown",
+          "calls": 1,
+          "usage": {
+            "inputTokens": 1426,
+            "outputTokens": 257,
+            "totalTokens": 1683,
+            "cacheReadInputTokens": 0,
+            "cacheWriteInputTokens": 0
+          },
+          "latency_s": 2.735,
+          "stop_reason": "end_turn",
+          "error": {
+            "type": "ValueError",
+            "message": "invalid_constraint_source"
+          }
+        }
+      ],
+      "inference_grant": "root-phase2-agentrx-families-haiku-20261011-0638",
+      "cost_usd": null,
+      "cost_status": "UNKNOWN:no_reliable_price_pinned",
+      "skipped_stages": [
+        "dynamic",
+        "checker",
+        "diagnosis"
+      ]
     }
   ],
   "phase1_immutability": "verified",
