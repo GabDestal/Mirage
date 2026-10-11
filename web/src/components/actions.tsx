@@ -133,7 +133,7 @@ export function CleanRestartButton({ run }: { run: Run }) {
   const { data: runs = [] } = useRuns()
   const { data: events = [] } = useEvents()
   const connection = useConnection()
-  if (isDemo || run.env !== 'prod' || !['killed', 'halted'].includes(run.status)) return null
+  if (isDemo || run.env !== 'prod' || !['killed', 'halted', 'failed'].includes(run.status)) return null
   const restart = runs.find((r) => r.restarted_from === run.id)
   if (restart) return <span className="clean-restart-status" role="status"><Link to={`/runs/${encodeURIComponent(restart.id)}`} onClick={(e) => e.stopPropagation()}>
     {restart.status === 'queued' ? 'Clean restart pending · awaiting owner start'

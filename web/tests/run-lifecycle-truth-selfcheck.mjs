@@ -111,7 +111,8 @@ try {
       assert.match(dialog('stop').effect, /Recording pauses/)
       assert.equal(render(actions.FreezeButton, { run }), '')
       assert.equal(render(actions.ResumeButton, { run: halted }), '')
-      assert.equal(render(actions.CleanRestartButton, { run: { ...run, status: 'killed' } }), '')
+      for (const status of ['killed', 'failed'])
+        assert.equal(render(actions.CleanRestartButton, { run: { ...run, status } }), '')
       assert.match(render(Fleet), /Recorded agents/)
     })
     await test('recorded resume-all toast describes playback rather than queued or working agents', async () => {
@@ -370,7 +371,8 @@ try {
       assert.ok(text(html).includes(failed.status_reason))
       assert.equal(stat(html, 'Active Agents'), 0)
       assert.equal(stat(html, 'Healthy Agents'), 0)
-      for (const label of ['Freeze', 'Unfreeze', 'Kill', 'Resume', 'Approve clean restart']) assert.ok(!enabled(html, label))
+      for (const label of ['Freeze', 'Unfreeze', 'Kill', 'Resume']) assert.ok(!enabled(html, label))
+      assert.ok(enabled(html, 'Approve clean restart'))
     })
     await test('an older completed run cannot make an agent with a newer failed run look healthy', () => {
       const completed = { ...run, status: 'completed', ended_at: '2026-10-11T00:01:00Z' }
@@ -379,23 +381,36 @@ try {
       seed([completed, failed], runtime([]))
       assert.equal(stat(render(Fleet), 'Healthy Agents'), 0)
     })
-    await test('restart eligibility matches the published endpoint: killed/halted only, not failed', () => {
-      seed([run], runtime([]))
-      for (const status of ['killed', 'halted'])
-        assert.ok(enabled(render(actions.CleanRestartButton, { run: { ...run, status } }), 'Approve clean restart'))
-      for (const status of ['queued', 'running', 'frozen', 'completed', 'failed'])
+    await test('human restart eligibility includes failed runs in the actual button and incident footer', () => {
+      for (const status of ['killed', 'halted', 'failed']) {
+        const subject = { ...run, status }
+        seed([subject], runtime([]))
+        assert.ok(enabled(render(actions.CleanRestartButton, { run: subject }), 'Approve clean restart'))
+        assert.ok(enabled(renderIncident(), 'Approve clean restart'))
+      }
+      for (const status of ['queued', 'running', 'frozen', 'completed'])
         assert.equal(render(actions.CleanRestartButton, { run: { ...run, status } }), '')
+      const failed = { ...run, status: 'failed' }
+      assert.equal(render(actions.CleanRestartButton, { run: { ...failed, env: 'mirage' } }), '')
+      seed([failed], runtime([]))
+      cache.setQueryData(['events'], [{ type: 'global.stop' }])
+      assert.ok(!enabled(render(Fleet), 'Approve clean restart'))
+      seed([failed], null)
+      assert.ok(!enabled(render(Fleet), 'Approve clean restart'))
     })
-    await test('restart approval preserves queued authority and the existing trace link', async () => {
-      const killed = { ...run, status: 'killed' }
-      seed([killed], runtime([]))
-      assert.match(await request('restart', killed, queued), /queued.*Waiting for the owner/i)
-      assert.deepEqual(cache.getQueryData(['runs']), [killed, queued])
-      const pending = render(actions.CleanRestartButton, { run: killed })
-      assert.match(pending, /pending · awaiting owner start/)
-      assert.match(pending, /href="\/runs\/run%2Ftwo"/)
-      assert.ok(!enabled(pending, 'Approve clean restart'))
-    })
+    for (const status of ['killed', 'failed']) {
+      await test(`${status} restart approval preserves queued authority and the existing trace link`, async () => {
+        const subject = { ...run, status }
+        seed([subject], runtime([]))
+        assert.match(dialog('restart', subject).effect, /approval does not launch it or merge a PR/)
+        assert.match(await request('restart', subject, queued), /queued.*Waiting for the owner/i)
+        assert.deepEqual(cache.getQueryData(['runs']), [subject, queued])
+        const pending = render(actions.CleanRestartButton, { run: subject })
+        assert.match(pending, /pending · awaiting owner start/)
+        assert.match(pending, /href="\/runs\/run%2Ftwo"/)
+        assert.ok(!enabled(pending, 'Approve clean restart'))
+      })
+    }
     for (const kind of ['unfreeze', 'restart']) {
       await test(`${kind} cannot describe a returned failed run as working or queued`, async () => {
         const subject = { ...run, status: kind === 'unfreeze' ? 'frozen' : 'killed' }
