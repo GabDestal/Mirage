@@ -1,6 +1,9 @@
 # Mirage — UX
 
-Status: draft, 2026-10-10. Owner: Liam. Read with `PRODUCT.md` and `CONTRACTS.md`.
+Owner: Liam. Read with `PRODUCT.md`, `CONTRACTS.md` and
+[current workflow and validation](CURRENT_WORKFLOW_AND_VALIDATION.md).
+Full UI/provider rehearsal is **NOT RUN**, on user hold. Medium-flow final alignment
+awaits the engine handoff; the current record names that dependency.
 
 Rule: **the user sees what matters, fast.** Healthy things stay quiet. Only the problem gets color.
 
@@ -15,37 +18,46 @@ Both call the same API. Every action is checked by the engine and logged with th
 
 ## Screen 1: Fleet
 
-Three things only:
+The live Fleet shows:
 
-1. A status sentence: "3 agents running · all healthy".
-2. A **STOP ALL** button, always visible.
-3. One row per run: agent name and task, a line of step dots (one dot per tool call, a verdict chip), a status pill.
+1. Run summary counters and **Run 4-agent demo** (empty-state **Launch demo fleet**).
+2. **Ask Miragio** and the global STOP control in the app shell.
+3. Runs grouped by agent or shown as a list, with status, activity and human controls.
+4. Existing proof, connection/ownership state and filters; errors stay visible.
+
+The protected source fleet is meeting assistant, invoicing, outreach and PR reviewer.
+Its tools are synthetic in-memory services. Launching the fleet requests work;
+queued, failed and archived runs must not look like healthy running agents.
 
 When a run is frozen:
 
-- Its row turns red. Its last dot is a red chip with the blocked call (`send_email → attacker@...`).
-- The pill says "FROZEN in 0.8 s". An "Open incident" button appears.
-- The other rows stay green and keep moving. This contrast is the containment story.
+- Show its frozen status and the held call, with an incident link when available.
+- Keep healthy siblings' progress visible. Use observed times/counts, never a fixed 0.8 s.
+- Disable controls when live ownership is unavailable; explain restored history honestly.
 
-Approvals appear only as a banner when one is waiting. No other panels.
+Fleet has no Service evidence or Engine approvals panels. Miragio's operator
+approvals remain in the conversation and are distinct from protected tool mediation.
 
 ## Screen 2: Incident
 
 One page, one column, read top to bottom like a story.
 
-1. **Headline sentence:** "Run 2 read the invite 'Q4 partner sync' and tried to send 40 contacts to attacker@.... Blocked."
-2. **Attack chain** in one line: `calendar invite → assistant → crm_export → send_email → attacker@...`.
-3. **What happened:** the last tool calls. The blocked one is red, with the rule that fired.
-4. **What would have happened** (Mirage, purple): "3/3 replays: 40 records left."
-5. **Why:** the inputs, each with "removed → clean / still compromised". The cause is highlighted.
-6. **Fix:** the PR card with "Replay with fix: PASS 3/3".
+1. **What happened:** requested calls, the held arguments and the rule/model score.
+2. **What would have happened:** baseline replay status, deterministic verdict,
+   actual effects, blast radius and explicit failure/partial-evidence diagnostics.
+3. **Why it happened:** snapshot inputs, removal results and a proven cause only
+   when the evidence establishes one.
+4. **The fix:** external handoff, separate current-code verification status/results,
+   and the reported PR. Recorded examples are labeled as recorded.
 
 New live gate incidents automatically queue three sandbox replays after snapshot persistence.
 No initial Detonate click is required. Queueing is a system action; the started event means
 sandbox execution has begun. During queued/running work, manual detonate/bisect/verify and
 unfreeze are refused by the engine. Failure leaves the run frozen and offers an explicit
-Detonate retry; no verdict automatically releases or restarts production. Replay fixtures
-keep their existing manual stepping. Demo reset/start refuses with 409 while sandbox work
+Detonate retry. High-risk/hard-rule/escalation recovery stays human-directed even
+after clean replay; see the current record for the pending medium-clearance change.
+Managed M1 plays recorded baseline proof automatically; legacy replay keeps its
+manual stepping. Demo reset/start refuses with 409 while sandbox work
 is active, preserving the incident; wait for completion and retry.
 
 **One main button.** Its label comes from `incident.next_action`:
@@ -58,17 +70,24 @@ is active, preserving the incident; wait for completion and retry.
 | `open_pr` | Open PR |
 | `none` | (hidden) |
 
-Secondary buttons, small: **Unfreeze**, **Kill**. A "Full log" link opens the run timeline in a side panel.
+Secondary controls include **Unfreeze**, **Kill** and eligible recovery actions.
+Unavailable ownership, active proof or confirmed harm must produce honest refusal.
+Clean-restart approval queues a new run; it stays pending until its owner starts it.
+The run trace exposes the full event history.
 
 ## Rules for human actions
 
-- Unfreeze, Kill, STOP ALL and approvals ask for a reason: 2–3 ready-made reasons plus free text.
+- Protected agents run autonomously; ordinary tool calls do not ask for permission.
+- Manual containment/recovery and STOP ask for a reason. Miragio confirms operator
+  actions in chat; those approvals are not a routine engine tool-permission queue.
 - Every action is logged: who, when, what, why, and which interface ("liam via web", "liam via Claude (MCP)").
-- No auto-merge. A human merges the PR in GitHub.
+- Mirage does not write fixes or merge incident PRs. The user's external coding
+  agent repairs/tests/opens the PR; a human merges and approves a clean restart.
 
 ## MCP
 
-Tools: `list_runs`, `get_incident`, `get_audit` (read), `detonate`, `find_cause`, `unfreeze`, `kill`, `send_fix` (act).
+Tools: `list_runs`, `get_incident`, `get_audit` (read), `detonate`, `find_cause`,
+`unfreeze`, `kill`, `resume`, `resume_all`, `send_fix` (act).
 Details and rules: `CONTRACTS.md` section 12.
 
 Demo moment (about 30 s): Claude next to the dashboard. "Which run got compromised? Show me the proof."
@@ -78,7 +97,7 @@ Stretch: `get_incident` returns an MCP Apps card with the headline, the proof an
 
 ## Visual language
 
-- Dark security console. Inter for text, JetBrains Mono for tool names and IDs.
+- Light and dark themes. Tool names and IDs use monospace text.
 - Color means something, or it is not used: green = healthy, red = frozen or blocked,
   purple with a soft glow = Mirage simulation, amber = waiting for a human.
 - Motion only on state changes: a row freezing, a cause row lighting up, the verdict landing.
@@ -89,6 +108,10 @@ Two lanes, the 5-tab incident drawer, the world panels, the policy view and the 
 Policies and audit are available through MCP or a footer link.
 
 ## Stitch prompts
+
+Historical 2026-10-10 sketches, retained for design provenance. Their three-agent,
+40-contact and 0.8-second examples are not current source counts or validation.
+Use the source-aligned behavior above when reviewing the delivered interface.
 
 Paste the style block first, then one screen per prompt.
 
