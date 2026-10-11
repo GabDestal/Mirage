@@ -1,14 +1,7 @@
 import { api, ApiError, type MirageEvent } from './client'
+import type { components } from './schema'
 
-// Approved engine contract; generated schema remains owned by the shared engine PR.
-export type RuntimeInfo = {
-  engine_mode: 'live' | 'replay'
-  instance_id: string
-  stream_epoch: string
-  last_seq: number
-  revision: string | null
-  owned_run_ids: string[]
-}
+export type RuntimeInfo = components['schemas']['RuntimeInfo']
 
 export function parseRuntime(value: unknown): RuntimeInfo {
   const info = value as Partial<RuntimeInfo> | null
