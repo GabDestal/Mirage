@@ -67,6 +67,16 @@ def test_freeze_then_unfreeze_runs_the_call(run):
     assert out["status"] == "sent"
 
 
+def test_on_hit_block_denies_call_and_keeps_run(run, monkeypatch):
+    monkeypatch.setenv("MIRAGE_ON_HIT", "block")
+    assert gate.execute(run, "send_email", BAD_MAIL)["error"]
+    assert run.status == "running" and not run.incident_id
+    assert run.services.outbox() == []
+    decisions = [e.payload for e in events.read() if e.type == "gate.decision"]
+    assert decisions[-1]["decision"] == "block" and decisions[-1]["rule_id"] == "DEST_NOT_ALLOWED"
+    assert gate.execute(run, "send_email", OK_MAIL)["status"] == "sent"
+
+
 def test_freeze_then_kill_revokes(run):
     t, out = call_in_thread(run, BAD_MAIL)
     gate.kill(run.id, "gabi", "Confirmed attack")

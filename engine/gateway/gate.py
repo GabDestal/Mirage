@@ -299,7 +299,8 @@ def _check(run, tool, args) -> GateDecision:
     hit = hard_rule(run.agent, tool, args, policy) if evaluate else None
     judged = None  # layer 2: only outbound calls the hard rules allowed
     if evaluate and not hit:
-        judged = decision_model.judge(run.agent, run.task, tool, args)
+        judged = decision_model.judge(run.agent, run.task, tool, args,
+                                      context=list(run.tool_results))
         if judged and "policy_id" in judged and not judged["review"]:
             hit = (None, judged["explanation"])
     review = judged if judged and judged.get("review") else None
@@ -338,6 +339,9 @@ def _check(run, tool, args) -> GateDecision:
 
         held = decision == "freeze" and rule[0] == "SANDBOX_REVIEW"
         by_model = bool((hit or held) and judged and "policy_id" in judged)
+        if (hit or held) and rule[0] != "ESCALATION" and os.getenv("MIRAGE_ON_HIT") == "block":
+            # Opt-in benchmark mode: deny only this call, log it, and let the run continue.
+            decision, hit, held = "block", None, False
         gate = GateDecision(call_id=call_id, tool=tool, args=args, decision=decision,
                             layer="decision_model" if by_model else "hard_rule",
                             rule_id=rule[0], explanation=rule[1],
