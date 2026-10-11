@@ -65,6 +65,7 @@ export function RecoveryPanel({ incidentId, repairJobId, run }: { incidentId: st
   const contained = ['killed', 'halted', 'failed'].includes(run.status)
   return <section className="mt-5 flex flex-col items-start gap-3" aria-labelledby={`recovery-${incidentId}`}>
     <h3 id={`recovery-${incidentId}`} className="font-semibold">Recover the original task</h3>
+    {contained && run.status_reason ? <p className="text-control text-ink-2" role="status">Original run: {run.status_reason}</p> : null}
     <p className="max-w-prose text-ink-2" role="status">{state?.status === 'running' && !connection.runtime?.owned_run_ids.includes(state.new_run_id ?? '')
       ? 'The engine records this task as running; its live launcher ownership is unavailable. Review the new trace.' : state ? recoveryMessage(state)
       : 'Merge the verified repair PR into special-improvements, then check its merged revision.'}</p>
