@@ -6,6 +6,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { RepairController } from "./repair-supervisor.js";
 import { publicRepairJob } from "./repair-supervisor.js";
+import { registerRules } from "./rules.js";
 
 // Hand-typed subset of contracts/models.py.
 type Run = { id: string; agent: string; task: string; status: string; incident_id: string | null; tool_calls: number;
@@ -147,6 +148,7 @@ export function createServer(opts: Options = {}) {
   }
   const NOT_CONFIRMED = "needs your confirmation in a client that supports it (MCP elicitation). " +
     "Declined, cancelled, wrong phrase, or no form support: nothing was sent to Mirage.";
+  registerRules(server, { call, confirm, actor });
 
   /** POST a long action; with wait, follow /events until one of `until` arrives, else return the cursor. */
   async function follow(incidentId: string, path: string, until: string[], extra: any, body: unknown, wait: boolean) {
