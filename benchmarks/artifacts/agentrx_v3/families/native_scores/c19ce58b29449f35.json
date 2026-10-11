@@ -1,0 +1,36 @@
+{
+    "summary": {
+        "model_name": "openai.gpt-oss-20b-1:0",
+        "api_version": "bedrock-thin-adapter",
+        "Correct cases": 0,
+        "Incorrect cases": 1,
+        "Average distance for correct cases": 0,
+        "Average distance for incorrect cases": 0.0,
+        "Overall average distance": 0.0,
+        "Normalized average distance for correct cases": 0,
+        "Normalized average distance for incorrect cases": 0.0,
+        "Normalized overall average distance": 0.0,
+        "Correct step number predictions": 1,
+        "Incorrect step number predictions": 0,
+        "Step number accuracy": 1.0,
+        "Step accuracy within +-1": 1.0,
+        "Step accuracy within +-2": 1.0,
+        "Step accuracy within +-3": 1.0,
+        "Step accuracy within +-4": 1.0,
+        "Step accuracy within +-5": 1.0,
+        "total_prompt_tokens": 0,
+        "total_output_tokens": 0,
+        "total_tokens": 0,
+        "total_execution_time_sec": 0.0
+    },
+    "detailed_results": [
+        {
+            "task_id": "57d9dc6935e8a40b02e7f8ec81768fe70e68a0c05f6866927c9fda38db38a486",
+            "step_mean": 31,
+            "gt_step_number": 31,
+            "trajectory_length": 31,
+            "most_common_failure": "4",
+            "gt_failure_case": "5"
+        }
+    ]
+}
