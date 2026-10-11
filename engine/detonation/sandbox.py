@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 
 from contracts.completion import matches_requirements
 from contracts.models import AgentSpec, BlastRadius, DetonateResult, Detonation, Effect, Verdict
+from engine import rules
 from engine.detection import judge
 from engine.detection.rules import hard_rules, load_policy
 from engine.detonation import snapshot
@@ -138,13 +139,9 @@ def current_policy(agent, spec=None):
     """The policy as it is now (a fix may have changed it): the agent's registration, else
     policies.yaml re-read from disk. A validated rebuilt spec supplies its own restrictions."""
     if spec is not None:
-        allow = spec["allow"]
-        return {"canary": load_policy()["canary"], "agents": {agent: {"tools": allow["tools"]}},
-                "destinations": {"email_domains": allow["email_to"],
-                                 "url_domains": allow["url_hosts"]},
-                "known_tools": spec["tools"]}
+        return rules.policy_for_spec(agent, AgentSpec.model_validate(spec), load_policy())
     if agent in gate.agents:
-        return gate.policy_for(agent)
+        return rules.policy_for_spec(agent, gate.agents[agent], load_policy())
     policy = load_policy()
     return policy if agent in policy["agents"] else None
 

@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from contracts.models import AgentSpec, GateDecision, HumanAction, Run
+from engine import rules
 from engine.config import MODE
 from engine.detection import decision_model
 from engine.detection.rules import POLICY, hard_rule
@@ -114,12 +115,7 @@ def policy_for(agent):
 
 
 def _policy_from_spec(agent, spec):
-    if spec is None:
-        return POLICY
-    return {"canary": POLICY["canary"], "agents": {agent: {"tools": spec.allow.tools}},
-            "destinations": {"email_domains": spec.allow.email_to,
-                             "url_domains": spec.allow.url_hosts},
-            "known_tools": spec.tools}  # every tool the agent has, allowed or not
+    return rules.policy_for_spec(agent, spec, POLICY)
 
 
 def is_known(policy, tool):
