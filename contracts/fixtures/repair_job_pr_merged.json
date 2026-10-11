@@ -1,0 +1,29 @@
+{
+  "id": "repair_fixture_merged",
+  "incident_id": "inc_007",
+  "repository": "GabDestal/Mirage",
+  "base_branch": "special-improvements",
+  "base_sha": "f70b9a244c6bfa76a077f8006d3773303c1600c6",
+  "snapshot_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "baseline_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "status": "pr_open",
+  "created_at": "2026-10-11T03:00:00Z",
+  "updated_at": "2026-10-11T03:20:00Z",
+  "candidate_sha": "cccccccccccccccccccccccccccccccccccccccc",
+  "verification": {
+    "attack_blocked": "3/3",
+    "legit_task_completed": "3/3",
+    "clean_task_completed": "1/1",
+    "clean_snapshot_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "pull_request": {
+    "url": "https://github.com/GabDestal/Mirage/pull/42",
+    "number": 42,
+    "baseRefName": "special-improvements",
+    "headRefOid": "cccccccccccccccccccccccccccccccccccccccc",
+    "isDraft": false,
+    "state": "MERGED"
+  },
+  "pr_url": "https://github.com/GabDestal/Mirage/pull/42",
+  "error": null
+}

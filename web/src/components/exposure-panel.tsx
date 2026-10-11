@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
-import { displayedExposureStatus, exposureJobsKey, requestExposureJob, useExposureCandidates, useExposureJobs, type ExposureJob, type ExposureObservation, type ExposureStatus } from '@/api/exposure'
+import { displayedExposureStatus, exposureJobsKey, exposureTargets, requestExposureJob, useExposureCandidates, useExposureJobs, type ExposureJob, type ExposureObservation, type ExposureStatus } from '@/api/exposure'
 import { ACTOR } from '@/components/actions'
 import { Button } from '@/components/ui/button'
 import { agentName } from '@/lib/runs'
@@ -49,53 +49,36 @@ export function ExposureResults({ job }: { job: ExposureJob }) {
   </div>
 }
 
-export function ExposurePanel({ incidentId, ready = true }: { incidentId: string; ready?: boolean }) {
+// Started automatically once a repair was requested and the cause is known; no manual selection.
+export function ExposurePanel({ incidentId, ready = true, autoStart = false }: { incidentId: string; ready?: boolean; autoStart?: boolean }) {
   const cache = useQueryClient()
   const candidates = useExposureCandidates(incidentId)
   const jobs = useExposureJobs(incidentId)
   const job = jobs.data?.[0]
-  const [selection, setSelection] = useState<{ incidentId: string; names: string[] }>({ incidentId, names: [] })
-  const selected = selection.incidentId === incidentId ? selection.names.filter((name) => candidates.data?.some((candidate) => candidate.agent_name === name)) : []
-  const submitting = useRef(false)
+  const started = useRef<string | null>(null)
   const request = useMutation({
-    mutationFn: ({ target, names }: { target: string; names: string[] }) => requestExposureJob(target, names, { actor: ACTOR, reason: 'Assess selected agents in Mirage using independent recordings' }),
+    mutationFn: ({ target, names }: { target: string; names: string[] }) => requestExposureJob(target, names, { actor: ACTOR, reason: 'Assess compatible agents in Mirage using independent recordings' }),
     onSuccess: (created, { target }) => {
       cache.setQueryData<ExposureJob[]>(exposureJobsKey(target), (previous = []) => [created, ...previous.filter((old) => old.id !== created.id)])
       void cache.invalidateQueries({ queryKey: ['exposure-jobs'] })
     },
-    onSettled: () => { submitting.current = false },
   })
-  const active = job?.status === 'queued' || job?.status === 'running'
-  const busy = request.isPending || active
-  const compatibleSelected = candidates.data?.filter((candidate) => selected.includes(candidate.agent_name) && candidate.role === 'meeting_assistant').length ?? 0
-  const canSubmit = ready && !busy && !candidates.isError && !jobs.isPending && !jobs.isError && selected.length > 0 && selected.length <= 8 && compatibleSelected <= 1
-  const submit = () => {
-    if (!canSubmit || submitting.current) return
-    submitting.current = true
-    request.mutate({ target: incidentId, names: selected })
-  }
-  return <section className="exposure-panel" aria-label="Check fleet applicability">
-    <h2>Could this affect other agents?</h2>
-    <p className="exposure-note">Choose agents to check against this incident in Mirage. A capability match is unassessed until replay. Each candidate uses its own task, permissions and recording; live agents keep working.</p>
+  const names = candidates.data ? exposureTargets(candidates.data) : []
+  useEffect(() => {
+    // One attempt per incident: a failure is shown below, never retried in a loop.
+    if (!autoStart || !ready || started.current === incidentId || !jobs.isSuccess || jobs.data.length || !names.length) return
+    started.current = incidentId
+    request.mutate({ target: incidentId, names })
+  }, [autoStart, ready, incidentId, jobs.isSuccess, jobs.data, names, request])
+  return <div className="exposure-panel" aria-label="Check fleet applicability">
+    <p className="exposure-note">A capability match is unassessed until replay. Each candidate uses its own task, permissions and recording; live agents keep working.</p>
     {!ready ? <p className="exposure-note">Find the causal input before starting a fleet assessment.</p> : null}
     {candidates.isPending ? <p className="exposure-note" role="status">Loading candidate capabilities…</p> : candidates.isError ? <p className="exposure-note" role="alert">Could not load candidates: {candidates.error.message} <Button onClick={() => { void candidates.refetch() }}>Retry candidates</Button></p>
-      : candidates.data?.length ? <form onSubmit={(event) => { event.preventDefault(); submit() }}>
-        <fieldset className="exposure-candidates" disabled={busy}><legend>Agents to assess</legend>
-          {candidates.data.map((candidate) => <label key={candidate.agent_name} className="exposure-candidate">
-            <input type="checkbox" checked={selected.includes(candidate.agent_name)} onChange={(event) => {
-              const names = event.target.checked ? [...selected, candidate.agent_name] : selected.filter((name) => name !== candidate.agent_name)
-              setSelection({ incidentId, names })
-            }} />
-            <span><strong>{agentName(candidate.agent_name)}</strong><small>{candidate.status === 'unassessed' ? 'Capability match · unassessed' : labels[candidate.status]} · {candidate.reason}</small></span>
-          </label>)}
-        </fieldset>
-        {selected.length > 8 || compatibleSelected > 1 ? <p className="exposure-note" role="status">Choose at most eight agents and one meeting-assistant candidate per assessment.</p> : null}
-        <Button type="submit" disabled={!canSubmit}>{busy ? 'Assessment in progress…' : 'Check selected agents in Mirage'}</Button>
-      </form> : <p className="exposure-note">No candidates configured for this incident. An independent recording is required.</p>}
-    {request.isError && request.variables?.target === incidentId ? <p role="alert" className="exposure-note">Assessment did not start: {request.error.message} Retry explicitly after resolving the problem.</p> : null}
+      : !candidates.data?.length ? <p className="exposure-note">No candidates configured for this incident. An independent recording is required.</p> : null}
+    {request.isError && request.variables?.target === incidentId ? <p role="alert" className="exposure-note">Assessment did not start: {request.error.message}</p> : null}
     {jobs.isError ? <p className="exposure-note" role="alert">Assessment updates unavailable: {jobs.error.message} {job ? 'The last received evidence remains below.' : ''} <Button onClick={() => { void jobs.refetch() }}>Retry updates</Button></p> : null}
     {job ? <ExposureResults job={job} /> : <p className="exposure-note">No assessment result yet. Starting a job does not establish a result.</p>}
-  </section>
+  </div>
 }
 
 export function ExposureSummary() {

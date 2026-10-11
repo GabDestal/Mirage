@@ -157,6 +157,34 @@ def test_passing_candidate_records_actual_pr_and_preserves_containment(api):
     assert report(api, job, "pr_open", **success(api, job)).status_code == 409
 
 
+def pr_state(api, job, **changes):
+    pr = {**success(api, job)["pull_request"], **changes}
+    return api.post(f"/repair-jobs/{job['id']}/pull-request", headers=AUTH, json=pr)
+
+
+@pytest.mark.parametrize("final", ["MERGED", "CLOSED"])
+def test_supervisor_records_pr_merged_or_closed_on_the_job(api, final):
+    job = verifying(api)
+    assert pr_state(api, job).status_code == 409  # no PR yet
+    assert report(api, job, "pr_open", **success(api, job)).status_code == 200
+    assert api.post(f"/repair-jobs/{job['id']}/pull-request", json=success(api, job)["pull_request"]).status_code == 401
+    assert pr_state(api, job, state=final, headRefOid="c" * 40).status_code == 409
+    assert pr_state(api, job, state=final, number=43,
+                    url="https://github.com/GabDestal/Mirage/pull/43").status_code == 409
+    count = len(events.read())
+    assert pr_state(api, job).status_code == 200 and len(events.read()) == count  # unchanged: no event
+    result = pr_state(api, job, state=final, isDraft=False)
+    assert result.status_code == 200, result.text
+    assert result.json()["status"] == "pr_open" and result.json()["pull_request"]["state"] == final
+    assert api.get("/repair-jobs").json()[-1]["pull_request"]["state"] == final
+    assert events.read()[-1].type == "repair.job.updated"
+    if final == "MERGED":
+        assert pr_state(api, job, state="OPEN").status_code == 409
+    else:
+        assert create(api)["status"] == "queued"  # a closed PR may be sent to the coding agent again
+    assert fold(events.read())[0]["run_001"].status == "frozen"
+
+
 @pytest.mark.parametrize("change", ["head", "base", "digest", "failed_exit", "refusal",
     "forged_counts", "harm", "replay_error", "clean_task", "clean_deleted_meeting",
     "clean_wrong_read_args", "clean_wrong_incident", "pr_repo", "not_draft", "candidate_changed"])
@@ -284,8 +312,9 @@ def test_clean_control_requires_same_nonblank_factory(api, entrypoints):
 
 
 def test_public_job_fixture_and_unicode_digest():
-    data = json.loads(Path("contracts/fixtures/repair_job.json").read_text())
-    assert RepairJob.model_validate(data).model_dump(mode="json") == data
+    for name in ("repair_job.json", "repair_job_pr_merged.json"):
+        data = json.loads(Path(f"contracts/fixtures/{name}").read_text())
+        assert RepairJob.model_validate(data).model_dump(mode="json") == data
     assert repair.digest({"z": {"é": "café"}, "a": [1, "東京"]}) == repair.digest(
         {"a": [1, "東京"], "z": {"é": "café"}})
     example = json.loads(Path("contracts/fixtures/repair_canonical.json").read_text())

@@ -255,7 +255,11 @@ class RepairJobRequest(HumanRequest):
 
 
 class RepairPullRequest(Model):
-    """Fields read by the supervisor with gh pr view, never inferred from worker prose."""
+    """Fields read by the supervisor with gh pr view, never inferred from worker prose.
+
+    After pr_open the supervisor keeps re-reading an OPEN PR and reports MERGED/CLOSED
+    (POST /repair-jobs/{id}/pull-request). The job status stays pr_open; this is the PR state.
+    """
 
     url: str = Field(pattern=r"^https://github\.com/[^/]+/[^/]+/pull/[1-9][0-9]*$")
     number: int = Field(gt=0, strict=True)

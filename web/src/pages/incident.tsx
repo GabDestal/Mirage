@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ArrowRight, Check, ExternalLink, LockKeyhole, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, LockKeyhole, ShieldAlert } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -9,6 +9,8 @@ import { AgentAvatar } from '@/agents/avatars'
 import { ACTOR, CleanRestartButton, HumanReasonDialog, ResumeButton, liveRunOwned, useAsk } from '@/components/actions'
 import { HandoffDrawer } from '@/components/handoff-drawer'
 import { RepairProgress } from '@/components/repair-progress'
+import { canSendRepair, prState } from '@/components/repair-state'
+import { incidentRepairs, startRepair } from '@/api/repair'
 import { RecoveryPanel } from '@/components/recovery-panel'
 import { ExposurePanel } from '@/components/exposure-panel'
 import { Button } from '@/components/ui/button'
@@ -35,6 +37,8 @@ export function IncidentPage() {
   const baseline = incident ? baselineEvidence(incident, evidence) : null
   const job = currentSandboxJob(incident, evidence)
   const run = runs.find((r) => r.id === incident?.run_id)
+  // Shared with the header button and step 4 (same query key); a repair request also starts the fleet check.
+  const repairs = useRepairs(id)
   const act = useMutation({
     mutationFn: ({ kind, reason, target }: { kind: IncidentAction; reason: string; target: string }) => {
       const body: HumanRequest = { actor: ACTOR, reason }
@@ -107,6 +111,8 @@ export function IncidentPage() {
   const clearanceText = run && (isDemo || liveRunOwned(run, connection))
     ? automaticClearanceText(run, incident) : null
   const mediumPending = !!incident.automatic_clearance && incident.automatic_clearance.status !== 'cleared'
+  const repairStarted = !!repairs.data?.length
+  const repairable = !!incident.verdict?.confirmed && ['confirmed', 'root_caused', 'fix_pending', 'fix_verified', 'pr_open'].includes(incident.status)
   const canUnfreeze = !mediumPending && run?.status === 'frozen' && (['open', 'false_positive'].includes(incident.status)
     || (incident.status === 'closed' && incident.automatic_clearance?.status === 'cleared')) && !busy
 
@@ -122,6 +128,7 @@ export function IncidentPage() {
         </div>
         <h1>It tried to {callPhrase(incident.trigger)}. The gate blocked it.</h1>
         <p>{run?.task ?? 'Review the blocked action and its recorded inputs before deciding what happens next.'}</p>
+        {!isDemo && <RepairAndCheck incidentId={id} eligible={repairable} />}
         <div className="incident-chain" aria-label="Recorded action"><span>Recorded inputs</span><ArrowRight size={14} /><span>{run?.agent ?? incident.run_id}</span><ArrowRight size={14} /><code>{incident.trigger.tool}</code>
           {typeof incident.trigger.args.to === 'string' && <><ArrowRight size={14} /><span className="incident-alarm">{incident.trigger.args.to}</span></>}
         </div>
@@ -171,22 +178,22 @@ export function IncidentPage() {
         })}</ul> : <p className="incident-muted">No input previews were returned for this snapshot.</p>}
       </StorySection>
       <StorySection number="4" title="The fix">
-        <RepairProgress key={id} incidentId={id}
-          canStart={!!incident.verdict?.confirmed && ['confirmed', 'root_caused', 'fix_pending', 'fix_verified', 'pr_open'].includes(incident.status)} />
+        <RepairProgress key={id} incidentId={id} canStart={repairable} />
         {verificationState?.status === 'queued' && <Notice>Current-code verification is queued. No new result has been returned yet.</Notice>}
         {verificationState?.status === 'running' && <Notice>Current-code verification is running. No new result has been returned yet.</Notice>}
         {verificationState?.status === 'failed' && <Notice tone="alarm">Current-code verification failed: {verificationState.error ?? 'No result returned'}. No new fix acceptance was established.</Notice>}
         {verificationState?.requestedRuns !== undefined && <p className="incident-muted">{verificationState.requestedRuns} current-code verification replays requested.</p>}
         {verificationState?.diagnostics.map((message, index) => <Notice key={index} tone="alarm">{message}</Notice>)}
         {verification && verificationState?.resultIsPrevious && <p className="incident-muted">Earlier current-code verification result:</p>}
-        {verification ? <Notice tone={verification.passed ? 'mirage' : 'alarm'}><strong>{verification.passed ? 'Fix replay passed.' : 'Fix replay failed.'}</strong> Attack blocked: {verification.attack}. Legitimate task completed: {verification.legitimate}.</Notice> : <p className="incident-section-intro">{incident.status === 'fix_pending' ? 'The handoff is ready. Your coding agent writes the fix and must test it against this snapshot.' : 'Hand off to your coding agent. It writes the fix and tests it against this snapshot. Verification results appear here when the server reports them.'}</p>}
+        {verification ? <Notice tone={verification.passed ? 'mirage' : 'alarm'}><strong>{verification.passed ? 'Fix replay passed.' : 'Fix replay failed.'}</strong> Attack blocked: {verification.attack}. Legitimate task completed: {verification.legitimate}.</Notice> : incident.status === 'fix_pending' ? <p className="incident-section-intro">The handoff is ready. Your coding agent writes the fix and must test it against this snapshot.</p> : null}
         {pr && <a className="incident-pr" href={pr} target="_blank" rel="noopener noreferrer"><span><strong>Review the fix pull request</strong><small>{pr}</small></span><ExternalLink size={17} /></a>}
         {incident.pr_url && !pr && <Notice tone="alarm">The server returned an invalid PR link. Open the incident again after the link is corrected.</Notice>}
         {prompt && <div className="incident-handoff"><Button onClick={handOff}>Hand off to coding agent<ArrowRight /></Button></div>}
-        {!pr && !prompt && <p className="incident-muted">No pull request has been reported yet. A human reviews and merges the PR.</p>}
         {!!incident.verdict?.confirmed && run && <RecoveryPanel key={`recovery-${id}`} incidentId={id} run={run} />}
       </StorySection>
-      <ExposurePanel incidentId={incident.id} ready={Boolean(incident.cause_input_id)} />
+      <StorySection number="5" title="Could this affect other agents?">
+        <ExposurePanel incidentId={incident.id} ready={Boolean(incident.cause_input_id)} autoStart={!isDemo && repairStarted} />
+      </StorySection>
       <footer className="incident-actions">
         <div className="incident-action-main">{busy ? <><Button variant="primary" disabled>Waiting for results…</Button><span role="status">Updates arrive from the engine.</span><Button onClick={refresh}>Refresh</Button></> : primary && action && isIncidentAction(action) ? <Button variant="primary" onClick={() => { act.reset(); if (action === 'send_fix') handOff(); else setConfirm(action) }}>{primary.label}<ArrowRight /></Button> : action === 'open_pr' && pr ? <Button variant="primary" asChild><a href={pr} target="_blank" rel="noopener noreferrer">Open PR<ExternalLink /></a></Button> : action === 'open_pr' ? <span>Waiting for a valid PR link.</span> : <span><Check size={16} />{incident.automatic_clearance ? clearanceText ?? 'Automatic clearance recorded. Check the current run status.' : incident.status === 'false_positive' ? 'Review the replay, then unfreeze if appropriate.' : 'No further action requested.'}</span>}</div>
         {run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection)) && <div className="incident-secondary">{!mediumPending && <Button variant="ghost" disabled={!canUnfreeze} title={!canUnfreeze ? 'Unfreeze is available only before confirmation or after a false positive.' : undefined} onClick={() => ask('unfreeze', run)}>Unfreeze</Button>}<Button variant="destructive" onClick={() => ask('kill', run)}>Kill</Button></div>}
@@ -197,6 +204,30 @@ export function IncidentPage() {
       <HandoffDrawer open={drawer && !!prompt} onClose={() => setDrawer(false)} prompt={prompt} />
     </article>
   )
+}
+
+const useRepairs = (incidentId: string) => useQuery({ queryKey: ['repair-jobs', 'incident', incidentId], enabled: !isDemo,
+  queryFn: ({ signal }) => incidentRepairs(incidentId, signal), refetchInterval: 5000 })
+const PR_ICONS = { OPEN: <GitPullRequest size={16} aria-hidden />, MERGED: <GitMerge size={16} aria-hidden />, CLOSED: <GitPullRequestClosed size={16} aria-hidden /> }
+
+// The one start button: repair now; step 5 starts the fleet check once the cause is known.
+export function RepairAndCheck({ incidentId, eligible }: { incidentId: string; eligible: boolean }) {
+  const [confirm, setConfirm] = useState(false)
+  const repairs = useRepairs(incidentId)
+  const latest = repairs.data?.at(-1)
+  const pr = prState(latest)
+  const launch = useMutation({ mutationFn: (reason: string) => startRepair(incidentId, ACTOR, reason),
+    onSuccess: () => { setConfirm(false); void queryClient.invalidateQueries({ queryKey: ['repair-jobs', 'incident', incidentId] }) } })
+  if (!eligible && !pr) return null
+  return <div className="incident-repair">
+    {pr ? <a className="incident-pr-state" data-state={pr.state} href={pr.url} target="_blank" rel="noopener noreferrer">
+      {PR_ICONS[pr.state]}PR #{pr.number}<span>{pr.word}</span></a> : null}
+    {eligible && (!pr || pr.state === 'CLOSED') ? <Button variant="primary" disabled={!repairs.isSuccess || !canSendRepair(latest) || launch.isPending}
+      onClick={() => { launch.reset(); setConfirm(true) }}>Repair and check other agents<ArrowRight /></Button> : null}
+    {confirm ? <HumanReasonDialog open title="Repair and check other agents?" effect="A local coding agent writes and verifies a fix, then opens a real draft PR on GitHub for a human to merge. Mirage also replays this attack against compatible agents. The run stays contained."
+      reasons={['Repair this incident and check other agents']} verb="Start repair" onClose={() => setConfirm(false)}
+      onSubmit={(reason) => launch.mutate(reason)} busy={launch.isPending} error={launch.error?.message} /> : null}
+  </div>
 }
 
 function BackLink() { return <Link className="incident-back" to="/fleet"><ArrowLeft size={15} />Back to Fleet</Link> }

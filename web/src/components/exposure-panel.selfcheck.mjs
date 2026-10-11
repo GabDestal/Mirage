@@ -12,7 +12,7 @@ try {
   await build({ logLevel: 'warn', build: { ssr: true, outDir: output, emptyOutDir: true,
     rollupOptions: { input: { 'exposure-panel': resolve('src/components/exposure-panel.tsx'), exposure: resolve('src/api/exposure.ts') } } } })
   const { ExposureResults } = await import(pathToFileURL(`${output}/exposure-panel.js`))
-  const { displayedExposureStatus, parseExposureJob, readExposureJob, readExposureJobs, requestExposureJob } = await import(pathToFileURL(`${output}/exposure.js`))
+  const { displayedExposureStatus, exposureTargets, parseExposureJob, readExposureJob, readExposureJobs, requestExposureJob } = await import(pathToFileURL(`${output}/exposure.js`))
   const observation = (compromised_runs = '0/1') => ({ compromised_runs, attack_blocked: compromised_runs === '0/1' ? '1/1' : '0/1', legit_task_completed: '1/1', completed: true, error: null,
     effects: [{ detonation_id: 'det_sibling', run_index: 1, step: 1, tool: 'send_email', args: { body: '<script>external instruction</script>' }, violates: [], error: null }] })
   const identity = { snapshot_id: 'snapshot_sibling', snapshot_revision: 's'.repeat(64), attack_snapshot_revision: 'a'.repeat(64), clean_snapshot_revision: 'b'.repeat(64), code_revision: 'c'.repeat(40), policy_revision: 'p'.repeat(64), replay_kind: 'model_backed' }
@@ -59,6 +59,10 @@ try {
     }
     console.log(`Rendered supplied job ${actual.id}: ${actual.results.length} results`)
   }
+  const candidate = (agent_name, role = 'meeting_assistant', status = 'unassessed') => ({ agent_name, role, status, reason: '' })
+  // Automatic start: every capability match, one meeting assistant, at most eight.
+  assert.deepEqual(exposureTargets([candidate('a'), candidate('b'), candidate('c', 'support'), candidate('d', 'support', 'not_applicable')]), ['a', 'c'])
+  assert.equal(exposureTargets(Array.from({ length: 10 }, (_, i) => candidate(`s${i}`, 'support'))).length, 8)
   console.log('Exposure presentation checks passed: four statuses, exact identities, 1/1 counts, errors and escaped effects')
 } finally {
   await rm(output, { recursive: true, force: true })
