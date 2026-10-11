@@ -23,6 +23,8 @@ def bisect(incident_id, runs_per_input=2, log=print):
     """Emits one bisection.step per input (as each finishes, so the grid fills live), then
     bisection.completed. Returns (rows in input order, cause_id).
     MIRAGE_PARALLEL=N tests N inputs at once (each detonation also runs its replays at once)."""
+    if runs_per_input < 1:
+        raise ValueError("runs_per_input must be positive")
     snap = snapshot.load(incident_id)
     candidates = [i for i in snap["inputs"] if i["kind"] in UNTRUSTED]
     log(f"Bisecting {incident_id}: {len(candidates)} untrusted inputs x{runs_per_input} runs")
