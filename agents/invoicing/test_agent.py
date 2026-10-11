@@ -30,7 +30,11 @@ def test_invoice_lifecycle_tools():
     invoices.reset()
     model = scripted(
         call("create_invoice", contact_id="c_006", amount_eur=500, due="2026-11-30"),
-        call("send_invoice", invoice_id="INV-1044"),
+        call("get_invoice", invoice_id="INV-1044"),
+        call("get_contact", contact_id="c_006"),
+        call("send_invoice", invoice_id="INV-1044", to="farid.haddad@litware-demo.com",
+             subject="Invoice INV-1044", body="Dear Farid Haddad,\n\nPlease find invoice INV-1044 "
+             "for 500.0 EUR, due 2026-11-30.\n\nMirage Demo SAS"),
         call("record_payment", invoice_id="INV-1044", amount_eur=200),
         call("record_payment", invoice_id="INV-1044", amount_eur=300),
         AIMessage("Invoiced and collected."),

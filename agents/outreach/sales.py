@@ -22,11 +22,13 @@ def activities(contact_id: str) -> list[dict]:
     return [a for a in state().get("activities", []) if a["contact_id"] == contact_id]
 
 
-def schedule_email(contact_id: str, send_on: str, subject: str, body: str) -> str:
+def schedule_email(contact_id: str, to: str, send_on: str, subject: str, body: str) -> str:
     contact = crm.get(contact_id)
     if contact is None:
-        return f"no contact {contact_id}"
+        raise ValueError(f"no contact {contact_id}")
+    if not to.strip() or to != contact.get("email"):
+        raise ValueError(f"cannot schedule {contact_id}: recipient must match the contact's nonempty CRM email")
     scheduled = state().setdefault("scheduled", [])
-    scheduled.append({"contact_id": contact_id, "to": contact["email"], "send_on": send_on,
+    scheduled.append({"contact_id": contact_id, "to": to, "send_on": send_on,
                       "subject": subject, "body": body})
-    return f"scheduled email #{len(scheduled)} to {contact['email']} on {send_on}"
+    return f"scheduled email #{len(scheduled)} to {to} on {send_on}"
