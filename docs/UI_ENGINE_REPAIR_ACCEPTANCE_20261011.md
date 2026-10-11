@@ -8,7 +8,8 @@ listed squash commits. This documentation worker inspected source, merge metadat
 and published worker reports; it ran no services, controls, providers or fleets.
 Final coordinator source SHA and composed rehearsal evidence have not yet been
 supplied. After the user regenerated the key, fresh six-model access and bounded
-gate/judge usability checks succeeded, plus one actual browser no-tool chat turn.
+gate/judge usability checks succeeded, plus one actual browser no-tool chat turn
+and an empty live-engine attachment on the separately pinned UI/API revisions.
 Sections 5–6 preserve the earlier denials and the precise limits of this new evidence.
 
 This ledger covers [PRODUCT.md](../PRODUCT.md) steps 0:00–2:40 and the Person A/B
@@ -208,8 +209,8 @@ alone do not establish approval/recovery authority acceptance.
 | Detail | Current fact / coordinator-owned evidence slot |
 |---|---|
 | Final composed source | Pending coordinator's known full SHA; draft inspection source is `5eef2405cbb3869ea70d124b38ae31b90f318d7c` |
-| Engine | Owned loopback `http://127.0.0.1:8040`, Person A; coordinator reports startup revision `c116744767053793662dcbccc49c498f607e10f4`, empty state. PID/time/mode/instance/epoch/owned-run details and final restart source remain pending. This is startup, not fleet proof. |
-| Web/proxy | Coordinator reports main UI `http://127.0.0.1:5180`, PID84720, terminal `term_146a8a2b-1ee2-4b95-9d64-9c0bab73eaa1`, source at startup `e3a0d019`; configured `/api`→8040, `/chat`→8041. Read parity/loaded final source pending. |
+| Engine | Owned loopback `http://127.0.0.1:8040`, Person A, PID51886; startup revision `c116744767053793662dcbccc49c498f607e10f4`, live mode. Reported instance `fcbf633818e846abb33b7d7f518eeedb`, epoch token `43e5246fccd841c88e85955ffb7b2656`, last_seq0/owned_run_ids[]. Full final runtime packet and restart source remain pending. Empty attachment is accepted; fleet proof is not. |
+| Web/proxy | Main UI `http://127.0.0.1:5180`, PID84720, terminal `term_146a8a2b-1ee2-4b95-9d64-9c0bab73eaa1`; initial source `e3a0d019`, Vite HMR source `5eef2405cbb3869ea70d124b38ae31b90f318d7c` for the 03:59 Paris browser observation. `/api`→8040, `/chat`→8041; coordinator reports5180/api/runtime matches direct8040. Final all-surface revision/parity pending. |
 | Chat/MCP | Coordinator restarted owned `http://127.0.0.1:8041` after main `d9c5f774` build, Node PID68595, same terminal `term_55913927-9c65-4fd4-8984-b9dc1b19ceba`, fresh main configuration selected over inherited bearer/model values. Native-browser no-tool turn through5180/chat8041/Bedrock succeeded; engine8040/MCP actions untested. Earlier PID86841/denial is historical. |
 | State isolation | New absolute DB/snapshot/token paths and scheduler identity pending coordinator evidence; a different port alone is insufficient |
 | Existing session | User engine8000/UI5173/chat8001 remain untouched and are not acceptance test targets |
@@ -231,12 +232,13 @@ Pinned source: [model limiter/fallback][source-model], [four protected factories
 ## 5. Browser and incident workflow ledger
 
 Incident workflows await coordinator evidence on the final composed source. The
-separate bounded browser-chat result is accepted only on its reported earlier build.
+bounded browser-chat and empty live-attachment results are accepted only on their
+separately reported builds.
 Record observed counts/errors; never replace partial evidence with expected `3/3`.
 
 | Demo / workflow | Observable acceptance | Current result |
 |---|---|---|
-| Fleet/startup (0:00) | Protected SDK runs on the identified engine; actual task inventory and outcomes, failures visible; services explicitly synthetic/event-derived | Native browser shows honest disconnected Fleet/502 while engine is absent; protected-fleet acceptance pending, no invocation by this worker |
+| Fleet/startup (0:00) | Protected SDK runs on the identified engine; actual task inventory and outcomes, failures visible; services explicitly synthetic/event-derived | Earlier honest disconnected Fleet/502 preserved; new empty live-engine attachment/synthetic panels accepted on UI5eef/APIc116. Protected-fleet acceptance pending; no invocation by this worker. |
 | Containment (0:30) | Offending tool held before its outbound effect, one run frozen while companions continue; exact incident/snapshot; automatic three-run queue without UI Detonate | Pending composed/provider evidence; #124/#131 offline tests only |
 | Proof (1:20) | Three jailed attempts, consistent attempted/completed/error/harm counts and deterministic verdict; Production blocked vs Mirage captured effects; no real tools in child | Pending; from-freeze recorded replies prove consequences, not three fresh injection successes |
 | Cause | Human Find the cause runs from scratch with removed input; report observed ratios and no cause if interrupted/inconclusive | Pending; #126 synthetic retry/folding evidence only |
@@ -250,6 +252,7 @@ Record observed counts/errors; never replace partial evidence with expected `3/3
 | False positive | Clean held action replay shows no harm with completed task; human unfreezes the held call; resumed task completes | Pending fresh scenario, distinct from merely lifting STOP |
 | Reconnect/reset/restore | GET-only recovery, epoch/instance match, stale responses excluded; authorized reset cannot erase active proof; restored history does not imply live locks/tokens | Pending final runtime/transport composition and browser evidence |
 | Browser operator-chat connection | Actual signed-in browser sends harmless no-tool turn through Vite/chat to real Bedrock; rendered response visible | Accepted at reported chat build `d9c5f774`, PID68595; native Dia AX and screenshot reported. No engine action, tool card, model retry or incident proof. |
+| Empty live-engine attachment | Browser shows actual live connection, advancing sync, empty state and synthetic service labels; Vite/runtime GET matches identified API | Accepted at UI `5eef2405`/engine `c1167447`, engine PID51886 and reported instance/epoch. Native Dia AX/screenshot; no agent launch/model/tool/control call. Final shared revision and incident flows remain pending. |
 
 Current CLI semantics at the inspected source: the product shorthand `mirage detonate`
 is executed as `uv run python -m engine.cli detonate --incident <id> --runs 3 --json`
@@ -310,6 +313,20 @@ no portable screenshot path was supplied here. This accepts one real
 browser5180→chat8041→Bedrock no-tool turn. There were no tool cards, engine actions or
 retries, and engine8040 remained absent. It accepts the chat connection, not fleet,
 containment, replay or full MCP/incident workflows.
+
+**Coordinator browser report, 03:59 Europe/Paris (01:59 UTC):** native Dia fallback
+at `127.0.0.1:5180/fleet` after normal demo sign-in displayed “Engine connected”,
+“Live engine” and Last sync advancing from03:59:32 to03:59:42 Paris. Accessibility
+and screenshot both verified an empty fleet/approval queue and six production/Mirage
+service-evidence panels with synthetic labels. Vite HMR served main `5eef2405`;
+the API on8040, PID51886, had loaded earlier `c1167447`, live mode, the instance/epoch
+reported in section4, last_seq0 and no owned runs. Coordinator's
+`curl` GET through5180/api/runtime matched direct8040; exact full command and portable
+screenshot path were not supplied. There was no agent launch, model/tool/control or
+new provider call. This accepts empty live attachment only; it is not final revision
+parity, fleet, containment, automatic three-run replay or current-code fix-loop proof.
+Coordinator also reports composed-main typecheck,24 stream and incident-data checks
+GREEN after #130/#132 merge; this worker did not rerun them.
 
 ## 6. Open provider, service and deployment gates
 
