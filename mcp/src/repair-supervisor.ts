@@ -31,6 +31,16 @@ export const runCommand: CommandRunner = (command, args, options) => new Promise
   });
 });
 
+export async function resolveOrcaRepository(run: CommandRunner, orca: string, repoPath: string) {
+  const receipt = await run(orca, ["worktree", "show", "--worktree", `path:${repoPath}`, "--json"], { cwd: repoPath });
+  try {
+    const value = JSON.parse(receipt.stdout);
+    if (receipt.code !== 0 || !value.ok) throw new Error();
+    const worktree = z.object({ path: z.literal(repoPath), repoId: z.string().min(1) }).parse(value.result?.worktree);
+    return `id:${worktree.repoId}`;
+  } catch { throw new Error("Orca could not resolve the configured managed checkout repository."); }
+}
+
 const effectSchema = z.object({ detonation_id: z.string(), run_index: z.number().int().positive(), step: z.number(),
   tool: z.string(), args: z.record(z.string(), z.unknown()), violates: z.array(z.string()), error: z.string().nullable().optional() });
 const verificationSchema = z.object({ incident_id: z.string(), attack_blocked: z.string(), legit_task_completed: z.string(),
@@ -257,7 +267,8 @@ export class RepairSupervisor implements RepairController {
         this.operatorRun = created.run?.id ?? created.runId;
         if (!this.operatorRun) throw new Error("Orca did not establish the supervisor operator Run.");
       }
-      const created = await this.orca(["worktree", "create", "--name", `mirage-repair-${job.id}`, "--repo", `path:${this.config.repoPath}`,
+      const repository = await resolveOrcaRepository(this.run, this.config.orca ?? "orca", this.config.repoPath);
+      const created = await this.orca(["worktree", "create", "--name", `mirage-repair-${job.id}`, "--repo", repository,
         "--base-branch", "special-improvements", "--no-parent", "--setup", "skip", "--json"]);
       const worktree = created.worktree;
       if (!worktree?.path || !worktree?.id) throw new Error("Orca did not return an isolated repair checkout.");
