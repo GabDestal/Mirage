@@ -383,6 +383,7 @@ function AgentTableRow({
 
       {/* Quick Action Button */}
       <td className="fleet-action-cell">
+        <div className="fleet-action-group">
         <FreezeButton run={run} />
         <CleanRestartButton run={run} />
         {isFrozen && run.incident_id ? (
@@ -405,6 +406,7 @@ function AgentTableRow({
             Trace <ArrowRight size={13} />
           </Link>
         )}
+        </div>
       </td>
 
       {/* Relative Time */}

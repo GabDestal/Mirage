@@ -1,6 +1,7 @@
-.fleet-action-cell .clean-restart-status { display: block; font-size: 12px; line-height: 18px; white-space: normal; color: var(--fleet-ink-2); }
+.fleet-action-cell .clean-restart-status { display: block; flex-basis: 100%; font-size: 12px; line-height: 18px; white-space: normal; color: var(--fleet-ink-2); }
 .fleet-table .fleet-action-cell { white-space: normal; }
-.fleet-action-cell > button { margin: 3px; }
+/* One row: buttons and the Trace link sit 16px apart, wrapping right-aligned when the cell is narrow. */
+.fleet-action-group { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 16px; }
 .fleet-inline-controls { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 .fleet-page .clean-restart-status a:focus-visible { outline: 2px solid var(--fleet-blue); outline-offset: 3px; }
 
@@ -495,10 +496,10 @@
   .fleet-table td { min-width: 0; padding: 0; border-bottom: none; }
   .fleet-table td:nth-child(3) { grid-column: 1 / -1; }
   .fleet-table .fleet-action-cell { text-align: left; }
-  .fleet-inline-controls { justify-content: flex-start; }
+  .fleet-inline-controls, .fleet-action-group { justify-content: flex-start; }
   .fleet-table td.fleet-time-cell { align-self: center; }
   .fleet-agent-cell { gap: 8px; }
-  .fleet-action-link, .fleet-action-cell > a { min-height: 40px; }
+  .fleet-action-link, .fleet-action-group > a { min-height: 40px; }
 
 }
 
