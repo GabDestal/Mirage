@@ -77,4 +77,6 @@ def test_api_sees_an_incident_frozen_by_another_process(monkeypatch):
             break
         time.sleep(0.1)
     assert incident["status"] == "false_positive"  # the clean agent did nothing wrong
-    assert json.loads(api.get("/events").text)[-1]["type"] == "verdict.ready"
+    stream = json.loads(api.get("/events").text)
+    assert any(e["type"] == "verdict.ready" and not e["payload"]["confirmed"] for e in stream)
+    assert stream[-1]["payload"]["sandbox_job"]["status"] == "completed"

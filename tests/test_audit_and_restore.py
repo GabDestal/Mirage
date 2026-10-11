@@ -26,6 +26,8 @@ def test_wildcard_domains_in_an_allowlist():
 
 
 def test_who_triggered_detonate_find_cause_and_verify_is_logged(api, monkeypatch):
+    from engine.detonation import jobs
+
     save_incident("inc_005")
     events.emit("run.started", {"task": "t", "agent": "assistant"}, run_id="run_002")
     events.emit("gate.decision", {"call_id": "c9", "tool": "send_email", "args": {"to": ATTACKER},
@@ -42,9 +44,13 @@ def test_who_triggered_detonate_find_cause_and_verify_is_logged(api, monkeypatch
     monkeypatch.setattr(server.sandbox, "detonate", lambda *a, **k: None)  # no real sandbox
     monkeypatch.setattr(server.engine_bisect, "bisect", lambda *a, **k: None)
 
-    api.post("/incidents/inc_005/detonate", json={"actor": "gabi via UI", "reason": "check it"})
-    api.post("/incidents/inc_005/bisect", json=HUMAN)
-    api.post("/incidents/inc_005/verify")  # e.g. an MCP client that sends no body
+    assert api.post("/incidents/inc_005/detonate", json={
+        "actor": "gabi via UI", "reason": "check it"}).status_code == 200
+    jobs._pool.submit(lambda: None).result(timeout=5)
+    assert api.post("/incidents/inc_005/bisect", json=HUMAN).status_code == 200
+    jobs._pool.submit(lambda: None).result(timeout=5)
+    assert api.post("/incidents/inc_005/verify").status_code == 200  # MCP without a body
+    jobs._pool.submit(lambda: None).result(timeout=5)
     audit = [(e.payload["actor"], e.payload["action"]) for e in events.read()
              if e.type == "human.action"]
     assert audit == [("gabi via UI", "detonate"), ("gabi", "find_cause"), ("unknown", "verify")]

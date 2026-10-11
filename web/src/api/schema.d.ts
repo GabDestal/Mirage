@@ -141,6 +141,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Runtime Info */
+        get: operations["runtime_info_runtime_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events": {
         parameters: {
             query?: never;
@@ -807,6 +824,7 @@ export interface components {
              */
             inputs: components["schemas"]["Input"][];
             verdict?: components["schemas"]["Verdict"] | null;
+            sandbox_job?: components["schemas"]["SandboxJob"] | null;
             /**
              * Bisection
              * @default []
@@ -952,6 +970,46 @@ export interface components {
             run_id: string;
             /** Run Token */
             run_token: string;
+        };
+        /** RuntimeInfo */
+        RuntimeInfo: {
+            /**
+             * Engine Mode
+             * @enum {string}
+             */
+            engine_mode: "live" | "replay";
+            /** Instance Id */
+            instance_id: string;
+            /** Stream Epoch */
+            stream_epoch: string;
+            /** Last Seq */
+            last_seq: number;
+            /** Revision */
+            revision?: string | null;
+            /**
+             * Owned Run Ids
+             * @default []
+             */
+            owned_run_ids: string[];
+        };
+        /** SandboxJob */
+        SandboxJob: {
+            /** Id */
+            id: string;
+            /**
+             * Purpose
+             * @enum {string}
+             */
+            purpose: "detonate" | "bisect" | "verify";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed";
+            /** N Runs */
+            n_runs: number;
+            /** Error */
+            error?: string | null;
         };
         /** ServiceItem */
         ServiceItem: {
@@ -1355,6 +1413,26 @@ export interface operations {
             };
         };
     };
+    runtime_info_runtime_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeInfo"];
+                };
+            };
+        };
+    };
     list_events_events_get: {
         parameters: {
             query?: {
@@ -1369,6 +1447,7 @@ export interface operations {
             /** @description Successful Response */
             200: {
                 headers: {
+                    "X-Mirage-Stream-Epoch"?: string;
                     [name: string]: unknown;
                 };
                 content: {

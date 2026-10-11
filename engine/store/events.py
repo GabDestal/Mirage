@@ -9,8 +9,10 @@ import re
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from contracts.models import Event
 
@@ -19,10 +21,39 @@ listeners = []  # callables(Event): the CLI printer now, the SSE stream later
 
 _lock = threading.Lock()
 _conn = None
+_identity = None
+_epoch = None
+_mirage_guard = None
+
+
+class StaleEpoch(RuntimeError):
+    """Sandbox work belongs to a replaced event stream."""
+
+
+@contextmanager
+def mirage_writes(epoch, incident_id):
+    """The one active sandbox job also fences emissions from its nested worker threads."""
+    global _mirage_guard
+    with _lock:
+        previous = _mirage_guard
+        _mirage_guard = (epoch, incident_id)
+    try:
+        yield
+    finally:
+        with _lock:
+            _mirage_guard = previous
 
 
 def _db():
-    global _conn
+    global _conn, _identity, _epoch
+    try:
+        stat = DB_PATH.stat()
+        identity = (str(DB_PATH.resolve()), stat.st_dev, stat.st_ino)
+    except FileNotFoundError:
+        identity = None
+    if _conn is not None and identity != _identity:
+        _conn.close()  # an external reset replaced the file behind this connection
+        _conn = None
     if _conn is None:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         # autocommit mode: emit() opens its own BEGIN IMMEDIATE; timeout waits for other writers
@@ -42,6 +73,9 @@ def _db():
             "CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY, ts TEXT, run_id TEXT,"
             " incident_id TEXT, env TEXT, type TEXT, body TEXT, prev_hash TEXT, hash TEXT)"
         )
+        stat = DB_PATH.stat()
+        _identity = (str(DB_PATH.resolve()), stat.st_dev, stat.st_ino)
+        _epoch = uuid4().hex
     return _conn
 
 
@@ -55,9 +89,16 @@ def reset():
             Path(f"{DB_PATH}{suffix}").unlink(missing_ok=True)
 
 
-def emit(type, payload=None, *, env="prod", run_id=None, incident_id=None) -> Event:
+def emit(type, payload=None, *, env="prod", run_id=None, incident_id=None,
+         expected_epoch=None) -> Event:
     with _lock:
         db = _db()
+        if expected_epoch is None and env == "mirage" and _mirage_guard:
+            epoch, guarded_incident = _mirage_guard
+            if incident_id == guarded_incident:
+                expected_epoch = epoch
+        if expected_epoch is not None and expected_epoch != _epoch:
+            raise StaleEpoch("Sandbox work belongs to a replaced event stream")
         # The write lock is taken before reading the last seq, so two processes (API, CLI,
         # agents) can never give two events the same seq.
         db.execute("BEGIN IMMEDIATE")
@@ -81,9 +122,21 @@ def emit(type, payload=None, *, env="prod", run_id=None, incident_id=None) -> Ev
 
 
 def read(after=0) -> list[Event]:
+    return read_batch(after)[2]
+
+
+def read_batch(after=0):
+    """Epoch, high-water seq and events from one SQLite read snapshot, under the reset lock."""
     with _lock:
-        rows = _db().execute("SELECT body FROM events WHERE seq > ? ORDER BY seq", (after,))
-        return [Event.model_validate_json(body) for (body,) in rows]
+        db = _db()
+        db.execute("BEGIN")
+        try:
+            last_seq = db.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+            rows = db.execute("SELECT body FROM events WHERE seq > ? ORDER BY seq",
+                              (after,)).fetchall()
+            return _epoch, last_seq, [Event.model_validate_json(body) for (body,) in rows]
+        finally:
+            db.execute("ROLLBACK")
 
 
 def max_number(prefix):

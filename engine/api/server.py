@@ -15,8 +15,9 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
 from sse_starlette.sse import EventSourceResponse
 
 # Load dotenv before engine modules capture paths or settings.
@@ -38,6 +39,7 @@ from contracts.models import (
     RunCompletion,
     RunStart,
     RunStarted,
+    RuntimeInfo,
     ServiceView,
     ToolCheck,
     ToolResult,
@@ -70,6 +72,46 @@ REPLAY = (Replay(_fixture(), float(os.getenv("MIRAGE_REPLAY_SPEED", "1")),
                  managed=os.getenv("MIRAGE_REPLAY_MANAGED") == "1")
           if MODE == "replay" else None)
 
+INSTANCE_ID = uuid4().hex
+_live_epoch = None
+_replay_epoch = uuid4().hex
+
+
+def _revision():
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"],
+                                       cwd=FIXTURES.parents[1], stderr=subprocess.DEVNULL,
+                                       text=True, timeout=2).strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+REVISION = _revision()  # loaded once; a later checkout change is not this process's provenance
+
+
+def _event_batch(after=0):
+    global _live_epoch
+    with jobs.lock:
+        if REPLAY:
+            with REPLAY.lock:
+                visible = REPLAY.visible()
+                epoch = _replay_epoch
+                last_seq = visible[-1].seq if visible else 0
+                batch = [event for event in visible if event.seq > after]
+        else:
+            epoch, last_seq, batch = events.read_batch(after)
+            if _live_epoch is not None and epoch != _live_epoch:
+                jobs.discard_stale(epoch)
+                gate.reset()  # old in-memory tokens/owners cannot control a replacement log
+                restore()
+                epoch, last_seq, batch = events.read_batch(after)
+            _live_epoch = epoch
+        info = RuntimeInfo(engine_mode=MODE, instance_id=INSTANCE_ID,
+                           stream_epoch=f"{INSTANCE_ID}:{epoch}", last_seq=last_seq,
+                           revision=REVISION, owned_run_ids=[] if REPLAY else sorted(gate.runs))
+        return info, batch
+
+
 def restore():
     """After an engine restart: agent registrations and a global STOP come back from the log.
     The latest of Stop all and its lift wins."""
@@ -80,11 +122,13 @@ def restore():
             gate.STOP.set()
         elif e.type == "global.stop_lifted":
             gate.STOP.clear()
+    jobs.restore()
 
 
 @asynccontextmanager
 async def lifespan(app):
     if not REPLAY:
+        _event_batch()
         restore()
         jobs.start()
     yield
@@ -102,6 +146,7 @@ def live_only():
 
 
 def _run(run_id) -> gate.LiveRun:
+    _event_batch()
     if run_id not in gate.runs:
         raise HTTPException(404, f"Unknown run {run_id}")
     return gate.runs[run_id]
@@ -116,7 +161,7 @@ def _authed(run_id, authorization) -> gate.LiveRun:
 
 def _state():
     """(runs, incidents) as contract models, in either mode."""
-    return REPLAY.state() if REPLAY else fold(events.read())
+    return REPLAY.state() if REPLAY else fold(_event_batch()[1])
 
 
 # --- data plane: SDK -> engine ------------------------------------------------------------
@@ -126,6 +171,7 @@ data_plane = {"dependencies": [Depends(live_only)]}
 
 @app.post("/agents", **data_plane)
 def register_agent(spec: AgentSpec) -> AgentSpec:
+    _event_batch()
     gate.agents[spec.name] = spec
     events.emit("agent.registered", spec.model_dump(mode="json"))  # survives an engine restart
     return spec
@@ -133,6 +179,7 @@ def register_agent(spec: AgentSpec) -> AgentSpec:
 
 @app.post("/runs", **data_plane)
 def start_run(body: RunStart) -> RunStarted:
+    _event_batch()
     spec = gate.agents.get(body.agent)
     if spec is None:
         raise HTTPException(404, f"Agent {body.agent} is not registered (POST /agents)")
@@ -209,9 +256,18 @@ def get_run(run_id: str) -> Run:
     return runs[run_id]
 
 
-@app.get("/events")
-def list_events(after: int = 0) -> list[Event]:
-    return REPLAY.visible(after) if REPLAY else events.read(after)
+@app.get("/runtime")
+def runtime_info() -> RuntimeInfo:
+    return _event_batch()[0]
+
+
+@app.get("/events", responses={200: {"headers": {
+    "X-Mirage-Stream-Epoch": {"schema": {"type": "string"}}}}})
+def list_events(after: int = 0, response: Response = None) -> list[Event]:
+    info, batch = _event_batch(after)
+    if response is not None:
+        response.headers["X-Mirage-Stream-Epoch"] = info.stream_epoch
+    return batch
 
 
 @app.get("/stream")
@@ -220,8 +276,16 @@ async def stream(request: Request, after: int = 0):
 
     async def gen():
         nonlocal after
+        previous = None
         while not await request.is_disconnected():
-            for event in list_events(after):
+            info, batch = _event_batch(after)
+            if after > info.last_seq or (previous and previous.stream_epoch != info.stream_epoch):
+                after = 0
+                info, batch = _event_batch()
+            if info != previous:
+                yield {"event": "runtime", "data": info.model_dump_json()}
+                previous = info
+            for event in batch:
                 after = event.seq
                 yield {"id": str(event.seq), "data": event.model_dump_json()}
             await asyncio.sleep(0.25)
@@ -653,10 +717,13 @@ def _reset_live():
 def demo_start(request: Request, body: DemoStart | None = None):
     """Live: reset, then launch the story's agents as their own process, pointed at this engine
     (they join through the SDK like any customer agent). Replay: restart the recording."""
+    global _replay_epoch
     if REPLAY:
         if REPLAY.managed and body and body.scenario != "calendar":
             raise HTTPException(409, "Recorded demo supports only the calendar scenario")
-        REPLAY.restart()
+        with REPLAY.lock:
+            REPLAY.restart()
+            _replay_epoch = uuid4().hex
         return
     scenario = body.scenario if body else "calendar"
     if scenario != "calendar":
@@ -669,7 +736,10 @@ def demo_start(request: Request, body: DemoStart | None = None):
 
 @app.post("/demo/reset", status_code=204)
 def demo_reset():
+    global _replay_epoch
     if REPLAY:
-        REPLAY.restart()
+        with REPLAY.lock:
+            REPLAY.restart()
+            _replay_epoch = uuid4().hex
         return
     _reset_live()

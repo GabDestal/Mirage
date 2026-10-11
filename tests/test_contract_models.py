@@ -56,6 +56,7 @@ INCIDENT = {
     "cause_input_id": "in_cal_03",
     "pr_url": None,
     "next_action": "send_fix",
+    "sandbox_job": None,
 }
 
 
