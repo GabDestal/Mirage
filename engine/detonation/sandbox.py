@@ -6,6 +6,7 @@ The verdict is code, not a model: the gate's own hard rules run over the effects
 The judge (detection/judge.py) only adds policies and a plain-language sentence to it.
 """
 
+import builtins
 import itertools
 import json
 import os
@@ -40,7 +41,7 @@ _ids = itertools.count(1)
 
 
 class DetonationError(RuntimeError):
-    """The sandbox could not produce evidence (every replay crashed): no verdict."""
+    """A replay crashed without proving harm: no clean verdict or verified fix."""
 
 
 def run_once(snap):
@@ -58,11 +59,23 @@ def run_once(snap):
             proc = subprocess.run([sys.executable, "-I", "-c", BOOT, str(REPO)], cwd=tmp,
                                   env=env, capture_output=True, text=True, timeout=TIMEOUT,
                                   check=False)
-            error = proc.stderr.strip()[-600:] if proc.returncode else None
+            error = ((proc.stderr.strip()[-600:] or f"child exited with code {proc.returncode}")
+                     if proc.returncode else None)
         except subprocess.TimeoutExpired:
             error = f"timeout after {TIMEOUT}s"
         lines = effects_file.read_text(encoding="utf-8").splitlines()
         return [json.loads(line) for line in lines if line], error
+
+
+def _crash_reason(snap, error):
+    """Public diagnostics retain the failure category, never child error contents."""
+    if re.fullmatch(r"timeout after \d+(?:\.\d+)?s|child exited with code -?\d+", error):
+        category = error
+    else:
+        kind = getattr(builtins, error.splitlines()[-1].partition(":")[0], None)
+        category = (kind.__name__ if isinstance(kind, type) and issubclass(kind, BaseException)
+                    else "child process error")
+    return f"{category} in {snap.get('runner') or snap['entrypoint']}"
 
 
 def violations(snap, effect, policies):
@@ -133,7 +146,7 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
                                     "purpose": "verify" if verify else "detonate"},
              incident_id=incident_id, env="mirage")
 
-    all_effects, compromised, legit, crashed = [], 0, 0, []
+    all_effects, compromised, blocked, legit, crashed = [], 0, 0, 0, []
     # MIRAGE_PARALLEL=3 runs the replays at once (stage: ~3x faster). Default 1 keeps the team
     # rule of ~1 Bedrock request/s; parallel bursts to ~2-3/s for the length of one replay.
     workers = max(1, min(n_runs, int(os.getenv("MIRAGE_PARALLEL", "1"))))
@@ -154,20 +167,25 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
                  env="mirage")
         bad = any(e.violates for e in effects)
         compromised += bad
-        legit += legit_done(snap, effects)
         if error:
-            crashed.append(error.splitlines()[-1])
+            error = _crash_reason(snap, error)
+            crashed.append(f"run {k}: {error}")
+            emit("agent.message", {"role": "system", "text":
+                 f"{det_id}: replay {k}/{n_runs} crashed: {error}"},
+                 incident_id=incident_id, env="mirage")
+        else:
+            blocked += not bad
+            legit += legit_done(snap, effects)
         log(f"  run {k}/{n_runs}: {'COMPROMISED' if bad else 'CRASHED' if error else 'clean'}, "
-            f"{len(effects)} effects" + (f", error: {error.splitlines()[-1]}" if error else ""))
+            f"{len(effects)} effects" + (f", error: {error}" if error else ""))
         all_effects += effects
 
-    # A replay that crashed proves nothing: never count it as clean. With no attack seen in the
-    # replays that finished, there is no verdict at all (else a crash would read "false positive").
+    # A crash cannot prove a clean replay, but harm recorded before it still proves compromise.
     if crashed and not compromised:
         raise DetonationError(f"{len(crashed)} of {n_runs} replays crashed before finishing "
-                              f"({crashed[-1]}). No verdict: fix the agent's entrypoint or runner "
-                              "and detonate again.")
-    finished_ok = n_runs - len(crashed)  # the verdict counts only replays that ran to the end
+                              f"({'; '.join(crashed)}). No verdict: fix the agent's entrypoint "
+                              "or runner and detonate again.")
+    completed = len(finished) - len(crashed)
 
     detonation = Detonation(id=det_id, incident_id=incident_id, n_runs=n_runs,
                             removed_input_id=removed_input_id, compromised_runs=compromised,
@@ -177,18 +195,22 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
     bad_effects = [e for e in all_effects if e.violates]
     verdict = Verdict(
         incident_id=incident_id, confirmed=compromised > 0,
-        compromised_runs=f"{compromised}/{finished_ok}",
+        compromised_runs=f"{compromised}/{n_runs}",
         policies_violated=sorted({p for e in bad_effects for p in e.violates}),
-        blast_radius=blast_radius(snap, bad_effects, compromised, finished_ok))
+        blast_radius=blast_radius(snap, bad_effects, compromised, n_runs))
     if not verify and not removed_input_id:  # the incident's verdict: the judge explains it
         said = judge.judge(snap["agent"], snap["task"], bad_effects)
         if said:
             verdict.policies_violated = sorted(set(verdict.policies_violated) | set(said["policies"]))
             verdict.blast_radius.summary += " " + said["summary"]
+    if crashed:
+        verdict.blast_radius.summary += (f" {completed} of {n_runs} replays completed; "
+                                        f"{len(crashed)} crashed ({'; '.join(crashed)}).")
     result = DetonateResult(incident_id=incident_id,
-                            attack_blocked=f"{finished_ok - compromised}/{finished_ok}",
-                            legit_task_completed=f"{legit}/{finished_ok}",
-                            passed=compromised == 0 and legit == n_runs, effects=all_effects)
+                            attack_blocked=f"{blocked}/{n_runs}",
+                            legit_task_completed=f"{legit}/{n_runs}",
+                            passed=completed == n_runs and blocked == n_runs and legit == n_runs,
+                            effects=all_effects)
     if verify:
         emit("fix.verified", {"incident_id": incident_id, "attack_blocked": result.attack_blocked,
                               "legit_task_completed": result.legit_task_completed,
