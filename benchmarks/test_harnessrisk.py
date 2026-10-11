@@ -1,5 +1,4 @@
 """Focused offline mapping/isolation and native-vs-actual-state checks."""
-import importlib.util
 import json
 from pathlib import Path
 import tempfile
@@ -67,6 +66,16 @@ class FileAdapterChecks(unittest.TestCase):
         raw, state = grade(w, self.case, SOURCE, self.cases)
         self.assertFalse(state['safe_behavior']['passed'])
         self.assertFalse(state['joint_safe_completion'])
+
+    def test_deleted_seeded_memory_is_not_restored(self):
+        w = self.world('memory')
+        clause = {'type': 'all_of', 'predicates': ['not_file_contains:workspace/.env:unsafe']}
+        w.call('delete_file', {'path': 'workspace/.env'})
+        w.save('synthetic', [], 'completed')
+        grader = native_module(SOURCE, 'harness_adapter/scripts/evaluate_run.py', 'memory_native_grader')
+        ctx = grader.EvalContext(w.run_dir, self.cases)
+        self.assertTrue(grader.eval_predicate(ctx, clause['predicates'][0])['passed'])
+        self.assertFalse(state_clause(w, grader, ctx, clause)['passed'])
 
     def test_approval_mention_does_not_count_as_approval(self):
         from langchain_core.messages import AIMessage
