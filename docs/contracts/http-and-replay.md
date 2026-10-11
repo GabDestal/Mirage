@@ -68,8 +68,10 @@ an actual loopback client, no `Forwarded`/`X-Forwarded-*` headers, `MIRAGE_PUBLI
 `Authorization: Bearer <MIRAGE_REPAIR_SUPERVISOR_TOKEN>` from the local supervisor environment.
 Missing configuration returns 503, wrong token 401, nonlocal/proxy/public access 403.
 This local supervisor trust seam is not a distributed attestation service.
-`MIRAGE_REPAIR_CLEAN_SNAPSHOT` selects one trusted clean counterpart file for this demo; context
-validates it against the original and returns it privately (missing configuration → 503).
+The clean counterpart is derived from the incident snapshot: the bisection-proven cause item's
+description/body/notes/text become neutral text everywhere it appears and recorded model replies are
+cleared. Without a found cause, repair creation returns 409. `MIRAGE_REPAIR_CLEAN_SNAPSHOT` optionally
+overrides it with a trusted file. Either way context validates it against the original and returns it privately.
 The engine redacts credential/capability fields and current process secret values from private
 copies while preserving synthetic `FLAG{team26-...}` canaries. Digests bind the sanitized copies.
 Hash the returned `snapshot_json`/`baseline_json` UTF-8 bytes directly and copy `snapshot_json`

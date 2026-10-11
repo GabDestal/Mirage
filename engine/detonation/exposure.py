@@ -18,11 +18,16 @@ def revision(value):
                           .encode()).hexdigest()
 
 
-def candidates():
-    """Trusted operator config only; browser requests never provide executable paths."""
+def candidates(exclude=None):
+    """Trusted operator config only; browser requests never provide executable paths.
+
+    Without a manifest, the registered fleet: tools only, so applicability stays honest
+    (no recording or checkout means a compatible agent is could_not_evaluate, never assessed).
+    """
     path = os.getenv("MIRAGE_EXPOSURE_CANDIDATES")
     if not path:
-        return []
+        return [{"agent_name": name, "role": name, "tools": spec.tools}
+                for name, spec in gate.agents.items() if name != exclude]
     entries = json.loads(Path(path).read_text(encoding="utf-8"))
     if (not isinstance(entries, list) or any(not isinstance(e, dict)
             or not isinstance(e.get("agent_name"), str) or not e["agent_name"]

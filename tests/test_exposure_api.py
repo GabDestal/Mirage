@@ -243,3 +243,18 @@ def test_exposure_shares_queue_and_reset_exclusion_with_other_incidents(client, 
     assert http.get(f"/incidents/{incident_id}").json() == original_incident
     assert http.get(f"/runs/{frozen_id}").json()["status"] == "frozen"
     assert (snapshot.SNAP_DIR / f"{incident_id}.json").read_bytes() == original_snapshot
+
+
+def test_without_manifest_registered_fleet_is_the_candidate_list(client, monkeypatch):
+    http, _, _ = client
+    monkeypatch.delenv("MIRAGE_EXPOSURE_CANDIDATES")
+    source = json.loads((snapshot.SNAP_DIR / "inc_original.json").read_text())
+    tools = {source["agent"]: ["read_calendar", "send_email"],
+             "invoicing": ["list_invoices", "send_email"]}
+    monkeypatch.setattr(gate, "agents", {n: SimpleNamespace(tools=t) for n, t in tools.items()})
+    listed = http.get("/incidents/inc_original/exposure-candidates")
+    assert listed.status_code == 200, listed.text
+    assert [(c["agent_name"], c["status"]) for c in listed.json()] == [("invoicing", "not_applicable")]
+    created = request(client, ["invoicing"])
+    assert created.status_code == 202, created.text
+    assert request(client, [source["agent"]]).status_code == 422

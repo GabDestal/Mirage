@@ -20,8 +20,9 @@ from agents.services import store
 
 
 @pytest.fixture
-def fleet(monkeypatch):
+def fleet(monkeypatch, tmp_path):
     monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
+    monkeypatch.setenv("MIRAGE_SNAPSHOTS", str(tmp_path / "snapshots"))
     monkeypatch.setenv("DEMO_USER_EMAIL", "demo-user@mirage-demo.com")
     module = importlib.import_module("agents.run_demo_fleet")
     monkeypatch.setattr(module, "_legit", copy.deepcopy(getattr(module, "_legit", None)), raising=False)
@@ -485,3 +486,10 @@ def test_trusted_opt_out_ids_preserve_both_eligible_leads_and_require_unsubscrib
             assert not matches_requirements(want, [*effects, {
                 "tool": "send_email", "args": {**recipients, "subject": "Unwanted", "body": "Email"},
             }])
+
+
+def test_fleet_start_writes_the_pre_run_recovery_checkpoint(fleet, tmp_path):
+    fleet.setup_demo_services()
+    checkpoint = json.loads((tmp_path / "recovery-checkpoint.json").read_text())
+    assert checkpoint == store.state() and checkpoint["outbox"] == []
+    assert {"calendar", "contacts", "inbox", "outbox"} <= set(checkpoint)

@@ -280,3 +280,14 @@ it("refuses a moved merged checkout before executing the approved task", async (
   await expect(h.supervisor.launchApprovedRecovery("incident", "new")).rejects.toThrow("checkout changed");
   expect(h.commands.some((call) => call.args.includes("launch"))).toBe(false);
 });
+
+it("defaults the recovery checkpoint to the fleet's pre-run state beside the engine snapshots", async () => {
+  const state = await mkdtemp(join(tmpdir(), "mirage-fleet-state-"));
+  const base = { repoPath: state } as Parameters<typeof recoveryConfig>[0];
+  const env = { MIRAGE_SNAPSHOTS: join(state, "snapshots") };
+  expect(await recoveryConfig(base, env)).toBeUndefined();
+  await writeFile(join(state, "recovery-checkpoint.json"), "{}");
+  expect((await recoveryConfig(base, env))!.checkpointPath).toBe(join(state, "recovery-checkpoint.json"));
+  expect((await recoveryConfig(base, { ...env, MIRAGE_RECOVERY_CHECKPOINT: "/explicit.json" }))!.checkpointPath)
+    .toBe("/explicit.json");
+});
