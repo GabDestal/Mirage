@@ -118,7 +118,7 @@ def is_probe(policy, tool):
     return not any(name in tool for name in policy.get("known_tools", []))
 
 
-def set_status(run, to, actor, reason):
+def _apply_status(run, to, reason):
     previous = run.status
     run.status = to
     run.status_reason = reason
@@ -128,8 +128,21 @@ def set_status(run, to, actor, reason):
         run.resume.clear()
     else:
         run.resume.set()
+    return previous
+
+
+def _emit_status(run, previous, to, actor, reason):
     emit("run.status", {"from": previous, "to": to, "actor": actor, "reason": reason},
          run_id=run.id, incident_id=run.incident_id)
+
+
+def set_status(run, to, actor, reason):
+    if to == "running":
+        _emit_status(run, run.status, to, actor, reason)
+        _apply_status(run, to, reason)
+    else:
+        previous = _apply_status(run, to, reason)
+        _emit_status(run, previous, to, actor, reason)
 
 
 def _human(actor, action, target, reason):
@@ -137,31 +150,44 @@ def _human(actor, action, target, reason):
                                      ts=datetime.now(UTC)).model_dump(mode="json"))
 
 
+def _control(run_id, to, action, actor, reason):
+    with jobs.lock:
+        run = runs[run_id]
+        allowed = ("frozen",) if to == "running" else ("running", "frozen")
+        if (run.status not in allowed or run.revoked_by_reset
+                or (to == "running" and STOP.is_set())):
+            raise ValueError(f"Cannot {action} a run that is {run.status} or revoked.")
+        if to == "running":
+            _human(actor, action, run_id, reason)
+            set_status(run, to, actor, reason)
+        else:
+            previous = _apply_status(run, to, reason)
+            try:
+                _human(actor, action, run_id, reason)
+            finally:
+                _emit_status(run, previous, to, actor, reason)
+
+
 def freeze(run_id, actor, reason):
-    _human(actor, "freeze", run_id, reason)
-    set_status(runs[run_id], "frozen", actor, reason)
+    _control(run_id, "frozen", "freeze", actor, reason)
 
 
 def unfreeze(run_id, actor, reason):
-    _human(actor, "unfreeze", run_id, reason)
-    set_status(runs[run_id], "running", actor, reason)
+    _control(run_id, "running", "unfreeze", actor, reason)
 
 
 def approve(run_id, actor, reason):
     """Approval queue: the held call runs (like unfreeze), logged as an approval."""
-    _human(actor, "approve", run_id, reason)
-    set_status(runs[run_id], "running", actor, reason)
+    _control(run_id, "running", "approve", actor, reason)
 
 
 def reject(run_id, actor, reason):
     """Approval queue: the held call never runs and the run ends (like kill)."""
-    _human(actor, "reject", run_id, reason)
-    set_status(runs[run_id], "killed", actor, reason)
+    _control(run_id, "killed", "reject", actor, reason)
 
 
 def kill(run_id, actor, reason):
-    _human(actor, "kill", run_id, reason)
-    set_status(runs[run_id], "killed", actor, reason)
+    _control(run_id, "killed", "kill", actor, reason)
 
 
 def global_stop(actor, reason):
@@ -171,19 +197,34 @@ def global_stop(actor, reason):
 
 def _global_stop(actor, reason):
     STOP.set()
-    _human(actor, "global_stop", "all", reason)
-    emit("global.stop", {"actor": actor, "reason": reason})
+    halted = []
     for run in runs.values():
         if run.status in ("queued", "running", "frozen"):
-            set_status(run, "halted", actor, reason)
+            halted.append((run, _apply_status(run, "halted", reason)))
+    # Revoke every run first; attempt all evidence writes and still report their failure.
+    try:
+        _human(actor, "global_stop", "all", reason)
+    finally:
+        try:
+            emit("global.stop", {"actor": actor, "reason": reason})
+        finally:
+            failure = None
+            for run, previous in halted:
+                try:
+                    _emit_status(run, previous, "halted", actor, reason)
+                except Exception as error:  # noqa: BLE001 - finish diagnostics, then fail
+                    if failure is None:
+                        failure = error
+            if failure is not None:
+                raise failure
 
 
 def lift_stop(actor, reason):
     """Halted runs stay halted: resume relaunches them (POST /runs/{id}/resume, /resume-all)."""
     with jobs.lock:
-        STOP.clear()
         _human(actor, "lift_stop", "all", reason)
         emit("global.stop_lifted", {"actor": actor, "reason": reason})
+        STOP.clear()
 
 
 def check(run, tool, args) -> GateDecision:
