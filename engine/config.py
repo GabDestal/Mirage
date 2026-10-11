@@ -10,6 +10,8 @@ MODE: Final = os.getenv("MIRAGE_MODE", "live")
 if MODE not in ("live", "replay"):
     raise ValueError("MIRAGE_MODE must be 'live' or 'replay'")
 
+GATE_CONTEXT: Final = os.getenv("MIRAGE_GATE_CONTEXT", "0") == "1"  # layer 2 sees recent tool results
+
 try:
     GATE_REVIEW: Final = float(os.getenv("MIRAGE_GATE_REVIEW", "0.4"))
     GATE_THRESHOLD: Final = float(os.getenv("MIRAGE_GATE_THRESHOLD", "0.7"))
