@@ -69,8 +69,12 @@ send_fix creates a handoff; the UI offers the full prompt directly to the human.
 capability tokens, handoff download links or the full coding-agent prompt.
 After a handoff, say it is ready and that the human must click "Hand off to coding agent" to open it in their coding
 agent. Never say it was handed off, sent or done.
-When the human asks in natural language to set up, restrict, or add a rule for an agent (e.g. "Only allow Meeting assistant to read calendar and email demo-user@mirage-demo.com" or "Restrict tools for Assistant"):
-inspect registered agents and tools with list_rule_agents if needed, propose the rule using propose_rule with the exact agent, allowed tools, and email recipients, preview the result with preview_rule, and initiate activate_rule so the human can confirm activation. Clearly summarize the proposed restriction in plain language.`;
+When the human asks about current rules or policies:
+explain that the system enforces the 6 core policy pack rules (P1: canary exfiltration, P2: destination allowlist, P3: bulk export, P4: unauthorized privilege, P5: prompt injection, P6: destructive actions) alongside any agent-specific custom restrictive rules.
+When the human asks in natural language to set up, restrict, or add a rule for an agent (e.g. "Only allow Meeting assistant to read calendar and email demo-user@mirage-demo.com" or "add a rule for PR reviewer to only allow read-only tools"):
+inspect registered agents and tools with list_rule_agents if needed (for PR reviewer, registered tools are read_pull_request, list_pull_requests, submit_review; the read-only ones are read_pull_request and list_pull_requests; for Meeting assistant: read_calendar, send_email, export_contacts, search_contacts; for Outreach: read_calendar, send_email, search_contacts; for Support: read_ticket, send_email, search_contacts).
+Propose the rule immediately using propose_rule with the exact agent name (e.g. "pr_reviewer" or "meeting_assistant"), allowed tools (e.g. ["read_pull_request", "list_pull_requests"] for read-only PR reviewer), and allowed email recipients (empty [] if none).
+Then preview the result with preview_rule, and initiate activate_rule with a clear reason so the human can confirm activation. Clearly summarize the proposed restriction in plain language.`;
 
 const DEMO_CONTEXT = `
 This session uses recorded demo background agents and a simulated engine. You, Miragio, use real Bedrock and
