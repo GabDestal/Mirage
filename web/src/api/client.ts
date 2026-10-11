@@ -9,6 +9,9 @@ export type MirageEvent = S['Event']
 export type GateDecision = S['GateDecision']
 export type HumanRequest = S['HumanRequest']
 export type ResumeAll = S['ResumeAll']
+export type Approval = S['Approval']
+export type ServiceView = S['ServiceView']
+export type ServiceItem = S['ServiceItem']
 
 const BASE = '/api'
 
@@ -40,6 +43,15 @@ export const queryClient = new QueryClient({
 export const useRuns = () => useQuery({ queryKey: ['runs'], queryFn: () => api<Run[]>('/runs') })
 export const useIncidents = () =>
   useQuery({ queryKey: ['incidents'], queryFn: () => api<Incident[]>('/incidents') })
+
+// These views are folded from events. Read-only polling also catches decisions made in MCP.
+export const useApprovals = () => useQuery({
+  queryKey: ['approvals'], queryFn: () => api<Approval[]>('/approvals'), refetchInterval: 2_000,
+})
+export const useServiceView = (service: ServiceView['service'], env: ServiceView['env']) => useQuery({
+  queryKey: ['services', service, env],
+  queryFn: () => api<ServiceView>(`/services/${service}?env=${env}`), refetchInterval: 2_000,
+})
 
 // Events live in the query cache under ['events'], filled by the stream (stream.ts), never fetched.
 export const useEvents = () =>

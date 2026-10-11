@@ -5,7 +5,9 @@ import { toast } from 'sonner'
 import { ArrowRight, Bot, CheckCircle2, ChevronRight, Play, Search, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { api, useEvents, useIncidents, useRuns, type Incident, type MirageEvent, type Run } from '@/api/client'
 import { resetStream, useNow } from '@/api/stream'
-import { ResumeButton, useAsk } from '@/components/actions'
+import { CleanRestartButton, FreezeButton, ResumeButton, useAsk } from '@/components/actions'
+import { EngineApprovals } from '@/components/engine-approvals'
+import { ServiceEvidence } from '@/components/service-evidence'
 import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
 import { agentName, avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
@@ -189,6 +191,8 @@ export function Fleet() {
           </div>
         </div>
 
+        <EngineApprovals />
+
         {/* Toolbar & Filter Tabs */}
         <div className="fleet-toolbar">
           <div className="fleet-tabs">
@@ -298,6 +302,7 @@ export function Fleet() {
             </div>
           )}
         </div>
+        <ServiceEvidence />
       </div>
     </section>
   )
@@ -377,6 +382,8 @@ function AgentTableRow({
 
       {/* Quick Action Button */}
       <td className="fleet-action-cell">
+        <FreezeButton run={run} />
+        <CleanRestartButton run={run} />
         {isFrozen && run.incident_id ? (
           <Button asChild variant="secondary" onClick={(e) => e.stopPropagation()}>
             <Link to={`/incidents/${run.incident_id}`}>Review Incident</Link>

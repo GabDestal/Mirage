@@ -4,18 +4,22 @@ import { useMutation } from '@tanstack/react-query'
 import { Dialog, RadioGroup } from 'radix-ui'
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { api, queryClient, useIncidents, useRuns, type HumanRequest, type MirageEvent, type ResumeAll, type Run } from '@/api/client'
+import { api, queryClient, useEvents, useIncidents, useRuns, type HumanRequest, type MirageEvent, type ResumeAll, type Run } from '@/api/client'
+import { Link } from 'react-router'
 import { Button } from '@/components/ui/button'
-import { blockedCall, canResume, resumeBlock, runLabel } from '@/lib/runs'
+import { blockedCall, canResume, resumeBlock, runLabel, stopOn } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
+import { humanControlError } from './engine-controls'
 
 // shortcut: one operator for the demo, upgrade to a sign-in when Mirage has users.
 export const ACTOR = 'liam'
 
-export type ActionKind = 'unfreeze' | 'kill' | 'resume' | 'stop' | 'resumeAll'
+export type ActionKind = 'freeze' | 'restart' | 'unfreeze' | 'kill' | 'resume' | 'stop' | 'resumeAll'
 type Ask = (kind: ActionKind, run?: Run) => void
 
 const REASONS: Record<ActionKind, string[]> = {
+  freeze: ['Pause this run while I investigate.', 'Unexpected tool activity.'],
+  restart: ['The fix has been reviewed and merged.', 'The task is safe to start again.'],
   unfreeze: ['False positive: the destination is expected.', 'The customer asked for this in the ticket.', 'Mirage showed no harm.'],
   kill: ['Confirmed compromise.', 'The run is stuck or looping.', 'The task is no longer needed.'],
   resume: ['The investigation is over.', 'This agent was not involved.', 'Demo or test reset.'],
@@ -23,7 +27,7 @@ const REASONS: Record<ActionKind, string[]> = {
   resumeAll: ['The investigation is over.', 'Stop all was a precaution.', 'Demo or test reset.'],
 }
 
-const VERB = { unfreeze: 'Unfreeze', kill: 'Kill', resume: 'Resume', stop: 'Stop all', resumeAll: 'Resume all' }
+const VERB = { freeze: 'Freeze', restart: 'Approve clean restart', unfreeze: 'Unfreeze', kill: 'Kill', resume: 'Resume', stop: 'Stop all', resumeAll: 'Resume all' }
 
 function copy(kind: ActionKind, run: Run | undefined, runs: Run[]) {
   if (isDemo && kind === 'stop') return {
@@ -38,6 +42,8 @@ function copy(kind: ActionKind, run: Run | undefined, runs: Run[]) {
     effect: 'Stop all is lifted and every halted agent starts its task again from the beginning. Every action goes through the gate. Compromised runs stay stopped.',
   }
   const label = run ? runLabel(run, runs) : 'this run'
+  if (kind === 'freeze') return { title: `Freeze ${label}?`, effect: 'This run pauses before its next tool call. Other runs keep working. A manual freeze does not create incident proof.' }
+  if (kind === 'restart') return { title: `Approve a clean restart of ${label}?`, effect: 'A new run is queued with the same task. It waits for the owner to start the agent; this approval does not launch it or merge a PR.' }
   if (kind === 'resume') return { title: `Resume ${label}?`, effect: 'It starts its task again from the beginning. Every action goes through the gate.' }
   if (kind === 'kill') return { title: `Kill ${label}?`, effect: 'The call it was holding never runs, and the run ends for good.' }
   const events = queryClient.getQueryData<MirageEvent[]>(['events']) ?? []
@@ -76,17 +82,40 @@ export function ResumeButton({ run, variant = 'secondary' }: { run: Run; variant
     onClick={(e) => { e.stopPropagation(); ask('resume', run) }}>Resume</Button>
 }
 
+export function FreezeButton({ run }: { run: Run }) {
+  const ask = useAsk()
+  if (isDemo || run.env !== 'prod' || run.status !== 'running') return null
+  return <Button onClick={(e) => { e.stopPropagation(); ask('freeze', run) }}>Freeze</Button>
+}
+
+/** A restart approval queues work; only an observed running state establishes execution. */
+export function CleanRestartButton({ run }: { run: Run }) {
+  const ask = useAsk()
+  const { data: runs = [] } = useRuns()
+  const { data: events = [] } = useEvents()
+  if (isDemo || run.env !== 'prod' || !['killed', 'halted'].includes(run.status)) return null
+  const restart = runs.find((r) => r.restarted_from === run.id)
+  if (restart) return <Link className="clean-restart-status" role="status" to={`/runs/${encodeURIComponent(restart.id)}`} onClick={(e) => e.stopPropagation()}>
+    {restart.status === 'queued' ? 'Clean restart pending · awaiting owner start' : `Clean restart: ${restart.status}`}
+  </Link>
+  const stopped = stopOn(events)
+  return <Button disabled={stopped} title={stopped ? 'Global STOP is on. Lift STOP before approving a clean restart.' : 'Queues a new run; the owner must start it.'}
+    onClick={(e) => { e.stopPropagation(); ask('restart', run) }}>Approve clean restart</Button>
+}
+
 function ReasonDialog({ pending, onClose }: { pending: { kind: ActionKind; run?: Run } | null; onClose: () => void }) {
   const act = useHumanAction()
   const kind = pending?.kind ?? 'unfreeze'
   const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
   const { title, effect } = copy(kind, pending?.run, runs)
+  const retained = kind === 'freeze' || kind === 'restart'
   return <HumanReasonDialog key={pending ? `${kind}:${pending.run?.id}` : 'closed'} open={!!pending} title={title} effect={effect}
-    reasons={REASONS[kind]} verb={isDemo && kind === 'stop' ? 'Pause recording' : isDemo && kind === 'resumeAll' ? 'Resume recording' : VERB[kind]} destructive={kind === 'kill' || kind === 'stop'} onClose={onClose}
+    reasons={REASONS[kind]} verb={isDemo && kind === 'stop' ? 'Pause recording' : isDemo && kind === 'resumeAll' ? 'Resume recording' : VERB[kind]} destructive={kind === 'kill' || kind === 'stop'} onClose={() => { act.reset(); onClose() }}
+    busy={act.isPending} error={retained && act.error ? humanControlError(act.error) : undefined}
     onSubmit={(reason) => {
-      if (!pending) return
-      act.mutate({ kind, run: pending.run, body: { actor: ACTOR, reason } })
-      onClose()
+      if (!pending || act.isPending) return
+      act.mutate({ kind, run: pending.run, body: { actor: ACTOR, reason } }, retained ? { onSuccess: onClose } : undefined)
+      if (!retained) onClose()
     }} />
 }
 
@@ -120,6 +149,7 @@ export function HumanReasonDialog({ open, title, effect, reasons, verb, destruct
             <div className="flex flex-col gap-1.5">
               <Dialog.Title className="text-title font-semibold text-balance">{title}</Dialog.Title>
               <Dialog.Description className="text-ink-2">{effect}</Dialog.Description>
+              <p className="text-control text-ink-2">Recorded as {ACTOR} (demo operator).</p>
             </div>
             <fieldset disabled={busy} className="flex flex-col gap-3">
               <legend className="mb-2 text-control font-medium">Why?</legend>
@@ -167,8 +197,9 @@ type Vars = { kind: ActionKind; run?: Run; body: HumanRequest }
 
 export function useHumanAction() {
   return useMutation({
+    retry: false,
     mutationFn: ({ kind, run, body }: Vars) =>
-      api(kind === 'stop' ? '/stop' : kind === 'resumeAll' ? '/resume-all' : `/runs/${run!.id}/${kind}`, body),
+      api<Run | ResumeAll>(kind === 'stop' ? '/stop' : kind === 'resumeAll' ? '/resume-all' : `/runs/${encodeURIComponent(run!.id)}/${kind}`, body),
     onMutate: async ({ kind, run }: Vars) => {
       await queryClient.cancelQueries({ queryKey: ['runs'] })
       const before = queryClient.getQueryData<Run[]>(['runs'])
@@ -182,15 +213,20 @@ export function useHumanAction() {
       return { before }
     },
     onSuccess: (data, { kind, run }) => {
+      if ((kind === 'freeze' || kind === 'restart') && data && 'id' in data) {
+        queryClient.setQueryData<Run[]>(['runs'], (old = []) => [...old.filter((r) => r.id !== data.id), data])
+      }
       const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
       const label = run ? runLabel(run, runs) : ''
       if (kind === 'resumeAll') return toast(isDemo ? 'Recording resumed from where it paused. Prior recorded run states restored.' : resumeAllToast(data as ResumeAll))
+      if (kind === 'restart') return toast('Clean restart approved and queued. Waiting for the owner to start the agent.')
+      if (kind === 'freeze') return toast(`${label} is frozen.`)
       toast(kind === 'stop' ? isDemo ? 'Recording paused. Active recorded runs are halted.' : 'All agents stopped.'
         : kind === 'resume' ? `${label} is starting its task again.` : kind === 'kill' ? `${label} was killed.` : `${label} is working again.`)
     },
     onError: (err, _, ctx) => {
       queryClient.setQueryData(['runs'], ctx?.before)
-      toast.error(err.message)
+      toast.error(humanControlError(err))
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['runs'] }),
   })
