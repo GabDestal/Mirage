@@ -27,11 +27,13 @@ EventType = Literal[
     "run.status", "global.stop", "global.stop_lifted", "incident.opened", "detonation.started", "detonation.effect",
     "detonation.completed", "detonation.failed", "verdict.ready", "bisection.step", "bisection.completed",
     "handoff.created", "fix.verified", "pr.opened", "human.action", "agent.registered",
+    "repair.job.updated",
 ]
 InputKind = Literal["calendar_event", "email", "crm_record", "web_page", "attachment", "user_task"]
 HumanActionType = Literal[
     "freeze", "unfreeze", "kill", "approve_restart", "global_stop", "lift_stop", "resume",
     "approve", "reject", "handoff", "merge", "detonate", "find_cause", "verify",
+    "repair",
 ]
 
 
@@ -232,6 +234,63 @@ class DetonateResult(Model):
     effects: list[Effect]
 
 
+# Repair jobs import evidence from the trusted local supervisor's candidate checkout.
+CommitSHA = Annotated[str, Field(pattern=r"^[0-9a-f]{40}$")]
+ContentDigest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+RepairStatus = Literal["queued", "running", "verifying", "pr_open", "failed"]
+RepairError = Literal[
+    "interrupted", "launch_failed", "worker_failed", "verification_failed", "evidence_mismatch",
+    "pr_failed", "context_changed",
+]
+
+
+class RepairJobRequest(HumanRequest):
+    actor: str = Field(min_length=1, max_length=80, pattern=r"\S")
+    reason: str = Field(min_length=1, max_length=500, pattern=r"\S")
+
+
+class RepairPullRequest(Model):
+    """Fields read by the supervisor with gh pr view, never inferred from worker prose."""
+
+    url: str = Field(pattern=r"^https://github\.com/[^/]+/[^/]+/pull/[1-9][0-9]*$")
+    number: int = Field(gt=0, strict=True)
+    baseRefName: str
+    headRefOid: CommitSHA
+    isDraft: bool = Field(strict=True)
+    state: Literal["OPEN", "CLOSED", "MERGED"]
+
+
+class RepairVerification(Model):
+    attack_blocked: str
+    legit_task_completed: str
+    clean_task_completed: str
+    clean_snapshot_digest: ContentDigest
+
+
+class RepairJob(Model):
+    id: str
+    incident_id: str
+    repository: str
+    base_branch: Literal["special-improvements"] = "special-improvements"
+    base_sha: CommitSHA
+    snapshot_digest: ContentDigest
+    baseline_digest: ContentDigest
+    status: RepairStatus
+    created_at: datetime
+    updated_at: datetime
+    candidate_sha: CommitSHA | None = None
+    verification: RepairVerification | None = None
+    pull_request: RepairPullRequest | None = None
+    pr_url: str | None = None
+    error: RepairError | None = None
+
+
+class RepairCommandEvidence(Model):
+    exit_code: int = Field(strict=True)
+    result: DetonateResult
+    replay_errors: int = Field(ge=0, strict=True)
+
+
 # --- Data plane: SDK -> engine (CONTRACTS.md §11) ----------------------------------------
 # Auth: the SDK sends the run's token as `Authorization: Bearer <run_token>`.
 
@@ -355,6 +414,36 @@ class Snapshot(Model):
     model_calls: list[ModelCall] = []
     tool_results: list[SnapshotToolResult] = []
     inputs: list[SnapshotInput] = []
+
+
+class RepairCleanControl(RepairCommandEvidence):
+    snapshot: Snapshot
+
+
+class RepairJobReport(Model):
+    """Private supervisor evidence. Raw snapshots/effects never become job events."""
+
+    status: Literal["running", "verifying", "pr_open", "failed"]
+    snapshot_digest: ContentDigest
+    baseline_digest: ContentDigest
+    candidate_sha: CommitSHA | None = None
+    verification: RepairCommandEvidence | None = None
+    clean_control: RepairCleanControl | None = None
+    pull_request: RepairPullRequest | None = None
+    error: RepairError | None = None
+
+
+class RepairJobContext(Model):
+    job: RepairJob
+    snapshot: Snapshot
+    clean_snapshot: Snapshot
+    baseline_effects: list[Effect]
+    snapshot_json: str
+    clean_snapshot_json: str
+    baseline_json: str
+    policy_digest: ContentDigest
+    incident: Incident
+    report: str  # the existing handoff report, with attack text marked as untrusted data
 
 
 # Ask Miragio operator chat (CONTRACTS.md §13). A separate Node service, not engine events.

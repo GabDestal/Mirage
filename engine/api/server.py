@@ -46,7 +46,7 @@ from contracts.models import (
 )
 from engine import bisect as engine_bisect
 from engine import handoff as engine_handoff
-from engine.api import services
+from engine.api import repair, services
 from engine.api.replay import Replay
 from engine.api.state import fold
 from engine.detection.rules import POLICY
@@ -122,6 +122,7 @@ def restore():
         elif e.type == "global.stop_lifted":
             gate.STOP.clear()
     jobs.restore()
+    repair.restore()
 
 
 @asynccontextmanager
@@ -142,6 +143,9 @@ app = FastAPI(title="Mirage engine", version="0.1.0", lifespan=lifespan)
 def live_only():
     if REPLAY:
         raise HTTPException(409, "Replay mode: the data plane is off (MIRAGE_MODE=live to run agents)")
+
+
+app.include_router(repair.router(live_only))
 
 
 def _run(run_id) -> gate.LiveRun:
