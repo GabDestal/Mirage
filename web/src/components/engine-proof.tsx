@@ -23,6 +23,7 @@ export function EngineProof({ incident, events }: { incident: Incident; events: 
         <h3 className="font-medium text-ink">Baseline replay</h3>
         {baseline.requestedRuns !== undefined ? <p>{baseline.requestedRuns} replays requested. {baseline.status === 'running' ? `${baseline.effects.length} captured effects received; completed-run counts arrive with the verdict.` : ''}</p> : null}
         {baseline.error ? <p role="status" className="text-ink">Replay failed: {baseline.error}. No new proof was established. Open the incident to review or retry.</p> : null}
+        {baseline.diagnostics.map((message, index) => <p key={index} role="status">{message}</p>)}
         {verdict ? <>
           <p>{baseline.resultIsPrevious ? 'Earlier baseline verdict: ' : ''}{isDemo ? 'Recorded verdict: ' : ''}{verdict.confirmed ? 'Compromise confirmed' : 'No compromise found in completed replays'}. {baseline.ratio} compromised, as reported by the engine.</p>
           <p>{verdict.blast_radius.summary}</p>
@@ -39,6 +40,8 @@ export function EngineProof({ incident, events }: { incident: Incident; events: 
       {verification ? <section aria-label="Current-code verification" className="flex flex-col gap-2">
         <h3 className="font-medium text-ink">{isDemo ? 'Recorded verification example' : 'Current-code verification'}</h3>
         <p>{verification.status === 'running' ? 'Verification running; no new result yet.' : verification.status === 'failed' ? `Verification failed: ${verification.error ?? 'No result returned'}. No new fix acceptance was established.` : 'Verification finished.'}</p>
+        {verification.requestedRuns !== undefined ? <p>{verification.requestedRuns} verification replays requested.</p> : null}
+        {verification.diagnostics.map((message, index) => <p key={index} role="status">{message}</p>)}
         {verification.result ? <p>{verification.resultIsPrevious ? 'Earlier check: ' : ''}{verification.result.passed ? 'Replay checks passed' : 'Replay checks did not pass'}. Attack blocked: {verification.result.attack}. Legitimate task completed: {verification.result.legitimate}.</p> : null}
         {isDemo ? <p>This demonstrates verification; a live incident and executable snapshot are required to validate a real fix.</p> : null}
       </section> : null}

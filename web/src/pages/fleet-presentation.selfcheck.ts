@@ -5,12 +5,14 @@ import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, sa
 import type { Incident, MirageEvent, Run } from '../api/client'
 const run = (status: Run['status'], env: Run['env'] = 'prod') => ({ status, env, agent: status } as Run)
 assert.equal(fleetStatus(run('completed')), 'Healthy')
+assert.equal(fleetStatus(run('failed')), 'Failed')
 assert.equal(fleetStatus(run('running')), 'Working')
 assert.equal(fleetStatus(run('killed')), 'Stopped')
 assert.equal(fleetStatus(run('halted')), 'Stopped')
 assert.equal(fleetStatus(run('queued')), 'Queued')
 assert.equal(fleetStatus(run('frozen')), 'Frozen')
 assert.equal(healthyAgents([run('completed'), run('running'), run('frozen'), run('queued'), run('halted'), run('completed', 'mirage')]), 2)
+assert.equal(healthyAgents([run('failed')]), 0)
 const fleet = ['a', 'b', 'c', 'd', 'a', 'b', 'c', 'd'].map((agent, i) => ({ id: `run_${8 - i}`, agent, env: 'prod', status: 'completed' } as Run))
 assert.equal(agentCount(fleet), 4)
 assert.equal(agentCount([...fleet, { agent: 'e', env: 'mirage' } as Run]), 4)
@@ -44,6 +46,7 @@ assert.equal(summary.title, 'Review leads · 2 actions')
 assert.equal(summary.results, '1 returned · 1 awaiting result')
 assert.equal(summary.blocked, undefined)
 assert.equal(fleetActivity({ ...active, status: 'completed' }, activityEvents).results, '1 returned · 1 result missing')
+assert.equal(fleetActivity({ ...active, status: 'failed' }, activityEvents).results, '1 returned · 1 failed')
 const blockedEvents = [...activityEvents, own('tool.requested', 'c3', { tool: 'send_email', args: { to: 'attacker@evil-corp-demo.com' } }), own('gate.decision', 'c3', { decision: 'block' }),
   own('tool.requested', 'c4', { tool: 'vendor_unknown_tool', args: {} })]
 summary = fleetActivity({ ...active, status: 'frozen' }, blockedEvents)

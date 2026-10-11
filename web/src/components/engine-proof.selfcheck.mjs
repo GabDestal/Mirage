@@ -66,6 +66,13 @@ try {
   assert.ok(verificationFailure.includes('Current-code verification failed: Verification runner crashed'))
   assert.ok(verificationFailure.includes('Earlier current-code verification result'))
   assert.ok(!verificationFailure.includes('Detonation failed:'))
+  const partialVerdict = { ...incident.verdict, compromised_runs: '1/3', blast_radius: { ...incident.verdict.blast_radius, summary: '2 of 3 replays completed; 1 crashed.' } }
+  const partial = render({ ...incident, verdict: partialVerdict }, [...baseline.slice(0, 2), event(3, 'verdict.ready', partialVerdict),
+    event(4, 'detonation.started', { detonation_id: 'verify_partial', purpose: 'verify', n_runs: 3 }),
+    event(5, 'agent.message', { role: 'system', text: 'verify_partial: replay 2/3 crashed: Synthetic runner failure' }),
+    event(6, 'fix.verified', { passed: false, attack_blocked: '1/3', legit_task_completed: '1/3' })])
+  assert.ok(partial.includes('1/3 compromised') && partial.includes('2 of 3 replays completed; 1 crashed.'))
+  assert.ok(partial.includes('verify_partial: replay 2/3 crashed: Synthetic runner failure') && !partial.includes('3/3'))
   assert.equal(requests, 0) // A completed external job requires no chat/model call or engine mutation.
   queryClient.clear()
   console.log(`Persistent empty-chat engine proof, crash, isolation and ${mode} verification rendering checks passed.`)

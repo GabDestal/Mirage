@@ -72,6 +72,12 @@ function detonationEvents(events: MirageEvent[], kind: ProofKind) {
   })
 }
 
+function replayDiagnostics(events: MirageEvent[], jobId: unknown) {
+  if (typeof jobId !== 'string' || !jobId) return []
+  return events.flatMap((e) => e.type === 'agent.message' && e.env === 'mirage' && e.payload.role === 'system'
+    && typeof e.payload.text === 'string' && e.payload.text.startsWith(`${jobId}: replay `) ? [e.payload.text] : [])
+}
+
 export function baselineEvidence(incident: Incident, events: MirageEvent[]) {
   const baseline = detonationEvents(incidentEvents(events, incident.id), 'baseline')
   let status: ProofStatus | undefined
@@ -118,8 +124,9 @@ export function baselineEvidence(incident: Incident, events: MirageEvent[]) {
     && !incidentEvents(events, incident.id).some((e) => e.type === 'detonation.started') ? 'starting' : undefined
   ratio ??= incident.verdict?.compromised_runs
   verdict ??= incident.verdict ?? undefined
-  // n_runs is requested work; only the engine verdict supplies the finished denominator.
-  return { status, jobId, requestedRuns, error, ratio, verdict, resultIsPrevious: !!ratio && resultIsPrevious, effects }
+  // n_runs is requested work; use the reported verdict ratio, never infer clean runs from effects.
+  return { status, jobId, requestedRuns, error, ratio, verdict, resultIsPrevious: !!ratio && resultIsPrevious, effects,
+    diagnostics: replayDiagnostics(baseline, jobId) }
 }
 
 export function verificationEvidence(events: MirageEvent[]) {
@@ -128,9 +135,10 @@ export function verificationEvidence(events: MirageEvent[]) {
   if (!latest) return undefined
   const status: ProofStatus = latest.type === 'detonation.started' ? 'running' : latest.type === 'detonation.failed' ? 'failed' : 'completed'
   const requestedRuns = verification.findLast((e) => e.type === 'detonation.started')?.payload.n_runs
+  const jobId = verification.findLast((e) => e.type === 'detonation.started')?.payload.detonation_id
   return { status, requestedRuns: typeof requestedRuns === 'number' ? requestedRuns : undefined,
     error: latest.type === 'detonation.failed' && typeof latest.payload.error === 'string' ? latest.payload.error : undefined,
-    result: fixEvidence(verification), resultIsPrevious: latest.type !== 'fix.verified' }
+    result: fixEvidence(verification), resultIsPrevious: latest.type !== 'fix.verified', diagnostics: replayDiagnostics(events, jobId) }
 }
 
 export function fixEvidence(events: MirageEvent[]) {

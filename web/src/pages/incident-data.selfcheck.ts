@@ -33,7 +33,7 @@ const baseline = [event(10, 'detonation.started', { detonation_id: 'base', n_run
   event(12, 'detonation.completed', { id: 'base', n_runs: 3, compromised_runs: 1, effects: [{ detonation_id: 'base', run_index: 1, step: 1, tool: 'send_email' }] }),
   event(13, 'verdict.ready', { compromised_runs: '1/2', confirmed: true })]
 assert.equal(baselineEvidence(incident, baseline).status, 'completed') // Gate job completed before Chat opened.
-assert.equal(baselineEvidence(incident, baseline).ratio, '1/2') // Requested three, only two finished.
+assert.equal(baselineEvidence(incident, baseline).ratio, '1/2') // Preserve a historical engine ratio; never invent 3/3.
 assert.equal(baselineEvidence(incident, baseline).requestedRuns, 3)
 assert.equal(baselineEvidence(incident, baseline).effects.length, 1) // Completed ledger replaces streamed duplicates.
 const later = [...baseline,
@@ -65,5 +65,8 @@ assert.equal(latestFailure([event(1, 'detonation.failed', { error: 'Old failure'
 const freshVerdict = { incident_id: incident.id, confirmed: false, compromised_runs: '0/2', policies_violated: [], blast_radius: { records: 0, recipients: [], secrets: [], summary: 'Fresh clean replay' } }
 assert.deepEqual(baselineEvidence(incident, [event(1, 'verdict.ready', freshVerdict)]).verdict, freshVerdict) // SSE proof can precede the detail-query refresh.
 assert.equal(baselineEvidence(incident, [event(1, 'verdict.ready', { ...freshVerdict, blast_radius: null })]).verdict, undefined)
+const crashDiagnostic = event(23, 'agent.message', { role: 'system', text: 'verify2: replay 2/3 crashed: Synthetic runner failure' })
+assert.deepEqual(verificationEvidence([...failedVerify, crashDiagnostic])?.diagnostics, ['verify2: replay 2/3 crashed: Synthetic runner failure'])
+assert.deepEqual(baselineEvidence(incident, [...failedVerify, crashDiagnostic]).diagnostics, [])
 assert.equal(verificationEvidence([...later, event(21, 'detonation.started', { detonation_id: 'verify_retry', purpose: 'verify' }), event(22, 'detonation.completed', { id: 'verify_retry' })])?.resultIsPrevious, true)
 console.log('Persistent baseline, verification isolation and crash accounting checks passed.')

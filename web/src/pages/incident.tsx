@@ -131,6 +131,7 @@ export function IncidentPage() {
       <StorySection number="2" title="What would have happened" badge="Mirage">
         {baselineActive && <Notice>{baseline?.status === 'queued' ? 'Sandbox replay queued.' : 'Replaying the snapshot in Mirage.'}{baseline?.requestedRuns !== undefined && ` ${baseline.requestedRuns} replays requested.`}{baseline?.status === 'running' && ` ${effects.length} captured effects received; completed-run counts arrive with the verdict.`}</Notice>}
         {detonationError && <Notice tone="alarm">Detonation failed: {detonationError}. No new proof was established. Use the available next action to retry.</Notice>}
+        {baseline?.diagnostics.map((message, index) => <Notice key={index} tone="alarm">{message}</Notice>)}
         {verdict ? <div className="incident-proof">
           <h3><ShieldAlert size={18} />{isDemo ? (verdict.confirmed ? 'Recorded compromise verdict' : 'Recorded clean verdict') : (verdict.confirmed ? 'Compromise confirmed' : 'No compromise found in replay')}</h3>
           <p>{baseline?.resultIsPrevious && 'Earlier baseline proof: '}<strong>{verdict.compromised_runs}</strong> replays compromised. Determined by code from the effects ledger.</p>
@@ -154,6 +155,8 @@ export function IncidentPage() {
       <StorySection number="4" title="The fix">
         {verificationState?.status === 'running' && <Notice>Current-code verification is running. No new result has been returned yet.</Notice>}
         {verificationState?.status === 'failed' && <Notice tone="alarm">Current-code verification failed: {verificationState.error ?? 'No result returned'}. No new fix acceptance was established.</Notice>}
+        {verificationState?.requestedRuns !== undefined && <p className="incident-muted">{verificationState.requestedRuns} current-code verification replays requested.</p>}
+        {verificationState?.diagnostics.map((message, index) => <Notice key={index} tone="alarm">{message}</Notice>)}
         {verification && verificationState?.resultIsPrevious && <p className="incident-muted">Earlier current-code verification result:</p>}
         {verification ? <Notice tone={verification.passed ? 'mirage' : 'alarm'}><strong>{isDemo ? (verification.passed ? 'Recorded fix replay passed.' : 'Recorded fix replay failed.') : (verification.passed ? 'Fix replay passed.' : 'Fix replay failed.')}</strong> Attack blocked: {verification.attack}. Legitimate task completed: {verification.legitimate}.{isDemo && ' This demonstrates verification; it does not establish real fix acceptance.'}</Notice> : <p className="incident-section-intro">{isDemo ? 'The demo handoff shows the coding-agent workflow. Real fix validation requires a live incident and executable snapshot.' : incident.status === 'fix_pending' ? 'The handoff is ready. Your coding agent writes the fix and must test it against this snapshot.' : 'Hand off to your coding agent. It writes the fix and tests it against this snapshot. Verification results appear here when the server reports them.'}</p>}
         {pr && <a className="incident-pr" href={pr} target="_blank" rel="noopener noreferrer"><span><strong>Review the fix pull request</strong><small>{pr}</small></span><ExternalLink size={17} /></a>}
