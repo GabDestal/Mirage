@@ -493,10 +493,11 @@ def unfreeze(run_id: str, body: HumanRequest) -> Run:
 
 
 @app.post("/runs/{run_id}/restart")
-def restart(run_id: str, body: HumanRequest) -> Run:
+def restart(run_id: str, body: HumanRequest, request: Request) -> Run:
     """A human approves one clean restart of a killed, halted or failed run. It is created
-    `queued` with `restarted_from`; a matching agent/task/spec SDK start claims it once.
-    The engine does not launch it (resume does)."""
+    `queued` with `restarted_from`, and the engine launches the agent from its entrypoint (as
+    resume does); its matching agent/task/spec SDK start claims the run once. Without an
+    entrypoint it stays queued for the agent's owner."""
     if REPLAY:
         _recorded_control("restart", run_id)
         REPLAY.advance()
@@ -507,7 +508,8 @@ def restart(run_id: str, body: HumanRequest) -> Run:
             raise HTTPException(409, f"Cannot restart a run that is {old.status}: kill it first")
         if gate.STOP.is_set():
             raise HTTPException(409, "Global STOP is on")
-        return get_run(_queue_restart(old, body, "approve_restart").id)
+        _restart_available(old)
+        return _launch(old, body, request, "approve_restart")
 
 
 def _restart_available(old):
@@ -530,6 +532,8 @@ def _queue_restart(old, body, action, note=None):
     return run
 
 
+_popen_agent = subprocess.Popen  # starts a resumed or restarted agent (tests swap it)
+
 # Rebuilds the agent from its entrypoint ("module:factory") and runs the task from the start.
 RESUME_RUNNER = ("import importlib, sys; m, _, f = sys.argv[1].partition(':'); "
                  "getattr(importlib.import_module(m), f)().invoke({'messages': [('user', sys.argv[2])]})")
@@ -550,7 +554,7 @@ def resume(run_id: str, body: HumanRequest, request: Request) -> Run:
         _resume_block(old)
         if gate.STOP.is_set():
             gate.lift_stop(body.actor, body.reason)
-        return _resume(old, body, request)
+        return _launch(old, body, request, "resume")
 
 
 def _resume_block(old):
@@ -560,14 +564,15 @@ def _resume_block(old):
                                  "Fix it, then approve a clean restart.")
 
 
-def _resume(old, body, request):
+def _launch(old, body, request, action):
+    """Queue the successor run, then start the agent from its entrypoint to claim it."""
     spec = gate.agents.get(old.agent)
     if not (spec and spec.entrypoint):
         note = "No entrypoint recorded: the agent's owner must start it; it takes over this run."
-        return get_run(_queue_restart(old, body, "resume", note).id)
-    run = _queue_restart(old, body, "resume")
+        return get_run(_queue_restart(old, body, action, note).id)
+    run = _queue_restart(old, body, action)
     env = {**os.environ, "MIRAGE_URL": str(request.base_url).rstrip("/")}
-    _demo["resumed"].append(subprocess.Popen(
+    _demo["resumed"].append(_popen_agent(
         [sys.executable, "-c", RESUME_RUNNER, spec.entrypoint, old.task],
         cwd=FIXTURES.parents[1], env=env))
     return get_run(run.id)
@@ -597,7 +602,7 @@ def resume_all(body: HumanRequest, request: Request) -> ResumeAll:
             except HTTPException as e:
                 skipped.append(ResumeSkip(run_id=old.id, reason=e.detail))
                 continue
-            resumed.append(_resume(old, body, request))
+            resumed.append(_launch(old, body, request, "resume"))
         return ResumeAll(resumed=resumed, skipped=skipped)
 
 
