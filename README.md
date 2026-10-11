@@ -71,6 +71,37 @@ Four agents work in parallel: a **meeting assistant**, **invoicing**, **outreach
 
 All data is synthetic. The "attacker" is a team-owned address.
 
+## Benchmarks
+
+We tested whether Mirage stops agents from being hijacked by instructions hidden in the data they read,
+and what that costs in work done.
+
+**AgentDojo, prompt injection** (public benchmark, Slack suite, held-out tasks, run once with a frozen
+setup; 20 attacked and 10 normal tasks per model):
+
+| Model | Attacks that succeeded (lower is better) | Task done under attack | Normal tasks completed |
+|---|---|---|---|
+| GPT-OSS-20B | 55% → **0%** | 75% → 55% | 70% → 70% |
+| GPT-OSS-120B | 95% → **10%** | 75% → 30% | 100% → 60% |
+| Claude Haiku 4.5 | 0% → 0% | 85% → 50% | 100% → 60% |
+| Claude Opus 4.8 | 0% → 0% | 85% → 45% | 100% → 50% |
+
+*Without Mirage → with Mirage.*
+
+- **Mirage cut successful attacks from 30 of 80 to 2 of 80.** The two models that fell for attacks went
+  from 11/20 to 0 (GPT-OSS-20B) and 19/20 to 2 (GPT-OSS-120B).
+- **The cost: fewer tasks got done**, both under attack (36 vs 64 of 80) and on normal tasks (24 vs 37 of
+  40). Mirage stopped 35–85% of attacked tasks, but also 20–50% of normal ones. Almost every stop comes
+  from one rule: the action used a link or address the user never gave.
+
+**AgentRx, finding where a failed agent run went wrong** (held-out task families, 6 failed runs per
+model): Mirage's evidence helped GPT-OSS-20B find the broken step more often (2 → 3 of 6) but hurt Claude
+Haiku 4.5 (3 → 0 of 6). Six runs is small: read this as a direction, not proof.
+
+**Next:** turn the untrusted-link rule from a hard stop into pause → sandbox check → automatic release if
+harmless, measured on fresh tasks; extend beyond the Slack suite to the other AgentDojo suites. Exact
+counts and intervals: [benchmark progress notes](https://github.com/GabDestal/Mirage/blob/benchmaxing/docs/BENCHMARKMAXXING_PROGRESS.md).
+
 ## Quick start
 
 Requirements: Python 3.12+ with [uv](https://docs.astral.sh/uv/), Node.js 20.12+, and an AWS Bedrock API
@@ -158,6 +189,17 @@ release only if the replays are harmless and a stronger model agrees. Below that
 | OWASP Top 10 for Agentic Applications | ASI01 goal hijacking, ASI02 tool misuse, ASI03 privilege abuse, ASI08 cascading failures |
 | MITRE ATLAS | AML.T0051 LLM prompt injection (indirect, via calendar content) |
 | NIST CSF 2.0 | Detect (gate), Respond (freeze, detonate, bisect), Recover (verified fix, clean restart) |
+
+## Limits
+
+- **Safety costs completed work today.** On AgentDojo, Mirage also stops 20–50% of normal tasks, mostly
+  through the untrusted-link rule. Turning those stops into automatic sandbox checks is the next step.
+- **Small samples.** One AgentDojo suite (Slack), 20 attacked and 10 normal tasks per model, 6 AgentRx
+  cases per model: directions, not final numbers.
+- The demo agents use synthetic in-memory services, not real Gmail, Calendar or HubSpot yet.
+- Local prototype: one machine, no authentication between operator and engine.
+- Models are not fully deterministic: in the demo, the injection does not succeed on every run.
+- Synthetic data only. Fake secrets only (`FLAG{team26-...}`).
 
 ## Team
 
