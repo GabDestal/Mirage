@@ -82,14 +82,10 @@ def test_sdk_matching_task_claims_approved_queue_once(api, action):
 
 def test_new_sdk_tasks_still_start_without_claiming_another_tasks_queue(api):
     _, new = queue(api)
-    try:
-        run = core.open_run(SPEC["name"], "A different legitimate task")
-    except httpx.HTTPStatusError as error:
-        assert error.response.status_code == 409
-    else:
-        assert run["id"] != new["id"]
-        assert gate.runs[run["id"]].task == "A different legitimate task"
-        assert gate.runs[run["id"]].restarted_from is None
+    run = core.open_run(SPEC["name"], "A different legitimate task")
+    assert run["id"] != new["id"]
+    assert gate.runs[run["id"]].task == "A different legitimate task"
+    assert gate.runs[run["id"]].restarted_from is None
     assert gate.runs[new["id"]].status == "queued"
     assert core.open_run(SPEC["name"], TASK)["id"] == new["id"]
 
