@@ -1,5 +1,6 @@
 """Persistence faults must not restore production authority or produce incomplete proof."""
 
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -250,6 +251,7 @@ def test_snapshot_publish_failure_leaves_no_partial_proof_and_retry_succeeds(api
     assert Snapshot.model_validate(saved).run_id == run_id
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no directory flush")
 def test_directory_flush_failure_keeps_complete_snapshot_out_of_automatic_proof(api, monkeypatch):
     run_id, auth = start(api)
     original = snapshot.os.fsync

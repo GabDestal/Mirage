@@ -79,11 +79,12 @@ def save(run, incident_id, policy, entrypoint="", runner=None):
             file.flush()
             os.fsync(file.fileno())
         os.replace(temporary, SNAP_DIR / f"{incident_id}.json")
-        directory = os.open(SNAP_DIR, os.O_RDONLY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
+        if os.name != "nt":  # Windows cannot open a directory (PermissionError); its rename is durable
+            directory = os.open(SNAP_DIR, os.O_RDONLY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
