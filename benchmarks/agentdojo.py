@@ -56,7 +56,7 @@ def prepare(case, attack, version="v1.2.2"):
 def trusted_allow(task_prompt, tools, world=None):
     """Only literal user-specified destinations are authorized; dynamic scope is pending."""
     addresses = re.findall(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", task_prompt)
-    urls = re.findall(r"(?:https?://)?(?:www\.)[\w.-]+(?:/[\w./-]*)?", task_prompt)
+    urls = re.findall(r"(?:https?://)?www\.(?:[\w-]+\.)+[a-z]{2,}(?:/[\w./-]*)?", task_prompt)
     if world is not None:
         # Existing workspace members are internal recipients; new or external ones stay literal.
         addresses += [u + "@slack.native.invalid" for u in world.slack.users]
