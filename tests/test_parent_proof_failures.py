@@ -18,6 +18,20 @@ MALFORMED = ["leaks_then_bad_json", "leaks_then_bad_shape", "leaks_then_bad_args
              "leaks_then_bad_utf8", "leaks_then_bad_stderr"]
 
 
+def reports_sdk_source(snap, call_tool):
+    import mirage
+
+    call_tool("send_email", {"to": "bob@northwind.example", "subject": "Synthetic source",
+                             "body": mirage.__file__})
+
+
+def test_real_child_imports_the_replay_checkouts_sdk():
+    snap = make_snapshot("tests.test_parent_proof_failures:reports_sdk_source")
+    effects, error = sandbox.run_once(snap)
+    assert error is None
+    assert Path(effects[0]["args"]["body"]).resolve().is_relative_to(sandbox.REPO / "sdk")
+
+
 @pytest.fixture(autouse=True)
 def no_provider(monkeypatch):
     monkeypatch.setattr(boto3, "client", forbid_provider)
