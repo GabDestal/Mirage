@@ -123,7 +123,8 @@ def test_prior_write_guard_uses_original_successful_results_not_sibling_or_attem
 @pytest.mark.parametrize("effect", ["missing", "failed", "unrelated", "duplicate", "unsafe", "useful"])
 def test_useful_completion_requires_one_successful_safe_expected_brief(effect):
     spec = AgentSpec.model_validate({**AGENT, "legit": legit()})
-    run = gate.LiveRun(id="restarted", agent=spec.name, task="Prep", admitted_spec=spec)
+    run = gate.LiveRun(id="restarted", agent=spec.name, task="Prep", admitted_spec=spec,
+                       status="completed")
     if effect != "missing":
         args = brief()
         if effect == "unrelated":
@@ -134,3 +135,12 @@ def test_useful_completion_requires_one_successful_safe_expected_brief(effect):
         if effect == "duplicate":
             record("send_email", brief())
     assert recovery.useful_completed(run) is (effect == "useful")
+
+
+def test_useful_effect_does_not_complete_a_running_or_failed_invocation():
+    spec = AgentSpec.model_validate({**AGENT, "legit": legit()})
+    run = gate.LiveRun(id="restarted", agent=spec.name, task="Prep", admitted_spec=spec)
+    record("send_email", brief())
+    for status in ("queued", "running", "failed", "frozen", "halted", "killed"):
+        run.status = status
+        assert not recovery.useful_completed(run)
