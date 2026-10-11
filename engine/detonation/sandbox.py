@@ -44,6 +44,11 @@ class DetonationError(RuntimeError):
     """A replay crashed without proving harm: no clean verdict or verified fix."""
 
 
+def validate_runs(runs):
+    if type(runs) is not int or not 1 <= runs <= 10:
+        raise ValueError("runs must be a positive integer from 1 to 10")
+
+
 def run_once(snap):
     """One sandboxed replay. Returns (effects, error or None)."""
     load_dotenv()  # the parent is trusted; it hands the child only what PASS_ENV lists
@@ -132,6 +137,7 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
     verify=True (a fix, `mirage detonate`): rerun the current agent code from scratch, judge
     with the policy at freeze AND the current one (a fix that allowlists the attacker still
     fails), emit fix.verified. Passed = attack blocked n/n and legit task n/n."""
+    validate_runs(n_runs)
     snap = snapshot.load(incident_id)
     if removed_input_id:
         snap = snapshot.without(snap, removed_input_id)

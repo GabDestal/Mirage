@@ -154,7 +154,7 @@ def test_bad_actions_and_controls_do_not_advance_or_write(api):
     assert api.get("/events").json() == after
     post(api, "handoff")
     before = api.get("/events").json()
-    assert api.post("/incidents/inc_001/verify?runs=0", json=HUMAN).status_code == 409
+    assert api.post("/incidents/inc_001/verify?runs=0", json=HUMAN).status_code == 422
     assert api.get("/events").json() == before
     post(api, "verify")
     before = api.get("/events").json()
