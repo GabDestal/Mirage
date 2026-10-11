@@ -19,6 +19,14 @@ operator chat on its named compositions; it does not accept the current source f
 The original [connection plan](UI_ENGINE_CONNECTION_PLAN.md) sections 1+ remain
 historical audit/future proposals; its section 0 links this current ledger.
 
+**Current sprint scope (coordinator/user direction):** deliver the P1/P2 protected
+demo with core containment, proof, state and integration. Existing P1–P6 and trusted
+per-agent allowlists remain unchanged; the completion matcher verifies the task rather
+than redefining policy. Known regressions that break this flow remain acceptance
+dependencies. Broader authorization work, real-service adapters, deployment and
+speculative epoch checks on control POSTs are deferred, not new sprint requirements
+or a production roadmap.
+
 ## 1. Evidence boundaries
 
 | Evidence | What it establishes | What remains separate |
@@ -103,8 +111,8 @@ reproducing. This ledger does not ask for a new suite or provider rerun.
 |---|---|---|
 | U1 — SDK error truth and protected fleet | Shared contract #140 and engine callback/current-policy #142 merged. [#141](https://github.com/GabDestal/Mirage/pull/141) draft at `4fb80d8044407cda05ed30b6a2f57ad608d7ae18`, tested on shared head `4e0c1ef2c6700874408483144e27e0bd06ccc8b8`: 14 initial RED failures/2 normal controls → 50 parent SDK tests pass; pinned jailed error replay was RED before #142. New rebase/test target is `738aa060`. | Final SDK/error-replay GREEN/merge, current metadata publication, fleet factory/start failure surfacing and trusted per-story registration; composed UI evidence. |
 | U2 — services and human controls | #125 merged; actual reason/body hooks and encoded REST paths tested with stub fetch/rendering. | Browser-visible service isolation, approval vs chat approval, manual Freeze→Unfreeze/Kill, restored ownership refusal, queued restart, STOP/recovery and no repeated effects. |
-| U3 — stream recovery | [#130](https://github.com/GabDestal/Mirage/pull/130) open at `39c32ac9020ca1bbb3f878dcd4d8bb0e322744ed`; 7 initial REDs plus 4 epoch REDs/timeout → 18 stream tests; typecheck/build/launcher/lint reported green. | Merge exact runtime/epoch/owned-run contract and composed transport; browser CONNECTING→polling→OPEN, external reset and stale-callback fencing, GET-only recovery. |
-| U4 — persistent proof | [#132](https://github.com/GabDestal/Mirage/pull/132) draft at `e68b30b03dcb832e037d3383df3a4725a5f8c68f`; empty-chat render and existing proof/UI checks reported green. | Shared job metadata and final baseline-effects integration; final head/RED-GREEN evidence; navigate Chat/Fleet/Incident without a model turn and keep baseline distinct from bisection/verification. |
+| U3 — stream recovery | [#130](https://github.com/GabDestal/Mirage/pull/130) draft at `116258461d6858543ea4c5d888e53dd2ed36690e` on unmerged engine `59dce1b9c755cc6698312eeec3f46001aee4cc78`; latest 8 regression REDs → 24 stream selfchecks. Worker reports 14 actual loopback HTTP/SSE assertion groups through current frontend parsers; 74 related engine tests, typecheck/build/launcher/lint pass. | Runtime contract merge and own-only replay onto exact main; fresh engine8040/UI5180/chat8041 browser recovery/ownership acceptance. Provider-free wire checks are not browser acceptance. |
+| U4 — persistent proof | [#132](https://github.com/GabDestal/Mirage/pull/132) draft at `ac50da1198840c1dd7e095c131317d82b9f508df`, consuming optional job contract from `59dce1b9c755cc6698312eeec3f46001aee4cc78`; typed detail/restoration and zero-request live/recorded renders reported green. Shared newest-production-run selector uses timestamp/ID ordering. | Shared job contract merge and final own-only replay; navigate Chat/Fleet/Incident on the composed runtime without a model turn and keep baseline distinct from bisection/verification. Synthetic renders are not browser8040 acceptance. |
 | U5 — documentation acceptance | [Draft #137](https://github.com/GabDestal/Mirage/pull/137), these three documentation files; README updated for #133. | Final known source SHA and coordinator rehearsal artifacts, final link/syntax/scope checks, pushed matching PR head. Documentation readiness will not close missing runtime gates. |
 
 Person A's exact legitimate-task matcher, alternate-read fidelity and
@@ -119,6 +127,19 @@ GREEN are pending. #129 supplies pure criteria,
 not completed engine/fleet wiring. #133 supplies process-local pacing, not a shared
 fleet/gateway/chat/subprocess provider budget. Final PR status must be refreshed before
 accepting the composed tree; an open PR or another branch's GREEN is not merged code.
+
+U3 wire provenance: `/tmp/mirage-pr130-runtime-http-results.json` pins the frontend
+and engine heads above and records live/replay temporary children with providers
+disabled. Current frontend readers consumed actual `/runtime`, `/events` and SSE:
+runtime precedes business events, event responses bind their epoch atomically,
+reset/reconnect accept lower sequence numbers, and restored history has a new process
+identity with no live owners. It reports isolated ephemeral loopback ports, no user
+port changes, temporary data deleted and owned processes stopped. There was no
+browser, provider/model call or tool execution. Exact HTTP harness command is not
+supplied. PR #130 publishes `uv run pytest -q tests/test_runtime_metadata.py
+tests/test_demo_control.py tests/test_managed_replay.py tests/test_replay.py
+tests/test_services.py tests/test_execution_truth.py` → 74 passed at that stacked
+composition; this worker has not rerun it.
 
 ### Engine invariant and architecture ledger — reserved for Person A
 
