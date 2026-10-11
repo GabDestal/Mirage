@@ -3,6 +3,10 @@
 import json
 import fcntl
 import os
+import io
+import hashlib
+import subprocess
+import tarfile
 import time
 from pathlib import Path
 from urllib.parse import unquote
@@ -53,6 +57,26 @@ def plain(value):
 def save(path, value):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps(plain(value), indent=2, default=str) + "\n")
+
+
+def assemble(engine_sha, code_sha, target):
+    """Immutable /tmp composition of owner-reviewed engine and benchmark archives."""
+    target = Path(target)
+    target.mkdir(parents=True, exist_ok=False)
+    for sha, paths in [(engine_sha, []), (code_sha, ["benchmarks"])]:
+        archive = subprocess.check_output(["git", "archive", sha, *paths])
+        with tarfile.open(fileobj=io.BytesIO(archive)) as files:
+            files.extractall(target, filter="data")
+    digest = hashlib.sha256()
+    for path in sorted(target.rglob("*")):
+        if path.is_file():
+            digest.update(str(path.relative_to(target)).encode())
+            digest.update(hashlib.sha256(path.read_bytes()).digest())
+    provenance = {"engine_sha": engine_sha, "code_sha": code_sha,
+                  "assembly_tree_sha256": digest.hexdigest(), "path": str(target),
+                  "runtime_revision": None, "source_status": "unmerged_archive_composition"}
+    save(str(target) + ".provenance.json", provenance)
+    return provenance
 
 
 class Bedrock:
