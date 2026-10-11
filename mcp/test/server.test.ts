@@ -68,7 +68,8 @@ test("same tool set for every client, with the right annotations", async () => {
     ["propose_rule", false], ["preview_rule", false], ["activate_rule", true],
     ["prepare_recovery", false], ["launch_approved_recovery", true],
     ["start_repair", true], ["get_repair", false], ["list_runs", false], ["get_incident", false], ["get_audit", false], ["detonate", false],
-    ["find_cause", false], ["unfreeze", true], ["kill", true], ["resume", true], ["resume_all", true], ["send_fix", true]]);
+    ["find_cause", false], ["unfreeze", true], ["kill", true], ["resume", true], ["resume_all", true], ["send_fix", true],
+    ["assess_exposure", false], ["get_exposure_job", false], ["list_exposure_candidates", false], ["list_exposure_jobs", false]]);
 });
 
 const repairJob = { id: "repair_1", incident_id: "inc_001", repository: "GabDestal/Mirage", base_branch: "special-improvements" as const,

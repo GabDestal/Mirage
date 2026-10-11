@@ -104,7 +104,8 @@ test("streams actual HTTP deltas and supplies the registered MCP catalogue to Be
   const events = await collect(await app.post("/chat/turn", turn));
   expect(events.map((e) => e.type)).toEqual(["session", "text_delta", "text_delta", "done"]);
   expect(events[0]).toMatchObject({ session_id: expect.stringMatching(/^[a-f0-9-]{36}$/) });
-  expect(p.requests[0].tools.map((t) => t.toolSpec?.name)).toEqual(["list_rule_agents", "list_rules", "get_rule", "propose_rule", "preview_rule", "activate_rule", "prepare_recovery", "launch_approved_recovery", "start_repair", "get_repair", "list_runs", "get_incident", "get_audit", "detonate", "find_cause", "unfreeze", "kill", "resume", "resume_all", "send_fix"]);
+  expect(p.requests[0].tools.map((t) => t.toolSpec?.name)).toEqual(["list_rule_agents", "list_rules", "get_rule", "propose_rule", "preview_rule", "activate_rule", "prepare_recovery", "launch_approved_recovery", "start_repair", "get_repair", "list_runs", "get_incident", "get_audit", "detonate", "find_cause", "unfreeze", "kill", "resume", "resume_all", "send_fix",
+    "assess_exposure", "get_exposure_job", "list_exposure_candidates", "list_exposure_jobs"]);
   expect(app.posts).toEqual([]);
 });
 
@@ -513,6 +514,61 @@ test("chat detonate returns at start, then posts an unprompted follow-up with th
   expect(prompt).toContain("3/3");
   expect(prompt).toContain("Synthetic proof");
   expect(app.posts.map((r) => r.path)).toEqual(["/incidents/inc_007/detonate"]);
+});
+
+test("automatic follow-ups can reread exposure evidence but cannot start an assessment", async () => {
+  const job = { id: "exposure_existing", incident_id: "inc_007", agent_names: ["invoicing"], status: "completed",
+    results: [{ agent_name: "invoicing", status: "not_applicable", reason: "No calendar input channel.", replay_kind: "unknown" }] };
+  const p = provider(calls(["detonate", { incident_id: "inc_007", runs: 3 }]), plain("Monitoring the requested replay."),
+    calls(["list_exposure_candidates", { incident_id: "inc_007" }], ["get_exposure_job", { job_id: job.id }],
+      ["list_exposure_jobs", { incident_id: "inc_007" }], ["get_exposure_job", { job_id: job.id }],
+      ["assess_exposure", { incident_id: "inc_007", agent_names: ["invoicing"] }]), plain("Existing fleet evidence read."));
+  const backend = engine("confirmed"); const original = backend.fetch; let release = false;
+  const reads: string[] = [];
+  backend.fetch = (async (url: any, init: RequestInit) => {
+    const path = new URL(String(url)).pathname;
+    if (path === "/events" && !release) return Response.json([]);
+    if (init.method === "GET" && path.includes("exposure")) {
+      reads.push(path);
+      if (path.endsWith("/exposure-candidates")) return Response.json([{ agent_name: "invoicing", role: "invoicing", status: "not_applicable", reason: "No calendar input channel." }]);
+      return Response.json(path === "/exposure-jobs" ? [job] : job);
+    }
+    return original(url, init);
+  }) as typeof globalThis.fetch;
+  const app = await start(p.model, backend); let read!: () => Promise<ChatEvent[]>;
+  await collect(await app.post("/chat/turn", turn), async (event) => { if (event.type === "session") read = await followUp(app.base, event.session_id); });
+  release = true;
+  const later = await read();
+  const evidence = later.filter((event) => event.type === "tool_result" && event.tool !== "get_incident");
+  expect(evidence.slice(0, 4).every((event) => !event.result.isError)).toBe(true);
+  expect(evidence.at(-1)).toMatchObject({ tool: "assess_exposure", result: { isError: true } });
+  expect(JSON.stringify(evidence.at(-1))).toContain("Automatic updates cannot start actions");
+  expect(reads).toEqual(["/incidents/inc_007/exposure-candidates", `/exposure-jobs/${job.id}`, "/exposure-jobs", `/exposure-jobs/${job.id}`]);
+  expect(app.posts.map((request) => request.path)).toEqual(["/incidents/inc_007/detonate"]);
+  expect(later.at(-1)).toEqual({ type: "done" });
+});
+
+test("explicit exposure request starts once and repeated actions are not retried", async () => {
+  const p = provider(calls(["assess_exposure", { incident_id: "inc_007", agent_names: ["invoicing"] }],
+    ["assess_exposure", { incident_id: "inc_007", agent_names: ["invoicing"] }]), plain("Assessment queued; result is not known yet."));
+  const backend = engine(); const original = backend.fetch;
+  backend.fetch = (async (url: any, init: RequestInit) => {
+    const path = new URL(String(url)).pathname;
+    if (init.method === "POST" && path === "/incidents/inc_007/exposure-jobs") {
+      backend.posts.push({ path, body: JSON.parse(String(init.body)) });
+      return Response.json({ id: "exposure_new", incident_id: "inc_007", agent_names: ["invoicing"], status: "queued", results: [] });
+    }
+    return original(url, init);
+  }) as typeof globalThis.fetch;
+  const app = await start(p.model, backend);
+  const events = await collect(await app.post("/chat/turn", { ...turn, message: "Check invoicing against this incident in Mirage." }));
+  const results = events.filter((event) => event.type === "tool_result");
+  expect(results[0]).toMatchObject({ tool: "assess_exposure", result: { structuredContent: { status: "queued", job_id: "exposure_new" } } });
+  expect(results[1]).toMatchObject({ result: { isError: true } });
+  expect(JSON.stringify(results[1])).toContain("already attempted");
+  expect(app.posts).toEqual([{ path: "/incidents/inc_007/exposure-jobs", body: { agent_names: ["invoicing"],
+    actor: "liam via Mirage Chat (MCP)", reason: "Assess fleet applicability in isolated Mirage replays" } }]);
+  expect(events.some((event) => event.type === "approval_required")).toBe(false);
 });
 
 test("a result that arrives mid-turn is queued until the turn ends", async () => {
