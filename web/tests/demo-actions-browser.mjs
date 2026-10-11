@@ -50,10 +50,10 @@ try {
         console.error(page.url(), errors, await page.locator('body').innerText())
         throw error
       })
-      const stopLabel = demo ? 'Pause recording' : 'Stop all'
-      const resumeLabel = demo ? 'Resume recording' : 'Resume all'
-      const stopDialog = demo ? 'Pause recording?' : 'Stop all agents?'
-      const resumeDialog = demo ? 'Resume recording?' : 'Resume all agents?'
+      const stopLabel = 'Stop all'
+      const resumeLabel = 'Resume all'
+      const stopDialog = 'Stop all agents?'
+      const resumeDialog = 'Resume all agents?'
       const open = async (label, title) => {
         await page.getByRole('button', { name: label, exact: true }).click()
         return page.getByRole('dialog', { name: title, exact: true })
@@ -71,7 +71,7 @@ try {
       fail = false
       dialog = await open(stopLabel, stopDialog)
       const description = await dialog.getByRole('paragraph').first().textContent()
-      assert.ok(demo ? !description.includes('tokens') : description.includes('tokens are revoked'))
+      assert.ok(description.includes('Active runs halt'))
       await dialog.getByRole('textbox', { name: 'Reason details' }).fill('Synthetic pause')
       await dialog.getByRole('button', { name: stopLabel, exact: true }).click()
       await page.getByText(demo ? 'Recording paused. Active recorded runs are halted.' : 'All agents stopped.', { exact: true }).waitFor()
@@ -82,7 +82,7 @@ try {
       assert.equal(await page.getByText('Resume Meeting assistant', { exact: true }).count(), demo ? 0 : 1)
       await page.keyboard.press('Escape')
       dialog = await open(resumeLabel, resumeDialog)
-      assert.ok((await dialog.textContent()).includes(demo ? 'No agents or providers are launched' : 'starts its task again from the beginning'))
+      assert.ok((await dialog.textContent()).includes('Stop all is lifted'))
       await dialog.getByRole('textbox', { name: 'Reason details' }).fill('Synthetic recovery')
       await dialog.getByRole('button', { name: resumeLabel, exact: true }).click()
       await page.getByText(demo ? 'Recording resumed from where it paused. Prior recorded run states restored.' : '1 agent starting again.', { exact: true }).waitFor()

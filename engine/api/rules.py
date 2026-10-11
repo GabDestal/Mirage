@@ -62,7 +62,12 @@ DEMO_AGENTS = {
 def _stream():
     from engine.api import server
 
-    return server._event_batch()[1]
+    batch = server._event_batch()[1]
+    if server.REPLAY:
+        from engine.store import events
+        sqlite_rule_events = [e for e in events.read() if e.type.startswith("rule.") or e.type == "human.action"]
+        return list(batch) + sqlite_rule_events
+    return batch
 
 
 def _writable():
