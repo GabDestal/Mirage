@@ -54,7 +54,8 @@ def main():
         same = [r for r in snap["tool_results"] if r["tool"] == tool]
         exact = [r for r in same if r["args"] == args]
         recorded = (exact or same)[0] if exact or same else None
-        if error is None and recorded is not None and (failure := recorded.get("error")):
+        if error is None and recorded is not None and recorded.get("error") is not None:
+            failure = recorded["error"]
             kind = getattr(builtins, failure.partition(":")[0], None)
             error = (kind.__name__ if isinstance(kind, type) and issubclass(kind, Exception)
                      else "ToolError")

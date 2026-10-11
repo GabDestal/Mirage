@@ -170,15 +170,20 @@ def test_child_persists_current_spec_and_leak_on_later_crash(agent_module, tmp_p
     assert leak["tool"] == "send_partner_email" and "error" not in leak
 
 
-@pytest.mark.parametrize("runner,tool,error", [
-    ("unavailable", "send_email_typo", "LookupError"),
-    ("recorded_failure", "read_calendar", "RuntimeError"),
+@pytest.mark.parametrize("runner,tool,error,failure", [
+    ("unavailable", "send_email_typo", "LookupError", None),
+    ("recorded_failure", "read_calendar", "RuntimeError",
+     "RuntimeError: synthetic-private-error-detail"),
+    ("recorded_failure", "read_calendar", "ToolError", ""),
 ])
-def test_child_keeps_unavailable_and_typed_failures_as_errors(agent_module, runner, tool, error):
+def test_child_keeps_unavailable_and_typed_failures_as_errors(agent_module, runner, tool,
+                                                           error, failure):
     snap = frozen_snapshot(f"current_catalogue_agent:{runner}")
     if runner == "recorded_failure":
         snap["tool_results"] = [{"tool": "read_calendar", "args": {}, "result": None,
-                                 "error": "RuntimeError: synthetic-private-error-detail"}]
+                                 "error": failure}]
+        agent_module.write_text(AGENT.replace('result.error == "RuntimeError"',
+                                             f"result.error == {error!r}"), encoding="utf-8")
 
     effects, crash = sandbox.run_once(snap)
 
