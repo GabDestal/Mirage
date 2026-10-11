@@ -7,8 +7,9 @@ PRs below merged, with the
 listed squash commits. This documentation worker inspected source, merge metadata
 and published worker reports; it ran no services, controls, providers or fleets.
 Final coordinator source SHA and composed rehearsal evidence have not yet been
-supplied. Provider access has now been attempted and failed for all six configured
-distinct model IDs; the failure evidence is recorded in section 6.
+supplied. All six configured distinct model IDs denied the earlier access attempts;
+the user subsequently regenerated the key, so current access awaits a fresh report.
+Section 6 preserves both the failed attempts and the credential-state change.
 
 This ledger covers [PRODUCT.md](../PRODUCT.md) steps 0:00–2:40 and the Person A/B
 ownership in [CONTRACTS.md](../CONTRACTS.md), using [docs/UX.md](UX.md) for human
@@ -107,6 +108,21 @@ contract and projections; SDK/fleet delivery is still open. #129 supplies pure c
 not completed engine/fleet wiring. #133 supplies process-local pacing, not a shared
 fleet/gateway/chat/subprocess provider budget. Final PR status must be refreshed before
 accepting the composed tree; an open PR or another branch's GREEN is not merged code.
+
+### Engine invariant and architecture ledger — reserved for Person A
+
+Person A will supply the precise source-pinned engine invariants, findings-to-repair
+mapping and exact validation evidence for this section, including remaining provider
+and deployment gates. Content is pending; the repair rows above retain their narrower
+published scope. Coordinator reports independent78 engine/API/services checks for
+#140 and independent160 checks for #139, but exact commands have not been supplied
+and are not inferred.
+
+A separately owned provider-free acceptance harness is planned with explicitly
+scripted two healthy meeting probes plus one poison probe and causal removal driven
+by actual tool responses. It changes neither the normal fleet nor startup. No harness
+source/runtime acceptance is yet supplied, and scripted probes will remain synthetic
+evidence rather than source-fleet provider proof.
 
 **Additional authority gate (coordinator report, 2026-10-11):** a separate actual-SDK
 audit produced 17 RED failures around approval of the original call releasing a
@@ -228,9 +244,16 @@ for the reported configuration, not a protected-fleet or final-composition rehea
 `INVOICING_MODEL_ID`, `OUTREACH_MODEL_ID` and `PR_REVIEWER_MODEL_ID` are unset in
 that reported configuration, so source factory fallback selects the shared agent ID.
 These failures do not establish credential expiry, invalid IDs, availability of
-unconfigured models, or a root cause. Person A owns provider access probes; Person B
-remains provider-idle without retries. Provider-free browser/HTTP acceptance can still
-proceed after repair composition, but no successful live-model incident is established.
+unconfigured models, or a root cause.
+
+**Credential-state change, coordinator report at 01:25 UTC:** the user regenerated
+the main server key. Person A owns the fresh no-tool window, using the explicitly
+selected main configuration rather than a stale inherited token, with at least1.1s
+pacing and retries0. No fresh result has yet been supplied. The six denials above
+remain real earlier evidence, but do not establish current access after regeneration
+or prove that expiry caused them. Person B and this worker remain provider-idle.
+Provider-free browser/HTTP acceptance can proceed after repair composition; no
+successful live-model incident is established.
 
 Coordinator-supplied sanitized integration configuration: Google configured
 credential/token paths are absent; HubSpot token is unset; no deployment URL/target
