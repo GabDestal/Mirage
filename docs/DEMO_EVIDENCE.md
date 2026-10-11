@@ -1,7 +1,7 @@
 # Demo evidence and provenance
 
 Documentation review: 2026-10-11. Source inspected at
-`e7a50d932e941f7a2db9be2747207f37b6697210`. This review reads source and existing
+`adb97c6d480cf8fe21c863a28b537a84fbb8b58d`. This review reads source and existing
 reports; it runs no services, agents, provider calls or live acceptance checks.
 [PRODUCT.md](../PRODUCT.md) describes the intended real-service demo. The evidence
 below describes what the current source and recordings actually establish.
@@ -68,7 +68,7 @@ offline tests plus reproduced failure probes; the agent report records 8 agent a
 9 public-protect offline tests plus scripted/mock-transport probes. Neither ran
 provider-live fleet/UI acceptance. Local audit artifacts are
 `/tmp/mirage-engine-audit-20261011.md` and `/tmp/mirage-agent-audit-20261011.md`;
-their findings belong to that revision, and this doc does not certify pending fixes.
+their findings belong to that revision; later source changes still need composed acceptance.
 
 1. **Truthful run/effect evidence:** surface factory/provider/tool failures instead of
    completed cards, retain handled tool-error status, and expose resolved destinations
