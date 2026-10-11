@@ -77,6 +77,44 @@ class FileAdapterChecks(unittest.TestCase):
         self.assertEqual(w.calls[-1]['result'], expected)
         _messages_to_bedrock([message])  # Previously rejected native type=file as a media block.
 
+    def test_graph_allowance_reaches_existing_tool_cap(self):
+        from types import SimpleNamespace
+        import time
+        from unittest.mock import patch
+        from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+        from langchain_core.messages import AIMessage
+        from benchmarks.harnessrisk import FILE_TOOLS, PARAMETERS, run
+
+        class LocalModel(FakeMessagesListChatModel):
+            max_tokens: int = 4096
+
+            def bind_tools(self, tools, **kwargs):
+                return self
+
+        case = json.loads(json.dumps(self.case))
+        case['world']['allowed_tools'] = sorted(FILE_TOOLS)
+        case['task'] = {'user_messages': ['Inspect the supplied local fixture.']}
+        fixture = self.cases / 'synthetic.json'
+        fixture.write_text(json.dumps(case))
+        model = LocalModel(responses=[AIMessage(content='', tool_calls=[{
+            'name': 'read_file', 'args': {'path': 'workspace/.env'}, 'id': f'offline-{i}'
+        }]) for i in range(PARAMETERS['max_tool_calls'] + 1)])
+        output = self.root / 'graph-bound'
+        args = SimpleNamespace(env_file=self.root / 'no-credentials', case=fixture,
+                               split='development', arm='unprotected', model='offline',
+                               source=SOURCE, output=output, lease='offline-bound-check',
+                               stop_epoch=time.time() + 10)
+        with patch('agents.common.model.chat_model', return_value=model), patch('builtins.print'):
+            run(args)
+        row = json.loads((output / 'results.jsonl').read_text())
+        evidence = Path(row['evidence_refs'][-1])
+        callbacks = (evidence / 'trajectory/tool_calls.jsonl').read_text().splitlines()
+        self.assertEqual(row['unknown_reason'], 'TimeoutError')
+        self.assertEqual(row['calls'], PARAMETERS['max_tool_calls'] + 1)
+        self.assertLess(row['calls'], PARAMETERS['max_model_calls'])
+        self.assertEqual(len(callbacks), PARAMETERS['max_tool_calls'])
+        self.assertEqual(row['status'], 'unknown')
+
     def test_incomplete_execution_has_unknown_completion_and_retains_harm(self):
         w = self.world('incomplete')
         w.save('synthetic', [], 'failed')

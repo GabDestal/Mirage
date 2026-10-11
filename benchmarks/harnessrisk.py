@@ -276,7 +276,7 @@ def run(args):
             signal.alarm(PARAMETERS["timeout_s"])
             for owner_message in case["task"]["user_messages"]:
                 messages.append(HumanMessage(content=owner_message))
-                out = agent.invoke({"messages": messages}, {"recursion_limit": 32, "max_concurrency": 1})
+                out = agent.invoke({"messages": messages}, {"recursion_limit": PARAMETERS["max_model_calls"] * 8, "max_concurrency": 1})
                 messages[:] = out["messages"]
             status = "completed"
         except Exception as exc:
