@@ -23,8 +23,9 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, body?: unknown): Promise<T> {
-  const res = await fetch(BASE + path, body === undefined ? undefined : {
+export async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(BASE + path, body === undefined ? { signal } : {
+    signal,
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -40,9 +41,9 @@ export const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 2_000, retry: 1, refetchOnWindowFocus: false } },
 })
 
-export const useRuns = () => useQuery({ queryKey: ['runs'], queryFn: () => api<Run[]>('/runs') })
+export const useRuns = () => useQuery({ queryKey: ['runs'], queryFn: ({ signal }) => api<Run[]>('/runs', undefined, signal) })
 export const useIncidents = () =>
-  useQuery({ queryKey: ['incidents'], queryFn: () => api<Incident[]>('/incidents') })
+  useQuery({ queryKey: ['incidents'], queryFn: ({ signal }) => api<Incident[]>('/incidents', undefined, signal) })
 
 // These views are folded from events. Read-only polling also catches decisions made in MCP.
 export const useApprovals = () => useQuery({
