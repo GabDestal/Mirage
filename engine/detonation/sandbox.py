@@ -34,6 +34,7 @@ PASS_ENV = ["AWS_BEARER_TOKEN_BEDROCK", "AWS_REGION"]
 # Non-secret agent config, so the rebuilt agent uses the same model and user as in prod.
 CONFIG_ENV = re.compile(r"^(\w+_MODEL_ID|DEMO_USER_EMAIL)$")
 BOOT = ("import sys, runpy; sys.path.insert(0, sys.argv[1]); "
+        "sys.path.insert(0, sys.argv[1] + '/sdk'); "
         "runpy.run_module('engine.detonation.child', run_name='__main__')")
 RULE_POLICIES = {"DEST_NOT_ALLOWED": ["P1", "P5"], "CANARY": ["P2"], "TOOL_NOT_ALLOWED": ["P3"],
                  "BULK_RECORDS": ["P4"]}
