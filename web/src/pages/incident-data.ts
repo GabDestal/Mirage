@@ -27,14 +27,95 @@ export function latestFailure(events: MirageEvent[], stage: 'detonation' | 'bise
   const types = stage === 'detonation'
     ? ['detonation.started', 'detonation.failed', 'verdict.ready', 'fix.verified']
     : ['bisection.step', 'bisection.completed']
-  const event = events.findLast((e) => types.includes(e.type))
+  const event = (stage === 'detonation' ? detonationEvents(events, 'baseline') : events).findLast((e) => types.includes(e.type))
   return typeof event?.payload.error === 'string' ? event.payload.error : undefined
 }
 
 export function requestFinished(events: MirageEvent[], kind: IncidentAction, after: number) {
   const terminal = kind === 'detonate' ? ['verdict.ready', 'detonation.failed']
     : kind === 'find_cause' ? ['bisection.completed'] : ['handoff.created']
-  return events.some((e) => e.seq > after && terminal.includes(e.type))
+  return (kind === 'detonate' ? detonationEvents(events, 'baseline') : events).some((e) => e.seq > after && terminal.includes(e.type))
+}
+
+type ProofKind = 'baseline' | 'removal' | 'verify'
+type ProofStatus = 'queued' | 'starting' | 'running' | 'completed' | 'failed'
+
+// Completion/effect/failure payloads omit purpose; bind them to their started job ID.
+function detonationEvents(events: MirageEvent[], kind: ProofKind) {
+  const kinds = new Map<unknown, ProofKind>()
+  const purpose = (p: MirageEvent['payload']): ProofKind => p.removed_input_id ? 'removal' : p.purpose === 'verify' ? 'verify' : 'baseline'
+  for (const event of events) {
+    const p = event.payload
+    const id = p.detonation_id ?? p.id
+    if (id && (event.type === 'detonation.started' || p.removed_input_id || p.purpose)) kinds.set(id, purpose(p))
+  }
+  let active: ProofKind = 'baseline'
+  return events.filter((event) => {
+    const p = event.payload
+    if (event.type === 'detonation.started') active = purpose(p)
+    if (event.type === 'fix.verified') return kind === 'verify'
+    if (event.type === 'verdict.ready') return kind === 'baseline'
+    if (!event.type.startsWith('detonation.')) return kind === 'baseline'
+    const id = p.detonation_id ?? p.id
+    return (kinds.get(id) ?? (p.removed_input_id || p.purpose ? purpose(p) : id ? 'baseline' : active)) === kind
+  })
+}
+
+export function baselineEvidence(incident: Incident, events: MirageEvent[]) {
+  const baseline = detonationEvents(incidentEvents(events, incident.id), 'baseline')
+  let status: ProofStatus | undefined
+  let requestedRuns: number | undefined
+  let jobId: string | undefined
+  let error: string | undefined
+  let ratio: string | undefined
+  let resultIsPrevious = false
+  let effects: MirageEvent['payload'][] = []
+  for (const event of baseline) {
+    const p = event.payload
+    switch (event.type) {
+      case 'run.status':
+        if (event.run_id === incident.run_id && p.actor === 'system' && p.from === 'frozen' && p.to === 'frozen'
+          && p.reason === 'Automatic sandbox detonation queued (3 replays)') status = 'queued'
+        break
+      case 'detonation.started':
+        status = 'running'; error = undefined; effects = []
+        resultIsPrevious = true
+        jobId = typeof p.detonation_id === 'string' ? p.detonation_id : undefined
+        requestedRuns = typeof p.n_runs === 'number' ? p.n_runs : undefined
+        break
+      case 'detonation.effect': effects.push(p); break
+      case 'detonation.completed':
+        status = 'completed'; error = undefined
+        jobId = typeof p.id === 'string' ? p.id : jobId
+        if (typeof p.n_runs === 'number') requestedRuns = p.n_runs
+        if (Array.isArray(p.effects)) effects = p.effects.filter((e): e is MirageEvent['payload'] => !!e && typeof e === 'object' && !Array.isArray(e))
+        break
+      case 'detonation.failed':
+        status = 'failed'; error = typeof p.error === 'string' ? p.error : 'The sandbox did not return proof.'
+        break
+      case 'verdict.ready':
+        status = 'completed'; error = undefined
+        resultIsPrevious = false
+        ratio = typeof p.compromised_runs === 'string' ? p.compromised_runs : undefined
+        break
+    }
+  }
+  status ??= incident.verdict ? 'completed' : incident.status === 'detonating'
+    && !incidentEvents(events, incident.id).some((e) => e.type === 'detonation.started') ? 'starting' : undefined
+  ratio ??= incident.verdict?.compromised_runs
+  // n_runs is requested work; only the engine verdict supplies the finished denominator.
+  return { status, jobId, requestedRuns, error, ratio, resultIsPrevious: !!ratio && resultIsPrevious, effects }
+}
+
+export function verificationEvidence(events: MirageEvent[]) {
+  const verification = detonationEvents(events, 'verify')
+  const latest = verification.findLast((e) => ['detonation.started', 'detonation.completed', 'detonation.failed', 'fix.verified'].includes(e.type))
+  if (!latest) return undefined
+  const status: ProofStatus = latest.type === 'detonation.started' ? 'running' : latest.type === 'detonation.failed' ? 'failed' : 'completed'
+  const requestedRuns = verification.findLast((e) => e.type === 'detonation.started')?.payload.n_runs
+  return { status, requestedRuns: typeof requestedRuns === 'number' ? requestedRuns : undefined,
+    error: latest.type === 'detonation.failed' && typeof latest.payload.error === 'string' ? latest.payload.error : undefined,
+    result: fixEvidence(verification), resultIsPrevious: latest.type !== 'fix.verified' }
 }
 
 export function fixEvidence(events: MirageEvent[]) {

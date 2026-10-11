@@ -2,10 +2,11 @@ import { ArrowDown, ArrowRight, Check, Copy, Info, ListFilter, MessageSquarePlus
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Fragment, memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { useIncidents, useRuns } from '@/api/client'
+import { useEvents, useIncidents, useRuns } from '@/api/client'
 import { sanitize, useChat, type ChatPart, type ChatTurn, type ToolResult } from '@/api/chat'
 import { ChatActivity, ChatApprovalCard, ChatComposer, ChatToolCard } from '@/components/chat-primitives'
 import { HandoffDrawer } from '@/components/handoff-drawer'
+import { EngineProof } from '@/components/engine-proof'
 import { Miragio } from '@/components/miragio'
 import { Button } from '@/components/ui/button'
 import { agentCount } from './fleet-presentation'
@@ -22,7 +23,9 @@ export function Chat() {
   const chat = useChat()
   const stopChat = chat.stop
   const runs = useRuns()
-  const incidents = useIncidents().data ?? []
+  const incidentQuery = useIncidents()
+  const incidents = incidentQuery.data ?? []
+  const events = useEvents().data ?? []
   const activity = incidents.some((i) => i.status === 'detonating') ? 'Detonating in Mirage…' : incidents.some((i) => i.status === 'bisecting') ? 'Identifying root cause…' : null
   const [draft, setDraft] = useState('')
   const [composerFocused, setComposerFocused] = useState(false)
@@ -96,6 +99,11 @@ export function Chat() {
         <button type="button" onClick={newChat}><MessageSquarePlus size={16} aria-hidden="true" />New chat</button>
         <Link to="/fleet">View fleet</Link>
       </div> : null}
+      {incidents.length > 0 || incidentQuery.isError ? <section className="chat-column mb-4 max-h-[35vh] shrink-0 overflow-auto" aria-label="Persistent engine evidence">
+        <h2 className="text-body font-medium">Engine evidence</h2>
+        {incidentQuery.isError ? <p className="text-ink-2" role="status">Engine evidence could not refresh. <button type="button" className="underline" onClick={() => void incidentQuery.refetch()}>Retry</button></p> : null}
+        {incidents.map((incident) => <EngineProof key={incident.id} incident={incident} events={events} />)}
+      </section> : null}
       {conversation ? <div className="chat-thread" ref={thread} aria-label="Conversation" tabIndex={0} onScroll={(event) => {
         const el = event.currentTarget
         follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80

@@ -33,6 +33,8 @@ assert.equal(sandboxStatus(incident, [event('detonation.started', { purpose: 've
 console.log('Fleet status and replay evidence checks passed')
 
 assert.equal(sandboxStatus(incident, [event('detonation.failed'), event('detonation.started', { purpose: 'verify', detonation_id: 'fix' }), event('detonation.completed', { id: 'fix' })]), 'Sandbox replay failed')
+assert.equal(sandboxStatus(incident, [event('detonation.started', { detonation_id: 'base' }), event('detonation.completed', { id: 'base' }), event('detonation.started', { purpose: 'verify', detonation_id: 'fix' }), event('detonation.failed', { detonation_id: 'fix', error: 'Crash' })]), 'Sandbox replay complete')
+assert.equal(sandboxStatus(incident, [event('detonation.started', { detonation_id: 'base' }), event('detonation.failed', { detonation_id: 'base' }), event('detonation.started', { removed_input_id: 'input_1', detonation_id: 'remove' }), event('detonation.completed', { id: 'remove', removed_input_id: 'input_1' })]), 'Sandbox replay failed')
 const active = { ...run('running'), id: 'run_test', agent: 'outreach' } as Run
 const own = (type: MirageEvent['type'], call_id: string, payload = {}) => ({ ...event(type, { call_id, ...payload }), run_id: active.id, ts: '2026-10-10T12:00:00Z' })
 const activityEvents = [own('tool.requested', 'c1', { tool: 'search_contacts', args: {} }), own('tool.result', 'c1', { result: [], error: null }),
