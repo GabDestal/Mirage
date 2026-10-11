@@ -1,5 +1,6 @@
 import type { Incident, MirageEvent, Run } from '../api/client'
 import { actionSummary, activityState, buildTraceCalls, buildWorkflow } from '../lib/workflow.ts'
+import { baselineEvidence } from './incident-data.ts'
 
 // Fleet labels describe availability; completed backend runs remain completed.
 export function fleetStatus(run: Pick<Run, 'status'>) {
@@ -18,8 +19,14 @@ export function agentCount(runs: Pick<Run, 'agent' | 'env'>[]) {
   return new Set(runs.filter((run) => run.env === 'prod').map((run) => run.agent)).size
 }
 
+/** Current production run per agent, independent of API ordering or historical success. */
+export function latestProductionRuns(runs: Run[]): Run[] {
+  return groupByAgent(runs.filter((run) => run.env === 'prod').sort((a, b) =>
+    Date.parse(b.started_at) - Date.parse(a.started_at) || b.id.localeCompare(a.id, undefined, { numeric: true }))).map(({ runs }) => runs[0])
+}
+
 export function healthyAgents(runs: Run[]) {
-  return agentCount(runs.filter((run) => ['Working', 'Healthy'].includes(fleetStatus(run))))
+  return latestProductionRuns(runs).filter((run) => ['Working', 'Healthy'].includes(fleetStatus(run))).length
 }
 
 /** Runs grouped by agent, keeping input order: newest-first runs give newest-first groups. */
@@ -32,30 +39,13 @@ export function groupByAgent<T extends Pick<Run, 'agent'>>(runs: T[]) {
 /** Only the baseline incident replay, never bisection or fix verification. */
 export function sandboxStatus(incident: Incident | undefined, events: MirageEvent[]): string | undefined {
   if (!incident) return
-  let status: string | undefined
-  const excluded = new Set<unknown>()
-  for (const event of events) {
-    const p = event.payload as Record<string, unknown>
-    if (event.incident_id !== incident.id && p.incident_id !== incident.id) continue
-    if (p.removed_input_id || p.purpose === 'verify') {
-      if (p.detonation_id || p.id) excluded.add(p.detonation_id ?? p.id)
-      continue
-    }
-    if (excluded.has(p.detonation_id ?? p.id)) continue
-    switch (event.type) {
-      case 'run.status':
-        if (event.run_id === incident.run_id && p.actor === 'system' && p.from === 'frozen' && p.to === 'frozen'
-          && p.reason === 'Automatic sandbox detonation queued (3 replays)') status = 'Sandbox replay queued'
-        break
-      case 'detonation.started': status = 'Sandbox replay running'; break
-      case 'detonation.completed': status = 'Sandbox replay complete'; break
-      case 'detonation.failed': status = 'Sandbox replay failed'; break
-      case 'verdict.ready': status = 'Sandbox replay complete'; break
-    }
+  switch (baselineEvidence(incident, events).status) {
+    case 'queued': return 'Sandbox replay queued'
+    case 'starting': return 'Sandbox replay starting'
+    case 'running': return 'Sandbox replay running'
+    case 'completed': return 'Sandbox replay complete'
+    case 'failed': return 'Sandbox replay failed'
   }
-  if (status) return status
-  if (incident.status === 'detonating') return 'Sandbox replay starting'
-  if (incident.verdict) return 'Sandbox replay complete'
 }
 
 /** Latest observed activity area, with evidence states rather than inferred task success. */

@@ -10,7 +10,7 @@ import { HandoffDrawer } from '@/components/handoff-drawer'
 import { Button } from '@/components/ui/button'
 import { avatarState, callPhrase, runLabel, steps } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
-import { fixEvidence, INCIDENT_ACTIONS, incidentEvents, isIncidentAction, latestFailure, recordedHandoff, requestFinished, safeLink, type IncidentAction } from './incident-data'
+import { baselineEvidence, currentSandboxJob, INCIDENT_ACTIONS, incidentEvents, isIncidentAction, latestFailure, recordedHandoff, requestFinished, safeLink, sandboxJobError, verificationEvidence, type IncidentAction } from './incident-data'
 import './incident.css'
 
 export function IncidentPage() {
@@ -21,12 +21,14 @@ export function IncidentPage() {
   const { data: events = [] } = useEvents()
   const ask = useAsk()
   const [confirm, setConfirm] = useState<IncidentAction | null>(null)
-  const [accepted, setAccepted] = useState<{ id: string; kind: IncidentAction; after: number } | null>(null)
+  const [accepted, setAccepted] = useState<{ id: string; kind: IncidentAction; after: number; previousJobId?: string } | null>(null)
   const [handoff, setHandoff] = useState<{ id: string; prompt: string } | null>(null)
   const [drawer, setDrawer] = useState(false)
   const submitting = useRef(false)
   const incident = detail.data
   const evidence = incidentEvents(events, id)
+  const baseline = incident ? baselineEvidence(incident, evidence) : null
+  const job = currentSandboxJob(incident, evidence)
   const run = runs.find((r) => r.id === incident?.run_id)
   const act = useMutation({
     mutationFn: ({ kind, reason, target }: { kind: IncidentAction; reason: string; target: string }) => {
@@ -54,14 +56,16 @@ export function IncidentPage() {
   const submit = (reason: string) => {
     if (!confirm || submitting.current || busy) return
     submitting.current = true
-    setAccepted({ id, kind: confirm, after: events.at(-1)?.seq ?? 0 })
+    setAccepted({ id, kind: confirm, after: events.at(-1)?.seq ?? 0, previousJobId: job?.id })
     act.mutate({ kind: confirm, reason, target: id })
   }
   const awaiting = accepted?.id === id && accepted.kind !== 'send_fix'
-    && !requestFinished(evidence, accepted.kind, accepted.after)
+    && !requestFinished(evidence, accepted.kind, accepted.after, job, accepted.previousJobId)
     && (accepted.kind === 'detonate' ? !incident || ['open', 'detonating'].includes(incident.status)
       : !incident || ['confirmed', 'bisecting'].includes(incident.status))
-  const busy = act.isPending || awaiting || incident?.status === 'detonating' || incident?.status === 'bisecting'
+  const baselineActive = baseline?.status === 'queued' || baseline?.status === 'starting' || baseline?.status === 'running'
+  const jobActive = job?.status === 'queued' || job?.status === 'running'
+  const busy = act.isPending || awaiting || (job ? jobActive : baselineActive || incident?.status === 'detonating' || incident?.status === 'bisecting')
   const action = incident?.next_action
   const primary = action && isIncidentAction(action) ? INCIDENT_ACTIONS[action] : undefined
   const refresh = () => { void detail.refetch(); void refetchRuns() }
@@ -76,15 +80,17 @@ export function IncidentPage() {
     </article>
   )
 
-  const verdict = incident.verdict
+  const verdict = baseline?.verdict
   const recent = steps(events, incident.run_id).filter((s) => s.callId !== incident.trigger.call_id).slice(-2)
-  const detonationError = latestFailure(evidence, 'detonation')
-  const bisectionError = latestFailure(evidence, 'bisection')
-  const verification = fixEvidence(evidence)
+  const detonationError = baseline?.error
+  const bisectionError = job?.purpose === 'bisect' ? sandboxJobError(job) : latestFailure(evidence, 'bisection')
+  const bisectionActive = job?.purpose === 'bisect' ? jobActive : incident.status === 'bisecting'
+  const verificationState = verificationEvidence(evidence, incident)
+  const verification = verificationState?.result
   const pr = safeLink(incident.pr_url)
   const cause = incident.inputs.find((input) => input.id === incident.cause_input_id)
   const causeCompleted = evidence.some((e) => e.type === 'bisection.completed' && !e.payload.error) || (incident.status === 'root_caused' && !bisectionError)
-  const effects = evidence.filter((e) => e.type === 'detonation.effect')
+  const effects = baseline?.effects ?? []
   const prompt = handoff?.id === id ? handoff.prompt : recordedHandoff(evidence)
   // No reason dialog: the handoff only copies text. The POST still records the human action.
   const handOff = () => {
@@ -126,18 +132,20 @@ export function IncidentPage() {
         </div>
       </StorySection>
       <StorySection number="2" title="What would have happened" badge="Mirage">
+        {baselineActive && <Notice>{baseline?.status === 'queued' ? 'Sandbox replay queued.' : 'Replaying the snapshot in Mirage.'}{baseline?.requestedRuns !== undefined && ` ${baseline.requestedRuns} replays requested.`}{baseline?.status === 'running' && ` ${effects.length} captured effects received; completed-run counts arrive with the verdict.`}</Notice>}
         {detonationError && <Notice tone="alarm">Detonation failed: {detonationError}. No new proof was established. Use the available next action to retry.</Notice>}
+        {baseline?.diagnostics.map((message, index) => <Notice key={index} tone="alarm">{message}</Notice>)}
         {verdict ? <div className="incident-proof">
           <h3><ShieldAlert size={18} />{isDemo ? (verdict.confirmed ? 'Recorded compromise verdict' : 'Recorded clean verdict') : (verdict.confirmed ? 'Compromise confirmed' : 'No compromise found in replay')}</h3>
-          <p><strong>{verdict.compromised_runs}</strong> replays compromised. Determined by code from the effects ledger.</p>
+          <p>{baseline?.resultIsPrevious && 'Earlier baseline proof: '}<strong>{verdict.compromised_runs}</strong> replays compromised. Determined by code from the effects ledger.</p>
           <p>{verdict.blast_radius.summary}</p>
           <dl className="incident-blast"><div><dt>Records at risk</dt><dd>{verdict.blast_radius.records}</dd></div><div><dt>Recipients</dt><dd>{verdict.blast_radius.recipients.join(', ') || 'None recorded'}</dd></div><div><dt>Secrets in effects</dt><dd>{verdict.blast_radius.secrets.join(', ') || 'None recorded'}</dd></div></dl>
           {verdict.policies_violated.length > 0 && <p className="incident-muted">Policies: {verdict.policies_violated.join(', ')}</p>}
-        </div> : <div className="incident-pending" role="status"><h3>{incident.status === 'detonating' || (awaiting && accepted?.kind === 'detonate') ? 'Replaying the snapshot…' : 'Proof awaits detonation'}</h3><p>Replay the frozen context in Mirage to see the captured effects. No verdict has been returned yet.</p>{incident.status === 'detonating' && <p>{effects.length} captured effects received.</p>}</div>}
-        {effects.length > 0 && <details className="incident-effects"><summary>Inspect captured effects ({effects.length})</summary><pre>{effects.map((e) => JSON.stringify(e.payload, null, 2)).join('\n\n')}</pre></details>}
+        </div> : <div className="incident-pending" role="status"><h3>{baseline?.status === 'queued' ? 'Sandbox replay queued' : baselineActive || (awaiting && accepted?.kind === 'detonate') ? 'Replaying the snapshot…' : baseline?.status === 'failed' ? 'No baseline proof established' : baseline?.status === 'completed' ? 'Waiting for the baseline verdict' : 'Proof awaits detonation'}</h3><p>Replay the frozen context in Mirage to see the captured effects. No verdict has been returned yet.</p></div>}
+        {effects.length > 0 && <details className="incident-effects"><summary>Inspect baseline effects ({effects.length})</summary><pre>{effects.map((e) => JSON.stringify(e, null, 2)).join('\n\n')}</pre></details>}
       </StorySection>
       <StorySection number="3" title="Why it happened">
-        <p className="incident-section-intro">{cause ? `Proven cause: ${cause.label}. Removing this input prevented the compromise in the recorded tests.` : incident.status === 'bisecting' || (awaiting && accepted?.kind === 'find_cause') ? 'Testing each input removal… Results appear as each replay finishes.' : causeCompleted ? 'The input tests did not establish a single cause. Review the results below.' : 'The cause is not established yet. Bisection tests each untrusted input by replaying the snapshot without it.'}</p>
+        <p className="incident-section-intro">{cause ? `Proven cause: ${cause.label}. Removing this input prevented the compromise in the recorded tests.` : bisectionActive || (awaiting && accepted?.kind === 'find_cause') ? job?.status === 'queued' ? 'Input-removal tests queued. Baseline proof remains above.' : 'Testing each input removal… Results appear as each replay finishes.' : causeCompleted ? 'The input tests did not establish a single cause. Review the results below.' : 'The cause is not established yet. Bisection tests each untrusted input by replaying the snapshot without it.'}</p>
         {bisectionError && <Notice tone="alarm">Cause search failed: {bisectionError}. Completed input tests are shown below.</Notice>}
         <div className="incident-snapshot"><span>Snapshot <code>{incident.snapshot_id}</code></span><span>{incident.inputs.length} recorded inputs</span></div>
         {incident.inputs.length ? <ul className="incident-inputs">{incident.inputs.map((input) => {
@@ -148,6 +156,12 @@ export function IncidentPage() {
         })}</ul> : <p className="incident-muted">No input previews were returned for this snapshot.</p>}
       </StorySection>
       <StorySection number="4" title="The fix">
+        {verificationState?.status === 'queued' && <Notice>Current-code verification is queued. No new result has been returned yet.</Notice>}
+        {verificationState?.status === 'running' && <Notice>Current-code verification is running. No new result has been returned yet.</Notice>}
+        {verificationState?.status === 'failed' && <Notice tone="alarm">Current-code verification failed: {verificationState.error ?? 'No result returned'}. No new fix acceptance was established.</Notice>}
+        {verificationState?.requestedRuns !== undefined && <p className="incident-muted">{verificationState.requestedRuns} current-code verification replays requested.</p>}
+        {verificationState?.diagnostics.map((message, index) => <Notice key={index} tone="alarm">{message}</Notice>)}
+        {verification && verificationState?.resultIsPrevious && <p className="incident-muted">Earlier current-code verification result:</p>}
         {verification ? <Notice tone={verification.passed ? 'mirage' : 'alarm'}><strong>{isDemo ? (verification.passed ? 'Recorded fix replay passed.' : 'Recorded fix replay failed.') : (verification.passed ? 'Fix replay passed.' : 'Fix replay failed.')}</strong> Attack blocked: {verification.attack}. Legitimate task completed: {verification.legitimate}.{isDemo && ' This demonstrates verification; it does not establish real fix acceptance.'}</Notice> : <p className="incident-section-intro">{isDemo ? 'The demo handoff shows the coding-agent workflow. Real fix validation requires a live incident and executable snapshot.' : incident.status === 'fix_pending' ? 'The handoff is ready. Your coding agent writes the fix and must test it against this snapshot.' : 'Hand off to your coding agent. It writes the fix and tests it against this snapshot. Verification results appear here when the server reports them.'}</p>}
         {pr && <a className="incident-pr" href={pr} target="_blank" rel="noopener noreferrer"><span><strong>Review the fix pull request</strong><small>{pr}</small></span><ExternalLink size={17} /></a>}
         {incident.pr_url && !pr && <Notice tone="alarm">The server returned an invalid PR link. Open the incident again after the link is corrected.</Notice>}
