@@ -28,12 +28,14 @@ EventType = Literal[
     "detonation.completed", "detonation.failed", "verdict.ready", "bisection.step", "bisection.completed",
     "handoff.created", "fix.verified", "pr.opened", "human.action", "agent.registered",
     "repair.job.updated",
+    "rule.drafted", "rule.activated",
 ]
 InputKind = Literal["calendar_event", "email", "crm_record", "web_page", "attachment", "user_task"]
 HumanActionType = Literal[
     "freeze", "unfreeze", "kill", "approve_restart", "global_stop", "lift_stop", "resume",
     "approve", "reject", "handoff", "merge", "detonate", "find_cause", "verify",
     "repair",
+    "activate_rule",
 ]
 
 
@@ -49,6 +51,7 @@ class Run(Model):
     incident_id: str | None = None
     restarted_from: str | None = None
     tool_calls: int = 0
+    rule_revision: str | None = None  # engine authority copied at admission
 
 
 class Event(Model):
@@ -226,6 +229,7 @@ class DetonateResult(Model):
     legit_task_completed: str  # "3/3"
     passed: bool  # true only if both values are "n/n"
     effects: list[Effect]
+    policy_revisions: list[str] = []  # frozen and verification-start rule digests
 
 
 # Repair jobs import evidence from the trusted local supervisor's candidate checkout.
@@ -307,6 +311,33 @@ class AgentSpec(Model):
     legit: dict[str, Any] = {}  # story completion declaration, copied into the run and snapshot
 
 
+class RuleDraftRequest(Model):
+    """A restriction for a registered agent; URL hosts cannot be edited in this first type."""
+
+    agent: str
+    allow: Allowlist
+
+
+class RuleRevision(RuleDraftRequest):
+    version: str  # SHA256 of normalized immutable agent/allow content
+    status: Literal["draft", "active", "superseded"]
+    created_at: datetime
+    activated_at: datetime | None = None
+
+
+class RulePreviewRequest(Model):
+    tool: str | None = None
+    args: dict[str, Any] = {}
+
+
+class RulePreview(Model):
+    version: str
+    summary: str
+    effective_allow: Allowlist
+    decision: GateDecision | None = None
+    authoritative: Literal[True] = True
+
+
 class RunStart(Model):
     """POST /runs."""
 
@@ -319,6 +350,7 @@ class RunStart(Model):
 class RunStarted(Model):
     run_id: str
     run_token: str
+    rule_revision: str | None = None
 
 
 class ModelCall(Model):

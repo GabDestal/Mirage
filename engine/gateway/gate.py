@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from contracts.models import AgentSpec, GateDecision, HumanAction, Run
+from engine import rules
 from engine.config import MODE
 from engine.detection import decision_model
 from engine.detection.rules import POLICY, hard_rule
@@ -93,7 +94,8 @@ class LiveRun:
         return Run(id=self.id, agent=self.agent, env="prod", task=self.task, status=self.status,
                    started_at=self.started_at, ended_at=self.ended_at,
                    incident_id=self.incident_id, tool_calls=self.tool_calls,
-                   restarted_from=self.restarted_from, status_reason=self.status_reason)
+                   restarted_from=self.restarted_from, status_reason=self.status_reason,
+                   rule_revision=self.policy.get("rule_revision"))
 
 
 def reset():
@@ -114,12 +116,7 @@ def policy_for(agent):
 
 
 def _policy_from_spec(agent, spec):
-    if spec is None:
-        return POLICY
-    return {"canary": POLICY["canary"], "agents": {agent: {"tools": spec.allow.tools}},
-            "destinations": {"email_domains": spec.allow.email_to,
-                             "url_domains": spec.allow.url_hosts},
-            "known_tools": spec.tools}  # every tool the agent has, allowed or not
+    return rules.policy_for_spec(agent, spec, POLICY)
 
 
 def is_known(policy, tool):

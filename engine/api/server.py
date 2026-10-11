@@ -48,6 +48,7 @@ from engine import bisect as engine_bisect
 from engine import handoff as engine_handoff
 from engine.api import repair, services
 from engine.api.replay import Replay
+from engine.api.rules import router as rules_router
 from engine.api.state import fold
 from engine.detection.rules import POLICY
 from engine.detonation import jobs, sandbox, snapshot
@@ -138,6 +139,7 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Mirage engine", version="0.1.0", lifespan=lifespan)
+app.include_router(rules_router)
 
 
 def live_only():
@@ -201,7 +203,8 @@ def start_run(body: RunStart) -> RunStarted:
             if spec != run.admitted_spec:
                 raise HTTPException(409, "Registration changed since this clean restart was approved")
             gate.set_status(run, "running", "sdk", f"Clean restart of {run.restarted_from}.")
-            return RunStarted(run_id=run.id, run_token=run.token)
+            return RunStarted(run_id=run.id, run_token=run.token,
+                              rule_revision=run.policy.get("rule_revision"))
         if body.restarted_from is not None:
             raise HTTPException(409, "No matching approved clean restart is queued")
         run = gate.LiveRun(id=gate.next_id("run"), agent=body.agent, task=body.task,
@@ -209,8 +212,10 @@ def start_run(body: RunStart) -> RunStarted:
         gate.runs[run.id] = run
         gate.set_status(run, "running", "sdk", "Run started.")
         events.emit("run.started", {"task": run.task, "agent": run.agent,
-                                    "restarted_from": run.restarted_from}, run_id=run.id)
-        return RunStarted(run_id=run.id, run_token=run.token)
+                                    "restarted_from": run.restarted_from,
+                                    "rule_revision": run.policy.get("rule_revision")}, run_id=run.id)
+        return RunStarted(run_id=run.id, run_token=run.token,
+                          rule_revision=run.policy.get("rule_revision"))
 
 
 @app.post("/runs/{run_id}/model-calls", status_code=204, **data_plane)
@@ -535,7 +540,8 @@ def _queue_restart(old, body, action, note=None):
                        restarted_from=old.id, admitted_spec=spec)
     gate.runs[run.id] = run
     events.emit("run.started", {"task": run.task, "agent": run.agent, "restarted_from": old.id,
-                                "status": "queued", **({"note": note} if note else {})},
+                                "status": "queued", "rule_revision": run.policy.get("rule_revision"),
+                                **({"note": note} if note else {})},
                 run_id=run.id)
     return run
 
