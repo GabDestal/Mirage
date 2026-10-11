@@ -47,7 +47,7 @@ export function IncidentPage() {
           setHandoff({ id: target, prompt: result.prompt })
           setDrawer(true)
         } else toast.error('The handoff response contained no prompt. Refresh the incident and try again.')
-      } else toast(isDemo ? (kind === 'detonate' ? 'Recorded detonation requested. Waiting for demo evidence.' : 'Recorded cause search requested. Waiting for input tests.') : (kind === 'detonate' ? 'Detonation requested. Waiting for sandbox evidence.' : 'Cause search requested. Waiting for input tests.'))
+      } else toast(kind === 'detonate' ? 'Detonation requested. Waiting for sandbox evidence.' : 'Cause search requested. Waiting for input tests.')
     },
     onError: (error, { kind }) => {
       setAccepted(null)
@@ -126,7 +126,6 @@ export function IncidentPage() {
           {typeof incident.trigger.args.to === 'string' && <><ArrowRight size={14} /><span className="incident-alarm">{incident.trigger.args.to}</span></>}
         </div>
       </header>
-      {isDemo && <Notice>Recorded demonstration: this incident, sandbox proof, cause tests and fix evidence are recorded or simulated.</Notice>}
       {detail.isError && <Notice tone="alarm">The incident could not refresh: {detail.error.message} <Button onClick={refresh}>Retry</Button></Notice>}
       {runError && <Notice>Run status is unavailable. Secondary actions will appear when it loads. <Button onClick={refresh}>Retry</Button></Notice>}
       {clearanceText && <Notice tone={clearanceText === 'Still frozen' ? 'alarm' : 'mirage'}>
@@ -152,7 +151,7 @@ export function IncidentPage() {
         {detonationError && <Notice tone="alarm">Detonation failed: {detonationError}. No new proof was established. Use the available next action to retry.</Notice>}
         {baseline?.diagnostics.map((message, index) => <Notice key={index} tone="alarm">{message}</Notice>)}
         {verdict ? <div className="incident-proof">
-          <h3><ShieldAlert size={18} />{isDemo ? (verdict.confirmed ? 'Recorded compromise verdict' : 'Recorded clean verdict') : (verdict.confirmed ? 'Compromise confirmed' : 'No deterministic harm found in replay')}</h3>
+          <h3><ShieldAlert size={18} />{verdict.confirmed ? 'Compromise confirmed' : 'No deterministic harm found in replay'}</h3>
           <p>{baseline?.resultIsPrevious && 'Earlier baseline proof: '}<strong>{verdict.compromised_runs}</strong> replays compromised. Determined by code from the effects ledger.</p>
           <p>{verdict.blast_radius.summary}</p>
           <dl className="incident-blast"><div><dt>Records at risk</dt><dd>{verdict.blast_radius.records}</dd></div><div><dt>Recipients</dt><dd>{verdict.blast_radius.recipients.join(', ') || 'None recorded'}</dd></div><div><dt>Secrets in effects</dt><dd>{verdict.blast_radius.secrets.join(', ') || 'None recorded'}</dd></div></dl>
@@ -180,7 +179,7 @@ export function IncidentPage() {
         {verificationState?.requestedRuns !== undefined && <p className="incident-muted">{verificationState.requestedRuns} current-code verification replays requested.</p>}
         {verificationState?.diagnostics.map((message, index) => <Notice key={index} tone="alarm">{message}</Notice>)}
         {verification && verificationState?.resultIsPrevious && <p className="incident-muted">Earlier current-code verification result:</p>}
-        {verification ? <Notice tone={verification.passed ? 'mirage' : 'alarm'}><strong>{isDemo ? (verification.passed ? 'Recorded fix replay passed.' : 'Recorded fix replay failed.') : (verification.passed ? 'Fix replay passed.' : 'Fix replay failed.')}</strong> Attack blocked: {verification.attack}. Legitimate task completed: {verification.legitimate}.{isDemo && ' This demonstrates verification; it does not establish real fix acceptance.'}</Notice> : <p className="incident-section-intro">{isDemo ? 'The demo handoff shows the coding-agent workflow. Real fix validation requires a live incident and executable snapshot.' : incident.status === 'fix_pending' ? 'The handoff is ready. Your coding agent writes the fix and must test it against this snapshot.' : 'Hand off to your coding agent. It writes the fix and tests it against this snapshot. Verification results appear here when the server reports them.'}</p>}
+        {verification ? <Notice tone={verification.passed ? 'mirage' : 'alarm'}><strong>{verification.passed ? 'Fix replay passed.' : 'Fix replay failed.'}</strong> Attack blocked: {verification.attack}. Legitimate task completed: {verification.legitimate}.</Notice> : <p className="incident-section-intro">{incident.status === 'fix_pending' ? 'The handoff is ready. Your coding agent writes the fix and must test it against this snapshot.' : 'Hand off to your coding agent. It writes the fix and tests it against this snapshot. Verification results appear here when the server reports them.'}</p>}
         {pr && <a className="incident-pr" href={pr} target="_blank" rel="noopener noreferrer"><span><strong>Review the fix pull request</strong><small>{pr}</small></span><ExternalLink size={17} /></a>}
         {incident.pr_url && !pr && <Notice tone="alarm">The server returned an invalid PR link. Open the incident again after the link is corrected.</Notice>}
         {prompt && <div className="incident-handoff"><Button onClick={handOff}>Hand off to coding agent<ArrowRight /></Button></div>}
