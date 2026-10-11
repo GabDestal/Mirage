@@ -170,34 +170,43 @@ data_plane = {"dependencies": [Depends(live_only)]}
 
 @app.post("/agents", **data_plane)
 def register_agent(spec: AgentSpec) -> AgentSpec:
-    _event_batch()
-    gate.agents[spec.name] = spec
-    events.emit("agent.registered", spec.model_dump(mode="json"))  # survives an engine restart
-    return spec
+    with jobs.lock:
+        _event_batch()
+        gate.agents[spec.name] = spec
+        events.emit("agent.registered", spec.model_dump(mode="json"))  # survives an engine restart
+        return spec
 
 
 @app.post("/runs", **data_plane)
 def start_run(body: RunStart) -> RunStarted:
-    _event_batch()
-    spec = gate.agents.get(body.agent)
-    if spec is None:
-        raise HTTPException(404, f"Agent {body.agent} is not registered (POST /agents)")
-    if gate.STOP.is_set():
-        raise HTTPException(409, "Global STOP is on")
-    queued = next((r for r in gate.runs.values()
-                   if r.agent == body.agent and r.status == "queued"), None)
-    if queued:  # an approved clean restart: this run takes it over
-        if spec != queued.admitted_spec:
-            raise HTTPException(409, "Registration changed since this clean restart was approved")
-        gate.set_status(queued, "running", "sdk", f"Clean restart of {queued.restarted_from}.")
-        return RunStarted(run_id=queued.id, run_token=queued.token)
-    run = gate.LiveRun(id=gate.next_id("run"), agent=body.agent, task=body.task,
-                       restarted_from=body.restarted_from, admitted_spec=spec)
-    gate.runs[run.id] = run
-    gate.set_status(run, "running", "sdk", "Run started.")
-    events.emit("run.started", {"task": run.task, "agent": run.agent,
-                                "restarted_from": run.restarted_from}, run_id=run.id)
-    return RunStarted(run_id=run.id, run_token=run.token)
+    with jobs.lock:
+        _event_batch()
+        spec = gate.agents.get(body.agent)
+        if spec is None:
+            raise HTTPException(404, f"Agent {body.agent} is not registered (POST /agents)")
+        if gate.STOP.is_set():
+            raise HTTPException(409, "Global STOP is on")
+        queued = [r for r in gate.runs.values()
+                  if r.agent == body.agent and r.task == body.task and r.status == "queued"
+                  and r.restarted_from is not None
+                  and (body.restarted_from is None or r.restarted_from == body.restarted_from)]
+        if len(queued) > 1:
+            raise HTTPException(409, "Ambiguous clean restart: specify the original run")
+        if queued:
+            run = queued[0]
+            if spec != run.admitted_spec:
+                raise HTTPException(409, "Registration changed since this clean restart was approved")
+            gate.set_status(run, "running", "sdk", f"Clean restart of {run.restarted_from}.")
+            return RunStarted(run_id=run.id, run_token=run.token)
+        if body.restarted_from is not None:
+            raise HTTPException(409, "No matching approved clean restart is queued")
+        run = gate.LiveRun(id=gate.next_id("run"), agent=body.agent, task=body.task,
+                           admitted_spec=spec)
+        gate.runs[run.id] = run
+        gate.set_status(run, "running", "sdk", "Run started.")
+        events.emit("run.started", {"task": run.task, "agent": run.agent,
+                                    "restarted_from": run.restarted_from}, run_id=run.id)
+        return RunStarted(run_id=run.id, run_token=run.token)
 
 
 @app.post("/runs/{run_id}/model-calls", status_code=204, **data_plane)
@@ -413,8 +422,10 @@ def stop(body: HumanRequest) -> list[Run]:
         else:
             REPLAY.advance()
     else:
-        gate.global_stop(body.actor, body.reason)
-        _stop_resumed_agents()
+        with jobs.lock:
+            _event_batch()
+            gate.global_stop(body.actor, body.reason)
+            _stop_resumed_agents()
     return list_runs()
 
 
@@ -489,22 +500,29 @@ def unfreeze(run_id: str, body: HumanRequest) -> Run:
 
 @app.post("/runs/{run_id}/restart")
 def restart(run_id: str, body: HumanRequest) -> Run:
-    """A human approves a clean restart of a killed or halted run. The new run is created
-    `queued` with `restarted_from`; the agent's next start (SDK `POST /runs`) takes it over.
+    """A human approves one clean restart of a killed, halted or failed run. It is created
+    `queued` with `restarted_from`; a matching agent/task/spec SDK start claims it once.
     The engine does not launch it (resume does)."""
     if REPLAY:
         _recorded_control("restart", run_id)
         REPLAY.advance()
         return get_run(run_id)
-    old = get_run(run_id)
-    if old.status not in ("killed", "halted"):
-        raise HTTPException(409, f"Cannot restart a run that is {old.status}: kill it first")
-    if gate.STOP.is_set():
-        raise HTTPException(409, "Global STOP is on")
-    return get_run(_queue_restart(old, body, "approve_restart").id)
+    with jobs.lock:
+        old = get_run(run_id)
+        if old.status not in ("killed", "halted", "failed"):
+            raise HTTPException(409, f"Cannot restart a run that is {old.status}: kill it first")
+        if gate.STOP.is_set():
+            raise HTTPException(409, "Global STOP is on")
+        return get_run(_queue_restart(old, body, "approve_restart").id)
+
+
+def _restart_available(old):
+    if any(run.restarted_from == old.id for run in _state()[0].values()):
+        raise HTTPException(409, "A clean restart has already been approved for this run")
 
 
 def _queue_restart(old, body, action, note=None):
+    _restart_available(old)
     events.emit("human.action", {"actor": body.actor, "action": action,
                                  "target": old.id, "reason": body.reason,
                                  "ts": datetime.now(UTC).isoformat()})
@@ -542,6 +560,7 @@ def resume(run_id: str, body: HumanRequest, request: Request) -> Run:
 
 
 def _resume_block(old):
+    _restart_available(old)
     if _compromised(_state()[1].get(old.incident_id)):
         raise HTTPException(409, "Detonation confirmed this run is compromised. "
                                  "Fix it, then approve a clean restart.")

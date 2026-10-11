@@ -23,10 +23,17 @@ def api(monkeypatch):
     monkeypatch.setattr(server, "REPLAY", None)
     gate.reset()
     with TestClient(server.app) as client:
-        monkeypatch.setattr(core, "_http", client)
-        monkeypatch.setattr(core, "_sandbox", None)
-        assert client.post("/agents", json=SPEC).status_code == 200
-        yield client
+        def request(req):
+            response = client.request(req.method, req.url.path, content=req.content,
+                                      headers=dict(req.headers))
+            return httpx.Response(response.status_code, content=response.content)
+
+        with httpx.Client(base_url="http://synthetic-engine",
+                          transport=httpx.MockTransport(request)) as sdk_client:
+            monkeypatch.setattr(core, "_http", sdk_client)
+            monkeypatch.setattr(core, "_sandbox", None)
+            assert client.post("/agents", json=SPEC).status_code == 200
+            yield client
     gate.reset()
 
 
