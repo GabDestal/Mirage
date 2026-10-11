@@ -1,6 +1,7 @@
 """Recovery proof checks use synthetic ledgers; no service or model calls."""
 
 import copy
+import hashlib
 import json
 from datetime import UTC, datetime
 
@@ -404,3 +405,41 @@ def test_recovery_fixture_matches_shared_model():
     state = RecoveryState.model_validate_json(path.read_text())
     assert state.report.pull_request.state == "MERGED"
     assert state.status == "prepared" and state.new_run_id is None
+
+
+@pytest.mark.parametrize("mismatch", [None, "snapshot", "task", "model", "recipient", "checkpoint", "missing",
+                                     "ordinary"])
+def test_scripted_capture_requires_snapshot_bound_trusted_original_config(
+        http_recovery, tmp_path, monkeypatch, mismatch):
+    data = http_recovery
+    snap = snapshot.load(data["incident_id"])
+    snap["model_id"] = "OtherRealModel" if mismatch == "ordinary" else "ScriptedModel"
+    path = snapshot.SNAP_DIR / f"{data['incident_id']}.json"
+    path.write_text(json.dumps(snap))
+    job = data["job"].model_copy(update={"snapshot_digest": repair.digest(snap)})
+    events.emit("repair.job.updated", job.model_dump(mode="json"), incident_id=data["incident_id"])
+    data["report"]["snapshot_digest"] = job.snapshot_digest
+    receipt = {"original_snapshot_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+               "agent_name": snap["agent"], "task": snap["task"], "entrypoint": snap["entrypoint"],
+               "legit": snap["legit"], "nonsecret_environment": data["report"]["config"],
+               "effective_agent_model_id": "synthetic.model", "recipient": USER,
+               "region": "us-east-1", "temperature": 0, "git_status": "clean", "code_revision": "a" * 40,
+               "original_services_sha256": data["report"]["checkpoint_digest"]}
+    field = {"snapshot": "original_snapshot_sha256", "task": "task",
+             "model": "effective_agent_model_id", "recipient": "recipient",
+             "checkpoint": "original_services_sha256"}.get(mismatch)
+    if field:
+        receipt[field] = "wrong"
+    source = tmp_path / "m0-nonsecret-config.json"
+    source.write_text(json.dumps(receipt))
+    if mismatch != "missing":
+        monkeypatch.setenv("MIRAGE_RECOVERY_CONFIG_SOURCE", str(source))
+        data["report"]["config_source_digest"] = repair.digest(receipt)
+    else:
+        monkeypatch.delenv("MIRAGE_RECOVERY_CONFIG_SOURCE", raising=False)
+    result = prepare(data)
+    assert result.status_code == (200 if mismatch is None else 409), result.text
+    if mismatch is None:
+        assert result.json()["report"]["config_source_digest"] == repair.digest(receipt)
+        assert approve(data).status_code == 200
+    assert snapshot.load(data["incident_id"])["model_id"] == snap["model_id"]

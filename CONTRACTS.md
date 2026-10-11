@@ -1015,6 +1015,16 @@ digests use recursively sorted JSON with compact separators and unescaped Unicod
 as in M1's `repair.digest`. The launcher preserves the explicit original synthetic
 service checkpoint; recovery does not seed/reset services or relaunch other agents.
 
+For the baseline's explicit `ScriptedModel` capture only, the operator may configure
+`MIRAGE_RECOVERY_CONFIG_SOURCE` to its original trusted M0 nonsecret receipt. The engine
+checks the receipt's raw `original_snapshot_sha256`, original agent/task/factory/legit,
+effective model/recipient and nonsecret environment, clean source revision, fixed region
+and temperature. It also binds `original_services_sha256` to the reported checkpoint.
+The receipt's canonical `config_source_digest` is exposed in provenance and pinned in
+the report, approval and claim. It resolves the scripted class label to the actual
+recorded continuation configuration; it never edits the source snapshot. Ordinary
+real-model snapshots still require model equality and a null `config_source_digest`.
+
 This MVP only admits an original with zero successful outward task writes. The engine
 joins that original's production `tool.requested` and successful `tool.result` records;
 failed attempts, blocked calls, sibling runs, and sandbox effects do not count. An

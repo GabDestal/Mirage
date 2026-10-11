@@ -486,6 +486,7 @@ class RecoveryProvenance(Model):
     agent_spec: AgentSpec
     config: dict[str, str]
     config_digest: ContentDigest
+    config_source_digest: ContentDigest | None = None
 
 
 class RecoveryReport(Model):
@@ -505,6 +506,7 @@ class RecoveryReport(Model):
     policy_digest: ContentDigest
     config: dict[str, str]
     config_digest: ContentDigest
+    config_source_digest: ContentDigest | None = None
     checkpoint_digest: ContentDigest
     verification: RepairCommandEvidence | None = None
     clean_control: RepairCleanControl | None = None

@@ -79,6 +79,7 @@
       "DEMO_USER_EMAIL": "demo-user@mirage-demo.com"
     },
     "config_digest": "aa24c9837c3c12cb07f28fd09a7c1acece2b0600c609914ef39e4bc322bf1595",
+    "config_source_digest": null,
     "checkpoint_digest": "1111111111111111111111111111111111111111111111111111111111111111",
     "verification": null,
     "clean_control": null

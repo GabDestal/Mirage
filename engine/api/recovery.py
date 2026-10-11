@@ -1,8 +1,11 @@
 """Verified rollout and useful-task proof for the demo's clean meeting restart."""
 
+import hashlib
+import json
 import os
 import re
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,7 +15,7 @@ from contracts.models import RecoveryProvenance, RecoveryReport, RecoveryState
 from engine.api import repair
 from engine.api.state import fold
 from engine.detection.rules import hard_rules
-from engine.detonation import jobs
+from engine.detonation import jobs, snapshot
 from engine.detonation.child import WRITE_PREFIXES
 from engine.gateway import gate
 from engine.store import events
@@ -120,7 +123,42 @@ def _prepared(incident_id):
     return state
 
 
-def provenance(agent):
+def _capture_config_digest(snap, config, checkpoint_digest=None):
+    """Only an explicit operator receipt can resolve the baseline's scripted model label."""
+    if snap.get("model_id") != "ScriptedModel":
+        return None
+    path = os.getenv("MIRAGE_RECOVERY_CONFIG_SOURCE", "")
+    if not path:
+        raise HTTPException(409, "Scripted capture requires its trusted original configuration receipt")
+    try:
+        receipt = json.loads(Path(path).read_text(encoding="utf-8"))
+        raw = (snapshot.SNAP_DIR / f"{snap['incident_id']}.json").read_bytes()
+        environment = receipt["nonsecret_environment"]
+        selected = next((value.strip() for key in ("MEETING_ASSISTANT_MODEL_ID", "BEDROCK_AGENT_MODEL_ID",
+                                                   "BEDROCK_MODEL_ID")
+                         if isinstance(value := environment.get(key), str) and value.strip()), "")
+        valid = (receipt["original_snapshot_sha256"] == hashlib.sha256(raw).hexdigest()
+                 and receipt["agent_name"] == snap["agent"] and receipt["task"] == snap["task"]
+                 and receipt["entrypoint"] == snap["entrypoint"] and receipt["legit"] == snap["legit"]
+                 and receipt["effective_agent_model_id"] == selected == config["MEETING_ASSISTANT_MODEL_ID"]
+                 and receipt["recipient"] == environment["DEMO_USER_EMAIL"] == config["DEMO_USER_EMAIL"]
+                 and receipt["region"] == "us-east-1" and receipt["temperature"] == 0
+                 and receipt["git_status"] == "clean"
+                 and (checkpoint_digest is None
+                      or receipt["original_services_sha256"] == checkpoint_digest)
+                 and re.fullmatch(r"[0-9a-f]{40}", receipt["code_revision"])
+                 and all(isinstance(value, str) and (key.endswith("_MODEL_ID") or key in (
+                     "DEMO_USER_EMAIL", "AWS_REGION")) for key, value in environment.items())
+                 and any(want.get("tool") == "send_email" and want.get("args", {}).get("to")
+                         == receipt["recipient"] for want in snap["legit"]["required"]))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        valid = False
+    if not valid:
+        raise HTTPException(409, "Trusted scripted-capture configuration does not match the original snapshot")
+    return repair.digest(receipt)
+
+
+def provenance(agent, snap=None):
     spec = gate.agents.get(agent)
     if spec is None:
         raise HTTPException(409, "The complete repaired factory must be registered first")
@@ -130,7 +168,8 @@ def provenance(agent):
               "DEMO_USER_EMAIL": os.getenv("DEMO_USER_EMAIL") or "demo-user@mirage-demo.com"}
     policy = gate.policy_for(agent)
     return RecoveryProvenance(policy_digest=repair.digest(policy), policy=policy, agent_spec=spec,
-                              config=config, config_digest=repair.digest(config))
+                              config=config, config_digest=repair.digest(config),
+                              config_source_digest=_capture_config_digest(snap, config) if snap else None)
 
 
 def _validate_report(incident_id, body, spec, *, accepted=False):
@@ -156,7 +195,7 @@ def _validate_report(incident_id, body, spec, *, accepted=False):
             or not complete_meeting_declaration(spec.legit)):
         raise HTTPException(409, "The complete repaired factory must be registered before approval")
     policy = gate.policy_for(old.agent)
-    current = provenance(old.agent)
+    current = provenance(old.agent, snap)
     if body.policy_digest != current.policy_digest:
         raise HTTPException(409, "Recovery policy provenance changed")
     final_verification = (body.candidate_tree != body.merged_tree
@@ -177,8 +216,13 @@ def _validate_report(incident_id, body, spec, *, accepted=False):
     config = body.config
     if (config != current.config or not all(config.values())
             or body.config_digest != repair.digest(config)
-            or snap.get("model_id") != config["MEETING_ASSISTANT_MODEL_ID"]):
+            or body.config_source_digest != current.config_source_digest
+            or (snap.get("model_id") != config["MEETING_ASSISTANT_MODEL_ID"]
+                and current.config_source_digest is None)):
         raise HTTPException(409, "Recovery configuration provenance changed")
+    if current.config_source_digest and _capture_config_digest(
+            snap, config, body.checkpoint_digest) != body.config_source_digest:
+        raise HTTPException(409, "Recovery source configuration receipt changed")
     if not no_prior_writes(old.id):
         raise HTTPException(409, "Recovery cannot repeat a task with prior successful outward writes")
     live = gate.runs.get(old.id)
@@ -217,13 +261,15 @@ def require_claim(run):
     if not (incident and incident.verdict and incident.verdict.confirmed):
         return
     state = _prepared(old.incident_id)
-    repair._context(repair.get_job(state.report.repair_job_id))
+    _, snap, _ = repair._context(repair.get_job(state.report.repair_job_id))
+    current = provenance(run.agent, snap)
     if (not state.approval or state.new_run_id != run.id
             or state.report.original_run_id != old.id or run.agent != state.report.agent
             or run.task != state.report.task or run.admitted_spec != state.report.agent_spec
             or repair.digest(run.policy) != state.report.policy_digest
             or old.status not in ("killed", "halted", "failed") or not no_prior_writes(old.id)
-            or state.report.config != provenance(run.agent).config):
+            or state.report.config != current.config
+            or state.report.config_source_digest != current.config_source_digest):
         raise HTTPException(409, "SDK claim does not match the approved verified recovery")
 
 
@@ -260,7 +306,11 @@ def router(live_only):
             incident = fold(events.read())[1].get(incident_id)
             if not incident:
                 raise HTTPException(404, "Unknown incident")
-            return provenance(fold(events.read())[0][incident.run_id].agent)
+            try:
+                snap = snapshot.load(incident_id)
+            except (OSError, ValueError):
+                raise HTTPException(409, "Recovery snapshot is unavailable") from None
+            return provenance(fold(events.read())[0][incident.run_id].agent, snap)
 
     @api.post("/incidents/{incident_id}/recovery/report", response_model=RecoveryState,
               dependencies=[Depends(repair.supervisor_only)])
