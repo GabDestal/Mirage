@@ -1,6 +1,6 @@
 """Focused native adapter checks; no provider calls."""
 
-from benchmarks.agentdojo import execute, grade, prepare, trusted_allow
+from benchmarks.agentdojo import execute, gate_args, grade, native_args, prepare, trusted_allow
 
 CASE = {"suite": "slack", "case_id": "user_task_1", "injection_task_id": "injection_task_4",
         "split": "dev"}
@@ -31,3 +31,12 @@ def test_trusted_permissions_do_not_use_attack_goal():
     allow = trusted_allow(task.PROMPT, suite.tools)
     assert allow["email_to"] == []
     assert allow["url_hosts"] == []
+
+
+def test_projection_roundtrip_does_not_mutate_native_arguments():
+    for name, args in [("get_webpage", {"url": "www.example.com"}),
+                       ("post_webpage", {"url": "www.example.com", "content": "x"}),
+                       ("send_direct_message", {"recipient": "Alice", "body": "x"})]:
+        original = dict(args)
+        assert native_args(name, gate_args(name, args)) == original
+        assert args == original

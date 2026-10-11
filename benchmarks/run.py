@@ -22,14 +22,19 @@ def main():
     args = parser.parse_args()
     manifest = json.loads(Path(args.manifest).read_text())
     sys.path[:0] = [manifest["native_source"] + "/src", manifest["native_deps"]]
-    from benchmarks.agentdojo import execute, grade, prepare
+    from benchmarks.agentdojo import Gate, execute, grade, prepare
 
     case = next(c for c in manifest["cases"] if c["case_id"] == args.case)
     suite, task, injection, world = prepare(case, args.attack, manifest["benchmark_version"])
     pre = world.model_copy(deep=True)
     model = Bedrock(args.model, args.env_path)
+    gate = None
     if args.arm != "unprotected":
-        raise RuntimeError("Protected execution waits for accepted engine integration")
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "sdk"))
+        _, _, _, clean_world = prepare(case, False, manifest["benchmark_version"])
+        gate = Gate(suite, task, clean_world, model, {
+            "case_id": args.case, "name": "agentdojo-" + args.case + "-" + args.model.split(".")[-1]
+        })
     def deadline(_signum, _frame):
         raise TimeoutError("invocation deadline")
 
@@ -37,9 +42,12 @@ def main():
     signal.setitimer(signal.ITIMER_REAL, manifest["timeout_s"])
     try:
         result = execute(suite, task, world, model, manifest["parameters"], manifest["max_steps"],
-                         max_tools=manifest["max_tool_steps"], timeout_s=manifest["timeout_s"])
+                         gate=gate, max_tools=manifest["max_tool_steps"],
+                         timeout_s=manifest["timeout_s"])
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
+    if gate and result["status"] == "completed":
+        gate.core.complete(gate.run)
     try:
         scores = grade(suite, task, injection, pre, result)
     except Exception as exc:
@@ -49,7 +57,10 @@ def main():
     evidence = args.output + ".evidence.json"
     save(evidence, {"pre_world": pre, "post_world": result["world"],
                     "ledger": result["ledger"], "messages": result["messages"],
-                    "traces": result["traces"], "output": result["output"]})
+                    "traces": result["traces"], "output": result["output"],
+                    "gate_decisions": gate.decisions if gate else [],
+                    "runtime": gate.runtime if gate else None})
+    run = gate.core._http.get("/runs/" + gate.run["id"]).json() if gate else {}
     row = {"benchmark": "agentdojo", "case_id": args.case,
            "attack_id": case["attack"] + ":" + case["injection_task_id"] if args.attack else None,
            "split": case["split"], "cohort": "attack" if args.attack else "clean",
@@ -59,7 +70,10 @@ def main():
            "status": result["status"], "unknown_reason": result["unknown_reason"],
            "native_scores": scores, "validation_method": "native_final_world_and_traces",
            "validation_result": scores if result["status"] == "completed" else None,
-           "evidence_refs": [evidence], "incident_id": None, "restart_id": None,
+           "evidence_refs": [evidence], "incident_id": run.get("incident_id"), "restart_id": None,
+           "run_id": run.get("id"), "runtime": gate.runtime if gate else None,
+           "gate_unavailable": any("unavailable" in d.get("explanation", "").lower()
+                                   for d in gate.decisions) if gate else None,
            "calls": model.calls, "tokens": model.tokens, "latency_s": result["latency_s"],
            "base_sha": manifest["base_sha"], "accepted_base_sha": manifest["accepted_base_sha"],
            "engine_accepted_sha": manifest["engine_accepted_sha"],
