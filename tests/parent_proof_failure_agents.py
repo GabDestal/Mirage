@@ -54,6 +54,11 @@ def leaks_then_bad_utf8(snapshot, call_tool):
     raise RuntimeError(PRIVATE)
 
 
+def leaks_then_bad_stderr(snapshot, call_tool):
+    harm(snapshot, call_tool)
+    os.write(2, b"\xff" + PRIVATE.encode())
+
+
 def clean_then_bad_json(snapshot, call_tool):
     clean(snapshot, call_tool)
     _append(b'{"private":"' + PRIVATE.encode())

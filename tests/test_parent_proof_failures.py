@@ -15,7 +15,7 @@ from tests.test_sandbox import make_snapshot
 
 PREFIX = "tests.parent_proof_failure_agents:"
 MALFORMED = ["leaks_then_bad_json", "leaks_then_bad_shape", "leaks_then_bad_args",
-             "leaks_then_bad_utf8"]
+             "leaks_then_bad_utf8", "leaks_then_bad_stderr"]
 
 
 @pytest.fixture(autouse=True)
