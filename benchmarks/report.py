@@ -339,11 +339,35 @@ def publication(report: dict, raw_path: Path) -> dict:
             "publication_scope": "All selected cells and scalar native/state metrics; rows contain reconciled proof, observed_rows contain unaugmented original result metadata. Runtime contexts, raw prompts/model replies, full native datasets and detailed grader records remain outside Git."}
 
 
+def executive_readout(rows: list[dict]) -> list[str]:
+    by_benchmark = defaultdict(list)
+    for row in rows:
+        by_benchmark[str(row.get("benchmark")).lower()].append(row)
+    lines = []
+    if by_benchmark["agentrx"]:
+        held = [r for r in by_benchmark["agentrx"] if r.get("split") == "heldout" and r.get("cohort") == "diagnosis_native_schema_v2"]
+        scored = sum(all(metric(r, name) is not None for name in METRICS["agentrx"]) for r in held)
+        lines.append(f"- **AgentRx:** {sum((r.get('calls') or 0) for r in held)} frozen held-out calls; {scored}/{len(held)} cells have both native metrics. No assistance gain is demonstrated in this pilot; missing labels and malformed outputs remain in each six-case model/arm denominator.")
+    if by_benchmark["agentdojo"]:
+        selected = by_benchmark["agentdojo"]
+        attempts = [r for r in selected if (r.get("calls") or 0) > 0]
+        contained_without_utility = sum(checkpoint_eligible(r) and metric(r, "attacker_success") == 0 and metric(r, "utility") == 0 for r in attempts)
+        lines.append(f"- **AgentDojo:** {len(attempts)}/{len(selected)} selected cells attempted. The attacked pair demonstrates containment with lost utility: {contained_without_utility} evaluated frozen checkpoint has native attacker failure and failed utility. Full-workflow recovery and approved restarts are unmeasured; execution stopped on a platform restriction without a workaround.")
+    if by_benchmark["harnessrisk"]:
+        selected = by_benchmark["harnessrisk"]
+        attempts = [r for r in selected if (r.get("calls") or 0) > 0]
+        completed = sum(r.get("status") in ("completed", "success", "succeeded") for r in attempts)
+        partial = sum(r.get("status") not in ("completed", "success", "succeeded") and scalar((r.get("native_scores") or {}).get("utility_score")) == 1 for r in attempts)
+        lines.append(f"- **HarnessRisk:** {len(attempts)}/{len(selected)} selected cells attempted; {completed} completed executions, with earlier incomplete runs retained. {partial} incomplete run has positive raw native utility. In the separate larger-budget development cohort, Haiku achieves two validated joint task completions: unprotected and gate arms on the same one development case. Gpt-oss restores safe configuration but its report fails required file predicates despite native fallback utility 1. This establishes no Mirage advantage, approved restart, or frontier safety equivalence; frozen held-out completion remains unavailable.")
+    return lines
+
+
 def render(tables: list[dict], rows: list[dict], issues: list, pins: list, overhead_tables: list, differences: list,
            matrix_path: str, acceptance: list[dict], diagnostic_audit: dict | None) -> str:
     attempted = {group_key(r) for r in rows if r.get("calls") is not None}
     lines = ["# Benchmark pilot results", "", f"Generated {datetime.now(timezone.utc).isoformat()}.", "",
         f"Current readout: {len(rows)} fixed selected cells; {sum((nonnegative(r.get('calls')) or 0) > 0 for r in rows)} cells record an attempted invocation; {sum(t['scored'] > 0 for t in tables)} metric groups have at least one known value. Results remain a small pilot; no general recovery or accuracy improvement is established by these counts. Per-model/arm native and state outcomes with missing-outcome bounds follow below.", "",
+        *executive_readout(rows), "",
         "Small pilot; fixed manifests determine denominators. Missing results, scores, timeouts and adapter failures remain UNKNOWN. Incomplete execution cannot establish prevention or utility from default native zero/positive fields; raw fields remain available for audit and known harm survives failures. Bounds are missing-outcome bounds, not statistical confidence intervals; numeric native scores retain their [0,1] range.", "",
         "AgentRx is a thin Bedrock diagnostic adapter over released static traces and native label/grading functions. It does not reproduce the Azure invariant pipeline and establishes no replay, repair or restart. Step and root-cause category are independent metrics; development and held-out domains remain separate.", "",
         "The [pinned native AgentRx grader](https://github.com/microsoft/AgentRx/blob/7a18c79708e7671be15124460f4f7296107c2a55/agentrx/reports/analyze_metrics.py) omits missing predictions/labels from its completed-only denominator and maps invalid categories to 10 (Inconclusive). This scorecard preserves raw valid native analysis and treats missing/malformed outputs as UNKNOWN without granting fallback credit.", "",
@@ -381,7 +405,7 @@ def render(tables: list[dict], rows: list[dict], issues: list, pins: list, overh
         members = [r for r in rows if r["benchmark"] == benchmark]
         lines.append(f"- {benchmark}: source SHAs `{sorted({r.get('source_sha') for r in members if r.get('source_sha')})}`; actual tested code SHAs `{sorted({r.get('code_sha') for r in members if r.get('code_sha') and r.get('calls') is not None})}`.")
     for evidence in acceptance:
-        lines.append(f"- Coordinator-reported acceptance: `{evidence['code_sha']}`; {evidence['summary']} (message `{evidence['message_id']}`). This is repository validation provenance, not a benchmark outcome or a merged composition.")
+        lines.append(f"- Independent provenance: `{evidence['code_sha']}`; {evidence['summary']} (message `{evidence['message_id']}`). Actual execution revisions remain in their rows; no merged composition is inferred.")
     lines += ["", "Parameters, policy versions and selected case IDs are retained per group in scorecard JSON. AgentRx v2 settings follow [AWS OpenAI parameter mapping](https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-openai.html) and [AWS reasoning-effort guidance](https://aws.amazon.com/blogs/machine-learning/run-nvidia-nemotron-and-openai-gpt-oss-models-on-amazon-bedrock-in-aws-govcloud-us/). The configured Opus reference ID is documented in the [AWS model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-8.html); availability is established only by actual responses."]
     lines += ["", "## Execution and incomplete gates", "",
               f"Selected rows: {len(rows)}. Rows recording at least one call: {sum((nonnegative(r.get('calls')) or 0) > 0 for r in rows)}. Reconciliation issues: {len(issues)}. Native/state disagreements: {len(differences)} (details in scorecard JSON).", "",
@@ -510,7 +534,8 @@ if __name__ == "__main__":
                 for p in args.manifest + args.rows + args.acceptance + args.state_validation + args.saved_evidence +
                 ([args.diagnostic_audit] if args.diagnostic_audit else []) if p.exists()]
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        report = {"metrics": tables, "overhead": overhead_tables,
+        report = {"report_generator_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                  "metrics": tables, "overhead": overhead_tables,
                                           "rows": rows, "observed_rows": observed, "issues": issues,
                                           "native_state_disagreements": differences,
                                           "acceptance_evidence": acceptance,
