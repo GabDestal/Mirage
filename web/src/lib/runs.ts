@@ -23,6 +23,7 @@ export function avatarState(run: Pick<Run, 'status' | 'env'>): AvatarState {
       return 'frozen'
     case 'killed':
     case 'halted':
+    case 'failed':
       return 'killed'
     default:
       return 'idle' // queued, completed
@@ -85,6 +86,8 @@ export function rowSentence(run: Run, events: MirageEvent[]): { text: string; to
       return { text: last ? `Working · ${last.tool}` : 'Starting' }
     case 'completed':
       return { text: 'Done' }
+    case 'failed':
+      return { text: run.status_reason || 'Run failed', tone: 'alarm' }
     case 'frozen': {
       const b = blockedCall(events, run.id)
       if (!b) return { text: 'Frozen', tone: 'alarm' }
@@ -116,6 +119,11 @@ export function fleetSentence(runs: Run[]) {
   if (frozen.length === 1) return `${runLabel(frozen[0], runs)} is frozen. ${keep}`
   if (frozen.length > 1) return `${frozen.length} runs are frozen. ${keep}`
   if (runs.every((r) => r.status === 'halted')) return 'Everything is stopped.'
+  const failed = runs.filter((r) => r.status === 'failed').length
+  if (failed) {
+    const ongoing = others ? `${others} ${others === 1 ? 'agent is' : 'agents are'} working.` : 'Nothing else is running.'
+    return `${failed} ${failed === 1 ? 'run' : 'runs'} failed. ${ongoing}`
+  }
   if (others && others === runs.length) return `All ${others} agents are working.`
   if (others) return `${others} ${others === 1 ? 'agent is' : 'agents are'} working. The rest are done.`
   return 'All runs are done.'

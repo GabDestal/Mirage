@@ -7,6 +7,7 @@ answer 409. Data plane routes that act on a run need `Authorization: Bearer <run
 """
 
 import asyncio
+import copy
 import os
 import subprocess
 import sys
@@ -34,6 +35,7 @@ from contracts.models import (
     ResumeAll,
     ResumeSkip,
     Run,
+    RunCompletion,
     RunStart,
     RunStarted,
     ServiceView,
@@ -131,17 +133,19 @@ def register_agent(spec: AgentSpec) -> AgentSpec:
 
 @app.post("/runs", **data_plane)
 def start_run(body: RunStart) -> RunStarted:
-    if body.agent not in gate.agents:
+    spec = gate.agents.get(body.agent)
+    if spec is None:
         raise HTTPException(404, f"Agent {body.agent} is not registered (POST /agents)")
     if gate.STOP.is_set():
         raise HTTPException(409, "Global STOP is on")
     queued = next((r for r in gate.runs.values()
                    if r.agent == body.agent and r.status == "queued"), None)
     if queued:  # an approved clean restart: this run takes it over
+        queued.legit = copy.deepcopy(spec.legit)
         gate.set_status(queued, "running", "sdk", f"Clean restart of {queued.restarted_from}.")
         return RunStarted(run_id=queued.id, run_token=queued.token)
     run = gate.LiveRun(id=gate.next_id("run"), agent=body.agent, task=body.task,
-                       restarted_from=body.restarted_from)
+                       restarted_from=body.restarted_from, legit=copy.deepcopy(spec.legit))
     gate.runs[run.id] = run
     gate.set_status(run, "running", "sdk", "Run started.")
     events.emit("run.started", {"task": run.task, "agent": run.agent,
@@ -176,11 +180,17 @@ def wait(run_id: str, timeout: float = 25, authorization: str = Header("")) -> W
 
 
 @app.post("/runs/{run_id}/complete", **data_plane)
-def complete_run(run_id: str, authorization: str = Header("")) -> Run:
-    run = _authed(run_id, authorization)
-    if run.status == "running":
-        gate.set_status(run, "completed", "sdk", "Task finished.")
-    return run.model()
+def complete_run(run_id: str, authorization: str = Header(""),
+                 body: RunCompletion | None = None) -> Run:
+    with jobs.lock:
+        run = _authed(run_id, authorization)
+        if run.status == "running":
+            error = body.error if body else None
+            if error is not None:
+                gate.set_status(run, "failed", "sdk", f"Run failed: {gate.error_type(error)}.")
+            else:
+                gate.set_status(run, "completed", "sdk", "Task finished.")
+        return run.model()
 
 
 # --- control plane: web + MCP -> engine --------------------------------------------------
@@ -408,8 +418,9 @@ def _queue_restart(old, body, action, note=None):
     events.emit("human.action", {"actor": body.actor, "action": action,
                                  "target": old.id, "reason": body.reason,
                                  "ts": datetime.now(UTC).isoformat()})
+    spec = gate.agents.get(old.agent)
     run = gate.LiveRun(id=gate.next_id("run"), agent=old.agent, task=old.task,
-                       restarted_from=old.id)
+                       restarted_from=old.id, legit=copy.deepcopy(spec.legit if spec else {}))
     gate.runs[run.id] = run
     events.emit("run.started", {"task": run.task, "agent": run.agent, "restarted_from": old.id,
                                 "status": "queued", **({"note": note} if note else {})},

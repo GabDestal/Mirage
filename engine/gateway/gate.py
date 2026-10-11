@@ -12,6 +12,7 @@ Incidents live only in the event log (engine/api/state.py folds them). Live runs
 are in memory: a run's thread and its freeze lock belong to the process that runs it.
 """
 
+import builtins
 import os
 import secrets
 import threading
@@ -75,12 +76,13 @@ class LiveRun:
     calendar: str = ""
     services: Any = None
     messages: list = field(default_factory=list)
+    status_reason: str | None = None
 
     def model(self) -> Run:
         return Run(id=self.id, agent=self.agent, env="prod", task=self.task, status=self.status,
                    started_at=self.started_at, ended_at=self.ended_at,
                    incident_id=self.incident_id, tool_calls=self.tool_calls,
-                   restarted_from=self.restarted_from)
+                   restarted_from=self.restarted_from, status_reason=self.status_reason)
 
 
 def reset():
@@ -119,7 +121,8 @@ def is_probe(policy, tool):
 def set_status(run, to, actor, reason):
     previous = run.status
     run.status = to
-    if to in ("completed", "killed", "halted"):
+    run.status_reason = reason
+    if to in ("completed", "failed", "killed", "halted"):
         run.ended_at = datetime.now(UTC)
     if to == "frozen":
         run.resume.clear()
@@ -200,7 +203,7 @@ def _check(run, tool, args) -> GateDecision:
         emit("tool.requested", {"call_id": call_id, "tool": tool, "args": args}, run_id=run.id)
         policy = policy_for(run.agent)
         evaluate = not STOP.is_set() and run.status not in (
-            "frozen", "killed", "halted", "completed") and is_known(policy, tool)
+            "frozen", "killed", "halted", "completed", "failed") and is_known(policy, tool)
 
     # A slow decision must not hold up healthy runs, STOP, or reset. Recheck authority below.
     hit = hard_rule(run.agent, tool, args, policy) if evaluate else None
@@ -211,7 +214,7 @@ def _check(run, tool, args) -> GateDecision:
             hit = (None, judged["explanation"])
     review = judged if judged and judged.get("review") else None  # medium risk: ask a human
     with jobs.lock:
-        if STOP.is_set() or run.status in ("killed", "halted", "completed"):
+        if STOP.is_set() or run.status in ("killed", "halted", "completed", "failed"):
             hit = None
             decision, rule = "block", ("RUN_REVOKED", f"Run is {run.status}; access is revoked.")
         elif run.status == "frozen":
@@ -283,7 +286,19 @@ def _check(run, tool, args) -> GateDecision:
         return gate
 
 
+def error_type(error):
+    """Retain a known category only; provider text and custom names may contain credentials."""
+    name = error.partition(":")[0].strip() if isinstance(error, str) else ""
+    kind = getattr(builtins, name, None)
+    if name in {"ClientError", "HTTPStatusError", "ValidationError", "ExecutionError"} or (
+            isinstance(kind, type) and issubclass(kind, BaseException)):
+        return name
+    return "ExecutionError"
+
+
 def record_result(run, call_id, tool, result, error=None):
+    if error is not None:
+        error, result = error_type(error), None
     args = run.calls.get(call_id, {}).get("args", {})
     run.tool_results.append({"call_id": call_id, "tool": tool, "args": args, "result": result,
                              "error": error})

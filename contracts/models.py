@@ -16,7 +16,7 @@ class Model(BaseModel):
 
 
 Env = Literal["prod", "mirage"]
-RunStatus = Literal["queued", "running", "frozen", "completed", "killed", "halted"]
+RunStatus = Literal["queued", "running", "frozen", "completed", "failed", "killed", "halted"]
 IncidentStatus = Literal[
     "open", "detonating", "false_positive", "confirmed", "bisecting", "root_caused",
     "fix_pending", "fix_verified", "pr_open", "merged", "closed",
@@ -41,6 +41,7 @@ class Run(Model):
     env: Env
     task: str
     status: RunStatus
+    status_reason: str | None = None
     started_at: datetime
     ended_at: datetime | None = None
     incident_id: str | None = None
@@ -91,6 +92,7 @@ class Effect(Model):
     tool: str
     args: dict[str, Any]
     violates: list[str] = []
+    error: str | None = None  # failed attempts are not successful effects
 
 
 class Detonation(Model):
@@ -225,6 +227,7 @@ class AgentSpec(Model):
     tools: list[str]  # every tool the agent has, allowed or not
     allow: Allowlist
     entrypoint: str  # "agents.assistant:build_agent"
+    legit: dict[str, Any] = {}  # story completion declaration, copied into the run and snapshot
 
 
 class RunStart(Model):
@@ -266,6 +269,12 @@ class ToolResult(Model):
     error: str | None = None
 
 
+class RunCompletion(Model):
+    """Optional POST /runs/{id}/complete body. No error preserves old clients' success path."""
+
+    error: str | None = None
+
+
 class ResumeSkip(Model):
     run_id: str
     reason: str
@@ -281,7 +290,7 @@ class ResumeAll(Model):
 class WaitResult(Model):
     """GET /runs/{id}/wait. Long poll while frozen. `frozen`: still frozen, poll again."""
 
-    status: Literal["running", "frozen", "killed", "halted"]
+    status: Literal["running", "frozen", "failed", "killed", "halted"]
 
 
 # --- Snapshot: engine -> sandbox (CONTRACTS.md §11) --------------------------------------
@@ -292,6 +301,7 @@ class SnapshotToolResult(Model):
     tool: str
     args: dict[str, Any]
     result: Any = None
+    error: str | None = None  # preserved for replay, excluded from useful inputs
 
 
 class SnapshotInput(Input):
@@ -314,7 +324,7 @@ class Snapshot(Model):
     system: str | None = None
     model_id: str | None = None
     policy: dict[str, Any] = {}  # the gate policy at freeze; the verdict reuses it
-    legit: dict[str, Any] = {}  # "legit task completed" check, e.g. {tool, to}
+    legit: dict[str, Any] = {}  # AgentSpec.legit, the story completion declaration
     taken_at: datetime
     # In order, up to the frozen call. The sandbox replays these replies, then goes live
     # from the frozen call: the run continues where prod stopped.

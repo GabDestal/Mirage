@@ -30,8 +30,9 @@ def fold(events):
             if p["from"] == "frozen" and p["to"] == "running" and run.incident_id in incidents:
                 incidents[run.incident_id].status = "closed"  # a human judged it a false positive
             run.status = p["to"]
+            run.status_reason = p.get("reason")
             run.incident_id = e.incident_id or run.incident_id
-            if p["to"] in ("completed", "killed", "halted"):
+            if p["to"] in ("completed", "failed", "killed", "halted"):
                 run.ended_at = e.ts
         elif e.type == "tool.requested" and run:
             run.tool_calls += 1

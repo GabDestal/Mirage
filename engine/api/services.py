@@ -57,6 +57,8 @@ def _record_item(service, record, ts, causes):
 
 
 def _email_item(item_id, args, ts, flag, note=""):
+    if args.get("send_on") and flag != "blocked":
+        note = f"scheduled for {args['send_on']}" + (f" · {note}" if note else "")
     return ServiceItem(id=item_id, title=str(args.get("subject") or "(no subject)"),
                        subtitle=f"to {args.get('to')}" + (f" · {note}" if note else ""),
                        ts=ts, flag=flag)
@@ -85,12 +87,14 @@ def view(events, service, env) -> ServiceView:
                     and p["decision"] in ("freeze", "block"):
                 add(_email_item(p["call_id"], p["args"], e.ts, "blocked",
                                 f"{p['decision']} {p['rule_id'] or ''}".strip()))
-        elif e.type == "tool.result" and env == "prod" and not p.get("error"):
+        elif e.type == "tool.result" and env == "prod" and p.get("error") is None:
             args = requested.get(p["call_id"], {}).get("args", {})
             if service == "outbox" and "to" in args:
                 released = p["call_id"] in seen  # it was held first, then a human released it
+                note = ("after a human unfroze the run" if args.get("send_on")
+                        else "sent after a human unfroze the run") if released else ""
                 add(_email_item(p["call_id"], args, e.ts, "normal",
-                                "sent after a human unfroze the run" if released else ""))
+                                note))
             elif _service_of(p["tool"]) == service:
                 for record in _records(p["result"]):
                     add(_record_item(service, record, e.ts, causes))
@@ -98,7 +102,8 @@ def view(events, service, env) -> ServiceView:
                 and p.get("purpose", "detonate") == "detonate":
             main_detonations.add(p["detonation_id"])
         elif e.type == "detonation.effect" and env == "mirage" and service == "outbox" \
-                and p["detonation_id"] in main_detonations and "to" in p["args"]:
+                and p["detonation_id"] in main_detonations and "to" in p["args"] \
+                and p.get("error") is None:
             add(_email_item(f"{p['detonation_id']}:{p['run_index']}:{p['step']}", p["args"],
                             e.ts, "malicious" if p["violates"] else "normal",
                             f"replay {p['run_index']}"))

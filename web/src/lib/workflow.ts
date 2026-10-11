@@ -17,7 +17,7 @@ type Call = TraceCallDetail
 export type ActivityState = 'pending' | 'allowed' | 'completed' | 'blocked' | 'error' | 'paused' | 'stopped' | 'unrecorded'
 export const activityLabels: Record<ActivityState, string> = {
   pending: 'Checking action', allowed: 'Awaiting result', completed: 'Completed',
-  blocked: 'Held before execution', error: 'Needs attention', paused: 'Paused · no result',
+  blocked: 'Held before execution', error: 'Failed', paused: 'Paused · no result',
   stopped: 'Stopped · no result', unrecorded: 'Result not recorded',
 }
 
@@ -25,6 +25,7 @@ export function activityState(call: Call, status: Run['status']): ActivityState 
   if (call.error !== null) return 'error'
   if (call.resultRecorded || call.result !== undefined) return 'completed'
   if (call.blocked && !call.released) return 'blocked'
+  if (status === 'failed') return 'error'
   if (status === 'killed' || status === 'halted') return 'stopped'
   if (status === 'frozen') return 'paused'
   if (status === 'completed') return 'unrecorded'

@@ -14,13 +14,14 @@ export type { TraceCallDetail } from '@/lib/workflow'
 
 const STATUS: Record<Run['status'], string> = {
   queued: 'Waiting to start', running: 'Working', frozen: 'Paused for review',
-  completed: 'Done', killed: 'Stopped', halted: 'Stopped',
+  completed: 'Done', failed: 'Failed', killed: 'Stopped', halted: 'Stopped',
 }
 const EMPTY: Record<Run['status'], string> = {
   queued: 'Activity will appear here when the assistant starts.',
   running: 'The assistant is working. Its first action will appear here.',
   frozen: 'This run is paused. No tool actions have been recorded yet.',
   completed: 'This run is done. No tool actions were recorded.',
+  failed: 'This run failed. No tool actions were recorded.',
   killed: 'This run was stopped. No tool actions were recorded.',
   halted: 'This run was stopped. No tool actions were recorded.',
 }
@@ -70,7 +71,7 @@ function RunWorkflow({ id }: { id: string | undefined }) {
         <AgentAvatar agent={run.agent} state={avatarState(run)} size={40} />
         <div className="trace-header-title">
           <div className="trace-title-line"><h1>{runLabel(run, runs)}</h1>
-            <span className={`trace-status ${run.status === 'frozen' ? 'trace-status--paused' : ''}`}>{STATUS[run.status]}</span>
+            <span className={`trace-status ${run.status === 'frozen' || run.status === 'failed' ? 'trace-status--paused' : ''}`}>{STATUS[run.status]}</span>
           </div><p>{run.task}</p>
         </div>
       </div>
@@ -83,6 +84,7 @@ function RunWorkflow({ id }: { id: string | undefined }) {
       </div>
     </header>
     {isError ? <p className="trace-notice" role="status">Latest run status is unavailable. Showing the last received activity. <button onClick={() => void refetch()}>Try again</button></p> : null}
+    {run.status === 'failed' ? <p className="trace-notice" role="status">{run.status_reason || 'This run failed.'}</p> : null}
     {run.status === 'frozen' ? <div className="trace-pause-note"><Pause size={16} aria-hidden="true" />
       <p><strong>Paused for human review.</strong> Review its activity below{run.incident_id ? ' or open the incident to decide what happens next.' : '.'}</p>
     </div> : null}
@@ -109,7 +111,7 @@ function RunWorkflow({ id }: { id: string | undefined }) {
       })}</ul> : null}
       <div className="trace-current" aria-live="polite" aria-atomic="true">{latestCall ? <>
         <StateIcon state={activityState(latestCall, run.status)} /><span>
-          {run.status === 'completed' ? 'Run finished.' : run.status === 'killed' || run.status === 'halted' ? 'Run stopped.' : 'Latest activity:'} {actionSummary(latestCall)} · {activityLabels[activityState(latestCall, run.status)]}
+          {run.status === 'failed' ? 'Run failed.' : run.status === 'completed' ? 'Run finished.' : run.status === 'killed' || run.status === 'halted' ? 'Run stopped.' : 'Latest activity:'} {actionSummary(latestCall)} · {activityLabels[activityState(latestCall, run.status)]}
         </span></> : <span>{STATUS[run.status]}</span>}
       </div>
     </section>

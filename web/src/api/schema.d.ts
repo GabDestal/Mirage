@@ -432,7 +432,7 @@ export interface paths {
         /**
          * Resume All
          * @description Lift Stop all (if on) and resume every halted run that has no restart yet. Compromised
-         *     runs stay halted and come back in `skipped`.
+         *     runs stay halted and come back in `skipped`. Managed replay only resumes its paused clock.
          */
         post: operations["resume_all_resume_all_post"];
         delete?: never;
@@ -617,6 +617,13 @@ export interface components {
             allow: components["schemas"]["Allowlist"];
             /** Entrypoint */
             entrypoint: string;
+            /**
+             * Legit
+             * @default {}
+             */
+            legit: {
+                [key: string]: unknown;
+            };
         };
         /** Allowlist */
         Allowlist: {
@@ -893,7 +900,9 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "queued" | "running" | "frozen" | "completed" | "killed" | "halted";
+            status: "queued" | "running" | "frozen" | "completed" | "failed" | "killed" | "halted";
+            /** Status Reason */
+            status_reason?: string | null;
             /**
              * Started At
              * Format: date-time
@@ -910,6 +919,14 @@ export interface components {
              * @default 0
              */
             tool_calls: number;
+        };
+        /**
+         * RunCompletion
+         * @description Optional POST /runs/{id}/complete body. No error preserves old clients' success path.
+         */
+        RunCompletion: {
+            /** Error */
+            error?: string | null;
         };
         /**
          * RunStart
@@ -1033,7 +1050,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "running" | "frozen" | "killed" | "halted";
+            status: "running" | "frozen" | "failed" | "killed" | "halted";
         };
     };
     responses: never;
@@ -1281,7 +1298,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RunCompletion"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
