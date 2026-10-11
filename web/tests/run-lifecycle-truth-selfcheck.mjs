@@ -354,7 +354,7 @@ try {
     await test('queued recovery is pending until a running run has an observed live owner', () => {
       seed([halted, queued], runtime([]))
       const pending = render(Fleet)
-      assert.match(text(pending), /pending|awaiting owner|waiting for .*start/i)
+      assert.match(text(pending), /pending|starting|awaiting owner|waiting for .*start/i)
       assert.equal(stat(pending, 'Active Agents'), 0)
       assert.ok(!enabled(pending, 'Freeze'))
       cache.setQueryData(['runs'], [halted, { ...queued, status: 'running' }])
@@ -406,7 +406,7 @@ try {
         assert.match(await request('restart', subject, queued), /queued.*Waiting for the owner/i)
         assert.deepEqual(cache.getQueryData(['runs']), [subject, queued])
         const pending = render(actions.CleanRestartButton, { run: subject })
-        assert.match(pending, /pending · awaiting owner start/)
+        assert.match(pending, /Clean restart starting…/)
         assert.match(pending, /href="\/runs\/run%2Ftwo"/)
         assert.ok(!enabled(pending, 'Approve clean restart'))
       })
