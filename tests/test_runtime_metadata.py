@@ -3,10 +3,12 @@
 import asyncio
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import threading
 from concurrent.futures import Future
+from contextlib import closing
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -308,6 +310,30 @@ print(json.dumps(event.model_dump(mode="json")))
     fresh = api.get("/events")
     assert fresh.headers["X-Mirage-Stream-Epoch"] == epoch
     assert [e["payload"]["text"] for e in fresh.json()] == ["Fresh synthetic generation"]
+
+
+def test_external_restore_interrupts_old_queued_jobs_without_replaying(api, deferred, tmp_path):
+    _, incident_id = freeze(api)
+    jobs.submit(incident_id, lambda _: pytest.fail("Restored work must never execute"))
+    before = runtime(api)
+    restored_db = tmp_path / "restored.db"
+    with closing(sqlite3.connect(restored_db)) as backup:
+        events._db().backup(backup)
+    jobs.shutdown()  # no live executor remains; the saved history still contains its queue
+    child(f'''
+import json
+import shutil
+from engine.store import events
+events.reset()
+shutil.copyfile({str(restored_db)!r}, events.DB_PATH)
+print(json.dumps({{"restored": True}}))
+''', tmp_path)
+    after = runtime(api)
+    assert after["stream_epoch"] != before["stream_epoch"]
+    assert after["owned_run_ids"] == []
+    job = public_job(api, incident_id)
+    assert job["status"] == "failed" and job["error"] == "interrupted"
+    assert not jobs.running(incident_id)
 
 
 def test_sse_first_frame_is_named_runtime_even_when_business_events_exist(api):

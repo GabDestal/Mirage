@@ -106,7 +106,8 @@ metadata is durable `payload.sandbox_job` in existing event types, never inferre
 Bounded system `agent.message` frames carry queued/running/completed metadata; failures carry
 it in `detonation.failed` or `bisection.completed`. Error values are only controlled categories:
 `execution_failed`, `scheduling_failed`, `stopped`, `interrupted`; no exception bodies or arguments.
-New-process restore marks recorded queued/running jobs failed/interrupted without executing them.
+New-process or external log restore marks recorded queued/running jobs failed/interrupted
+without executing them.
 Human release, restart and proof retry remain explicit.
 
 ### Run

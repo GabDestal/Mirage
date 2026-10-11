@@ -102,6 +102,8 @@ def _event_batch(after=0):
             epoch, last_seq, batch = events.read_batch(after)
             if _live_epoch is not None and epoch != _live_epoch:
                 gate.reset()  # old in-memory tokens/owners cannot control a replacement log
+                restore()
+                epoch, last_seq, batch = events.read_batch(after)
             _live_epoch = epoch
         info = RuntimeInfo(engine_mode=MODE, instance_id=INSTANCE_ID,
                            stream_epoch=f"{INSTANCE_ID}:{epoch}", last_seq=last_seq,
