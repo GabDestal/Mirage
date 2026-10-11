@@ -276,7 +276,6 @@ export function useHumanAction() {
       if (kind === 'resume') return toast((data as Run).status === 'queued'
         ? `${label} restart queued. Waiting for the owner to start it.` : `${label} restart: ${(data as Run).status}.`)
       if (kind === 'freeze') return toast(`${label} is frozen.`)
-      if (isDemo && (kind === 'kill' || kind === 'unfreeze')) return toast(`${label}: ${(data as Run).status}.`)
       toast(kind === 'stop' ? 'Global STOP is on. All agents halted.'
         : kind === 'kill' ? `${label} was killed.` : `${label} released. Last observed state: ${(data as Run).status}.`)
     },

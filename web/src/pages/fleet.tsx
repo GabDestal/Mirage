@@ -99,7 +99,7 @@ export function Fleet() {
     try {
       await api('/demo/start', {})
       resetStream()
-      toast.success(isDemo ? 'Restarted the recorded demo' : 'Started 4-agent demo fleet')
+      toast.success('Started 4-agent demo fleet')
     } catch (e: any) {
       toast.error(e?.message || 'Could not start demo')
     } finally {
@@ -141,7 +141,7 @@ export function Fleet() {
               disabled={startingDemo}
             >
               <Play size={13} fill="currentColor" />
-              {startingDemo ? (isDemo ? 'Redeploying…' : 'Deploying…') : (isDemo ? 'Redeploy Fleet' : 'Deploy Fleet')}
+              {startingDemo ? 'Deploying…' : 'Deploy Fleet'}
             </button>
             <Button asChild variant="primary">
               <Link to="/">Ask Miragio</Link>
