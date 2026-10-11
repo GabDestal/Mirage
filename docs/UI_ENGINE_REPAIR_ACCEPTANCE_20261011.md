@@ -108,7 +108,7 @@ approval/recovery acceptance is established by #125's UI controls or this report
 | Final composed source | Pending coordinator's known full SHA; draft inspection source is `e836fd4a797ec9fbe648f29164d7c4db37954b05` |
 | Engine | Planned owned loopback `http://127.0.0.1:8040`, Person A; coordinator reports not yet running. Started PID/time/loaded revision/mode/instance/epoch/owned runs pending. |
 | Web/proxy | Coordinator reports main UI `http://127.0.0.1:5180`, PID84720, terminal `term_146a8a2b-1ee2-4b95-9d64-9c0bab73eaa1`, source at startup `e3a0d019`; configured `/api`→8040, `/chat`→8041. Read parity/loaded final source pending. |
-| Chat/MCP | Coordinator reports `http://127.0.0.1:8041`, PID86841, terminal `term_55913927-9c65-4fd4-8984-b9dc1b19ceba`. Engine target8040 is planned; built source/provider/model readiness and actual request evidence pending. |
+| Chat/MCP | Coordinator reports `http://127.0.0.1:8041`, PID86841, terminal `term_55913927-9c65-4fd4-8984-b9dc1b19ceba`. Engine target8040 is planned; native-browser chat attempt exposed Bedrock denial for the configured chat model in `us-east-1`. No successful provider/tool completion; built source and final model identity pending. |
 | State isolation | New absolute DB/snapshot/token paths and scheduler identity pending coordinator evidence; a different port alone is insufficient |
 | Existing session | User engine8000/UI5173/chat8001 remain untouched and are not acceptance test targets |
 | Victim/companions | Four protected source agents: meeting assistant, invoicing, outreach, PR reviewer; final resolved model IDs/user/task/day/seed/poison and request/effect/error evidence pending |
@@ -156,14 +156,21 @@ The current weakness of counts/catalogue/legitimate checks means that interface 
 does not establish verified fixes. Use the actual live incident snapshot; the recorded
 M1 handoff has no executable snapshot/token and its PR URL is a placeholder.
 
-Coordinator's staged browser attachment reached login, then the tab disappeared;
-stable placement is under investigation. That observation is not browser workflow
-acceptance. No fresh control or provider call was reported for the staged UI/chat.
+**Coordinator browser observation, 01:11 UTC:** Orca tab handles repeatedly disappeared;
+fallback native Dia at `127.0.0.1:5180` reached the dashboard through normal demo
+sign-in. Accessibility state exposed the chat turn “What is happening across my
+agents?” and a public error that Bedrock denied access to the configured chat model
+in `us-east-1`. This is a browser-observed failed chat/provider attempted gate, with
+no successful provider/tool completion or incident proof. A ScreenCaptureKit error
+followed sign-in, but subsequent accessibility state verified navigation; no screenshot
+proof was supplied. Engine8040 was still not started. The observation does not identify
+an expired key or establish that other model roles are unavailable.
 
 ## 6. Open provider, service and deployment gates
 
-Coordinator-supplied sanitized configuration: Bedrock is configured in `us-east-1`
-but fresh access is not yet proven; configured Google credential/token paths are absent;
+Coordinator-supplied sanitized configuration: Bedrock is configured in `us-east-1`;
+the browser chat attempt above failed with configured-model access denied, while other
+model roles have not yet been tested. Configured Google credential/token paths are absent;
 HubSpot token is unset; no deployment URL/target is configured. This worker has not
 read or copied `.env`, credentials, provider responses or incident capabilities.
 
