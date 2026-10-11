@@ -10,6 +10,7 @@ from mirage import core
 
 from engine.api import server
 from engine.gateway import gate
+from engine.store import events
 from tests.test_api import AGENT, HUMAN, USER, check, start
 
 
@@ -199,6 +200,33 @@ def test_reject_revokes_even_when_human_audit_fails(api, monkeypatch):
     effects = []
     assert protected(handle(run_id, auth), USER, effects) == "blocked"
     assert effects == []
+
+
+@pytest.mark.parametrize("action", ["freeze", "kill", "stop"])
+def test_sqlite_write_failure_does_not_leave_original_run_authorized(api, monkeypatch, action):
+    run_id, auth = start(api)
+    connection = events._db()
+
+    class UnwritableStore:
+        def execute(self, sql, *args):
+            if sql == "BEGIN IMMEDIATE":
+                raise OSError("synthetic SQLite write failure")
+            return connection.execute(sql, *args)
+
+    with monkeypatch.context() as fault:
+        fault.setattr(events, "_db", lambda: UnwritableStore())
+        path = "/stop" if action == "stop" else f"/runs/{run_id}/{action}"
+        assert api.post(path, json=HUMAN).status_code == 500
+    run = gate.runs[run_id]
+    status = run.status
+    effects = []
+    if action == "stop":
+        assert api.post("/stop/lift", json=HUMAN).status_code == 204
+    if run.status == "frozen":
+        assert api.post(f"/runs/{run_id}/kill", json=HUMAN).status_code == 200
+    protected(handle(run_id, auth), USER, effects)
+    assert effects == []
+    assert status == {"freeze": "frozen", "kill": "killed", "stop": "halted"}[action]
 
 
 
