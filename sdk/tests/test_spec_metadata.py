@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import httpx
 import mirage
 import pytest
-from mirage import core
+from mirage import core, sandbox
 from mirage.protect import registry
 
 USER = "demo-user@mirage-demo.com"
@@ -184,4 +184,35 @@ def test_sandbox_registration_errors_propagate():
     with pytest.raises(ValueError, match="current spec rejected"):
         core.register(NAME, ["send_email"])
     call_tool.assert_not_called()
+    core._http.post.assert_not_called()
+
+
+def current_factory():
+    module = importlib.import_module("test_langgraph")
+    tools = ["read_calendar", "send_email"]
+    graph = module.create_agent(module.scripted(
+        module.call("read_calendar"), module.call("send_email", to=USER, body="Q4 sync"),
+        module.AIMessage("done")), tools=[module.read_calendar, module.send_email])
+    mirage.protect(graph, NAME, expected_spec(tools, {})["allow"], OWNER,
+                   legit=completion("send_email"))
+
+
+def test_fresh_sandbox_factory_reports_current_code_not_frozen_metadata():
+    calls = []
+
+    def call_tool(name, args):
+        calls.append((name, args))
+        return {"status": "ok"}
+
+    call_tool.register_spec = Mock()
+    entrypoint = f"{__name__}:current_factory"
+    snapshot = {"agent": NAME, "entrypoint": entrypoint, "task": "Prep meetings.",
+                "tools": ["old_tool"], "allow": {"tools": ["old_tool"]},
+                "legit": {"tool": "old_tool"}, "model_calls": []}
+    result = sandbox.run(snapshot, call_tool)
+    expected = expected_spec(["read_calendar", "send_email"], completion("send_email"))
+    expected["entrypoint"] = entrypoint
+    call_tool.register_spec.assert_called_once_with(expected)
+    assert calls == [("read_calendar", {}), ("send_email", {"to": USER, "body": "Q4 sync"})]
+    assert result["messages"][-1].content == "done"
     core._http.post.assert_not_called()
