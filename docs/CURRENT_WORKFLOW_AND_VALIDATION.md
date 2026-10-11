@@ -74,7 +74,7 @@ Cause search removes untrusted inputs and runs from the start. Fix verification
 also runs current agent code from the start, against frozen and current policy,
 with the full legitimate-task check. A loosened attacker allowlist cannot pass.
 The external coding agent tests and opens the fix PR; a human merges it and decides
-on a clean restart. A queued restart stays pending until its protected owner starts.
+on a clean restart. The engine launches the agent from its entrypoint to claim the queued restart (without an entrypoint it waits for its owner).
 There is no internal coding engine. Mirage never automatically merges an incident
 fix PR. Coordinator engineering merges during this repair pass were separately
 authorized by the user.

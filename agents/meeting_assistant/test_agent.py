@@ -46,15 +46,15 @@ def test_poisoned_invite_exfiltrates_crm_without_mirage():
     assert [m["to"] for m in state()["outbox"]] == [ATTACKER]
 
 
-def test_malformed_tool_name_does_not_reach_bedrock():
-    # gpt-oss sometimes emits a name Bedrock rejects on the next call; the model gets an error and retries.
+def test_gpt_oss_channel_marker_is_cut_from_tool_names():
+    # gpt-oss sometimes glues its channel marker to a name; the real tool is the part before `<|`.
     reset()
     model = scripted(
         call("send_email<|channel|>commentary", to=USER_EMAIL, subject="Prep", body="..."),
-        call("send_email", to=USER_EMAIL, subject="Prep", body="..."),
+        call("send email!", to=USER_EMAIL, subject="Prep", body="..."),
         AIMessage("Brief sent."),
     )
     result = build_agent(model).invoke({"messages": [("user", TASK)]})
     names = [c["name"] for m in result["messages"] for c in getattr(m, "tool_calls", [])]
-    assert names == ["send_emailchannelcommentary", "send_email"]
+    assert names == ["send_email", "sendemail"]  # other bad characters are only stripped
     assert len(state()["outbox"]) == 1

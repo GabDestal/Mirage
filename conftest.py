@@ -14,6 +14,9 @@ def isolated_data(tmp_path, monkeypatch):
     # Freeze/unit tests do not implicitly run customer agents or call Bedrock. Scheduling
     # integration tests restore the real callback explicitly with scripted sandbox agents.
     monkeypatch.setattr(jobs, "automatic", lambda *_: None)
+    from engine.api import server  # resume/restart never start a real agent process in tests
+    from tests.test_demo_control import FakeProcess
+    monkeypatch.setattr(server, "_popen_agent", FakeProcess)
     monkeypatch.setattr(events, "DB_PATH", tmp_path / "events.db")
     monkeypatch.setattr(snapshot, "SNAP_DIR", tmp_path / "snapshots")
     monkeypatch.setattr(handoff, "TOKENS", tmp_path / "tokens.json")

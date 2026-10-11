@@ -146,8 +146,8 @@ Repo layout and ownership: `CONTRACTS.md` section 8. SDK: section 11. MCP: secti
   A later manual freeze after clearance may human-unfreeze without repeating the original call.
 - Miragio operator approvals are distinct from protected tool mediation. Live `/approvals` is empty.
 - Escalation rule: repeated denials followed by workaround attempts = pause run + alert human.
-- Human approves clean restarts and merges incident fix PRs (no auto-merge). Queued restart
-  is pending until a matching protected owner actually starts it.
+- Human approves clean restarts and merges incident fix PRs (no auto-merge). The engine starts
+  the agent from its entrypoint; only a matching protected start claims the queued restart.
 - Every human decision is logged: who, when, what, why.
 
 ## Hard rules (non-negotiable)

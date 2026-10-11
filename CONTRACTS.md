@@ -62,7 +62,8 @@ queued → running → completed
 
 `failed` is terminal for that run: the gateway denies tools and SDK wait returns `failed`.
 A human can approve one new queued restart of a killed, halted or failed run.
-Only a matching agent/task/lineage/full-spec start claims it, once; queued is not running.
+The engine starts the agent from its registered entrypoint; only a matching agent/task/lineage/full-spec
+start claims it, once; queued is not running.
 Completion reports never change `frozen`, `killed`, `halted`, or any terminal run.
 
 Human unfreeze needs live ownership and no active proof or confirmed harm. Medium

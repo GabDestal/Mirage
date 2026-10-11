@@ -126,7 +126,7 @@ def test_recorded_sdk_reply_skips_provider_turn_and_pacing(monkeypatch, agent):
 
 @pytest.mark.parametrize("agent", AGENTS)
 @pytest.mark.parametrize("malformed", ["{name}<|channel|>commentary", "<|>"])
-def test_malformed_name_gets_tool_error_then_safe_retry(monkeypatch, agent, malformed):
+def test_malformed_name_is_repaired_or_refused_then_safe_retry(monkeypatch, agent, malformed):
     module = importlib.import_module(f"agents.{agent}.agent")
     name, args, service, function = READS[agent]
     executed = []
@@ -136,10 +136,11 @@ def test_malformed_name_gets_tool_error_then_safe_retry(monkeypatch, agent, malf
     result = module.build_agent(model).invoke({"messages": [("user", "test")]})
 
     names = [c["name"] for m in result["messages"] for c in getattr(m, "tool_calls", [])]
-    assert names == [name + "channelcommentary" if "{name}" in malformed else "invalid_tool", name]
+    marker = "{name}" in malformed  # the part before gpt-oss's `<|` marker is the real tool
+    assert names == [name if marker else "invalid_tool", name]
     replies = [m for m in result["messages"] if isinstance(m, ToolMessage)]
-    assert [m.status for m in replies] == ["error", "success"]
-    assert len(executed) == 1
+    assert [m.status for m in replies] == ["success" if marker else "error", "success"]
+    assert len(executed) == (2 if marker else 1)
     assert result["messages"][-1].content == "Done."
 
 

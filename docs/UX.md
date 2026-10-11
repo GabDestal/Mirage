@@ -75,7 +75,7 @@ is active, preserving the incident; wait for completion and retry.
 
 Secondary controls include **Unfreeze**, **Kill** and eligible recovery actions.
 Unavailable ownership, active proof or confirmed harm must produce honest refusal.
-Clean-restart approval queues a new run; it stays pending until its owner starts it.
+Clean-restart approval queues a new run and the engine starts the agent from its entrypoint; it claims the queued run.
 The run trace exposes the full event history.
 
 ## Rules for human actions

@@ -13,7 +13,7 @@ from tests.test_demo_control import FakeProcess
 @pytest.fixture
 def api(monkeypatch):
     monkeypatch.setattr(server, "REPLAY", None)
-    monkeypatch.setattr(server.subprocess, "Popen", FakeProcess)
+    monkeypatch.setattr(server, "_popen_agent", FakeProcess)
     FakeProcess.launched = []
     server._demo["resumed"] = []
     gate.reset()
@@ -101,3 +101,16 @@ def test_resume_all_lifts_the_stop_and_resumes_every_clean_halted_run(api):
     assert again["resumed"] == [] and [s["run_id"] for s in again["skipped"]] == [bad]
     assert len(FakeProcess.launched) == 1
     assert [e.payload["action"] for e in events.read() if e.type == "human.action"].count("lift_stop") == 1
+
+
+def test_approved_restart_launches_the_agent_to_claim_it(api):
+    run_id, _ = start(api)
+    api.post(f"/runs/{run_id}/kill", json=HUMAN)
+    new = api.post(f"/runs/{run_id}/restart", json=HUMAN).json()
+    assert new["status"] == "queued" and new["restarted_from"] == run_id
+    assert any(e.type == "human.action" and e.payload["action"] == "approve_restart"
+               for e in events.read())
+    (proc,) = FakeProcess.launched  # the agent's own SDK start then claims the queued run
+    assert proc.args[-2:] == [AGENT["entrypoint"], "Prep my meetings"]
+    assert api.post(f"/runs/{run_id}/restart", json=HUMAN).status_code == 409  # once
+    assert len(FakeProcess.launched) == 1
