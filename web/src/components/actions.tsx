@@ -77,7 +77,8 @@ export function runControlNote(run: Run, connection: Connection | undefined) {
 
 const needsOwner = (kind: ActionKind) => ['freeze', 'unfreeze', 'kill'].includes(kind)
 const requireOwner = (kind: ActionKind, run?: Run) => {
-  if (needsOwner(kind) && (!run || !liveRunOwned(run, connectionNow())))
+  const recorded = isDemo && connectionNow()?.runtime?.engine_mode === 'replay'
+  if (needsOwner(kind) && !recorded && (!run || !liveRunOwned(run, connectionNow())))
     throw new Error('This engine has no observed live control of this run. Its recorded history is still available.')
   if (!isDemo && ['resume', 'resumeAll', 'restart'].includes(kind) && !liveEngineAvailable(connectionNow()))
     throw new Error('Live engine ownership is unavailable. Wait for a successful sync before approving recovery.')
@@ -281,10 +282,15 @@ export function useHumanAction() {
       if (kind === 'resume') return toast((data as Run).status === 'queued'
         ? `${label} restart queued. Waiting for the owner to start it.` : `${label} restart: ${(data as Run).status}.`)
       if (kind === 'freeze') return toast(`${label} is frozen.`)
+      if (isDemo && (kind === 'kill' || kind === 'unfreeze')) return toast(`Recorded ${label}: ${(data as Run).status}.`)
       toast(kind === 'stop' ? isDemo ? 'Recording paused. Active recorded runs are halted.' : 'Global STOP is on. Live tool calls are blocked.'
         : kind === 'kill' ? `${label} was killed.` : `${label} released. Last observed state: ${(data as Run).status}.`)
     },
     onError: (err, _, ctx) => {
+      if (ctx && !sameRuntime(ctx.runtime)) {
+        toast.error('The engine changed while this decision was pending. Review its current state before acting again.')
+        return
+      }
       if (ctx && sameRuntime(ctx.runtime)) queryClient.setQueryData(['runs'], ctx.before)
       toast.error(humanControlError(err))
     },

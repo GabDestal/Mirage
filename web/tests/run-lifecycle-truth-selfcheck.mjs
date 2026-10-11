@@ -9,6 +9,7 @@ import { MemoryRouter, Route, Routes } from 'react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { createServer } from 'vite'
+import { Command } from 'cmdk'
 
 const demo = process.argv.includes('--demo')
 process.env.MIRAGE_UI_MODE = demo ? 'demo' : 'live'
@@ -29,6 +30,7 @@ try {
   const actions = await server.ssrLoadModule('/src/components/actions.tsx')
   const { Fleet } = await server.ssrLoadModule('/src/pages/fleet.tsx')
   const { RunPage } = await server.ssrLoadModule('/src/pages/trace.tsx')
+  const { CommandMenu } = await server.ssrLoadModule('/src/components/command-menu.tsx')
   const stream = await server.ssrLoadModule('/src/api/stream.ts')
   const cache = client.queryClient
   const run = { id: 'run/one', agent: 'meeting_assistant', env: 'prod', task: 'Synthetic lifecycle check',
@@ -62,6 +64,11 @@ try {
   }
   const dialog = (kind, subject = halted) => capture(() =>
     actions.__LifecycleReasonDialog({ pending: { kind, run: subject, runtime: cache.getQueryData(['connection']).runtime }, onClose() {} })).props
+  // Render the real menu contents under cmdk's provider; SSR omits the portal shell.
+  const renderCommands = () => {
+    const menu = capture(() => CommandMenu({ open: true, onOpenChange() {} }))
+    return render(() => h(Command, {}, menu.props.children))
+  }
   const renderTrace = () => renderToStaticMarkup(h(QueryClientProvider, { client: cache },
     h(MemoryRouter, { initialEntries: [`/runs/${encodeURIComponent(run.id)}`] },
       h(actions.ActionsProvider, {}, h(Routes, {}, h(Route, { path: '/runs/:id', element: h(RunPage) }))))))
@@ -99,6 +106,37 @@ try {
     await test('recorded resume-all toast describes playback rather than queued or working agents', async () => {
       seed([halted], runtime([], { engine_mode: 'replay' }))
       assert.match(await request('resumeAll', undefined, { resumed: [], skipped: [] }), /Recording resumed/)
+    })
+    await test('accepted legacy recorded unfreeze/kill retain audited playback behavior without live ownership', async () => {
+      for (const kind of ['unfreeze', 'kill']) {
+        const frozen = { ...run, status: 'frozen' }
+        seed([frozen], runtime([], { engine_mode: 'replay' }))
+        const after = { ...run, status: kind === 'unfreeze' ? 'running' : 'killed' }
+        const message = await request(kind, frozen, after)
+        assert.match(message, /Recorded/i)
+        assert.deepEqual(cache.getQueryData(['runs']), [after])
+      }
+    })
+    await test('recorded command menu retains playback unfreeze and kill affordances', () => {
+      seed([{ ...run, status: 'frozen' }], runtime([], { engine_mode: 'replay' }))
+      const menu = text(renderCommands())
+      assert.match(menu, /Unfreeze Meeting assistant/)
+      assert.match(menu, /Kill Meeting assistant/)
+    })
+    await test('managed recorded control refusals preserve recording and send only one audited POST', async () => {
+      const frozen = { ...run, status: 'frozen' }
+      seed([frozen], runtime([], { engine_mode: 'replay' }))
+      let calls = 0
+      globalThis.fetch = async (path, init) => {
+        calls++
+        assert.equal(path, '/api/runs/run%2Fone/unfreeze')
+        assert.deepEqual(JSON.parse(init.body), body)
+        return new Response(JSON.stringify({ detail: 'Recorded demo: unfreeze is unsupported; no live run is controlled.' }), { status: 409 })
+      }
+      await assert.rejects(capture(actions.useHumanAction).mutateAsync({ kind: 'unfreeze', run: frozen, body }), { status: 409 })
+      assert.equal(calls, 1)
+      assert.deepEqual(cache.getQueryData(['runs']), [frozen])
+      assert.match(String(toast.getHistory().at(-1).title), /Recorded demo/)
     })
   } else {
     await test('resume dialog explains queueing and waits for an observed owner start', () => {
@@ -160,6 +198,19 @@ try {
       seed([frozen])
       assert.ok(enabled(render(Fleet), 'Unfreeze'))
       assert.ok(enabled(render(Fleet), 'Kill'))
+    })
+    await test('command menu exposes owned controls but hides restored and disconnected authority', () => {
+      const frozen = { ...run, status: 'frozen' }
+      seed([frozen])
+      assert.match(text(renderCommands()), /Unfreeze Meeting assistant/)
+      assert.match(text(renderCommands()), /Kill Meeting assistant/)
+      for (const [info, state] of [[runtime([]), 'streaming'], [null, 'connecting'], [runtime([run.id]), 'disconnected']]) {
+        seed([frozen], info)
+        connection(info, state)
+        const menu = text(renderCommands())
+        assert.doesNotMatch(menu, /Unfreeze Meeting assistant|Kill Meeting assistant/)
+        assert.match(menu, /Meeting assistant/, 'Historical run navigation stays available')
+      }
     })
     for (const status of ['running', 'frozen']) {
       await test(`restored unowned ${status} history does not expose live controls`, () => {

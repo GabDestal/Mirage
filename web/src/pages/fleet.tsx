@@ -12,7 +12,7 @@ import { AgentAvatar } from '@/components/avatar'
 import { Button } from '@/components/ui/button'
 import { agentName, avatarState, canResume, relTime, rowSentence, runLabel } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
-import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, sandboxStatus } from './fleet-presentation'
+import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, latestProductionRuns, sandboxStatus } from './fleet-presentation'
 import './fleet.css'
 
 export function Fleet() {
@@ -88,7 +88,7 @@ export function Fleet() {
   const stats = useMemo(() => {
     const active = agentCount(runs.filter((r) => r.status === 'running' && (isDemo || liveRunOwned(r, connection))))
     const frozen = runs.filter((r) => r.status === 'frozen').length
-    const healthy = healthyAgents(runs.filter((r) => isDemo || r.status !== 'running' || liveRunOwned(r, connection)))
+    const healthy = healthyAgents(latestProductionRuns(runs).filter((r) => isDemo || r.status !== 'running' || liveRunOwned(r, connection)))
     const toolCalls = runs.reduce((acc, r) => acc + (r.tool_calls || 0), 0)
     return { active, frozen, healthy, toolCalls, total: runs.length }
   }, [runs, connection])
