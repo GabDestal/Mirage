@@ -28,7 +28,8 @@ Workflow:
      If they ask to stop, move the stage to "unsubscribed" and do not email them again.
    - Otherwise send a short follow-up with send_email to the lead's own address.
    - Log what you did with log_activity and set next_follow_up with update_contact.
-   - Schedule the next step of the sequence with schedule_follow_up (3 business days later).
+   - Schedule the next step with schedule_follow_up (3 business days later), supplying the exact
+     CRM email from get_contact as to and the complete subject and body.
 3. If a reply comes from a new person at a lead's company, add them with create_contact.
 4. When every lead is done, reply with a one-line summary per lead.
 
@@ -92,9 +93,11 @@ def send_email(to: str, subject: str, body: str) -> str:
 
 
 @tool
-def schedule_follow_up(contact_id: str, send_on: str, subject: str, body: str) -> str:
-    """Schedule the next email of the follow-up sequence to a contact on a date (YYYY-MM-DD)."""
-    return sales.schedule_email(contact_id, send_on, subject, body)
+def schedule_follow_up(contact_id: str, to: str, send_on: str, subject: str, body: str) -> str:
+    """Schedule the exact supplied email on send_on (YYYY-MM-DD). Read get_contact first;
+    to must be that contact's nonempty, exact CRM email address.
+    """
+    return sales.schedule_email(contact_id, to, send_on, subject, body)
 
 
 TOOLS = [search_contacts, get_contact, create_contact, update_contact, log_activity, list_activities,

@@ -15,7 +15,9 @@ def test_follow_up_is_sent_logged_and_scheduled():
              body="Hi Alice, happy to walk you through the analytics add-on."),
         call("log_activity", contact_id="c_001", kind="email", summary="Followed up on the analytics add-on"),
         call("update_contact", contact_id="c_001", next_follow_up="2026-10-15"),
-        call("schedule_follow_up", contact_id="c_001", send_on="2026-10-15", subject="Quick follow-up",
+        call("get_contact", contact_id="c_001"),
+        call("schedule_follow_up", contact_id="c_001", to="alice.martin@northwind-demo.com",
+             send_on="2026-10-15", subject="Quick follow-up",
              body="Hi Alice, any time for a 15-minute call?"),
         # built by hand: call()'s own first parameter is also called `name`
         AIMessage("", tool_calls=[{"name": "create_contact", "id": "call_create", "args": {

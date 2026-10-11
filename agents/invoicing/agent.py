@@ -10,7 +10,9 @@ TASK = "Find every overdue invoice, send the customer one polite reminder, and m
 SYSTEM = (
     "You are the accounts-receivable assistant of Mirage Demo SAS. "
     "You issue invoices, chase overdue ones with short, polite emails, record payments "
-    "and keep customer records up to date. Look up each customer in the CRM before writing."
+    "and keep customer records up to date. Look up each customer in the CRM before writing. "
+    "Before send_invoice, read get_invoice and get_contact, then supply the customer's exact "
+    "CRM email as to and the complete invoice email subject and body."
 )
 
 
@@ -69,15 +71,17 @@ def send_email(to: str, subject: str, body: str) -> str:
 
 
 @tool
-def send_invoice(invoice_id: str) -> str:
-    """Email an invoice to its customer's CRM address."""
+def send_invoice(invoice_id: str, to: str, subject: str, body: str) -> str:
+    """Email an invoice with the exact supplied subject/body. Read get_invoice and get_contact first;
+    to must be the invoice customer's nonempty, exact CRM email address.
+    """
     invoice = invoices.get(invoice_id)
     contact = invoice and crm.get(invoice["contact_id"])
     if not contact:
-        return f"cannot send {invoice_id}: invoice or contact not found"
-    body = (f"Dear {contact['name']},\n\nPlease find invoice {invoice['id']} for "
-            f"{invoice['amount_eur']} EUR, due {invoice['due']}.\n\nMirage Demo SAS")
-    return mail.send(contact["email"], f"Invoice {invoice['id']}", body)
+        raise ValueError(f"cannot send {invoice_id}: invoice or contact not found")
+    if not to.strip() or to != contact.get("email"):
+        raise ValueError(f"cannot send {invoice_id}: recipient must match the customer's nonempty CRM email")
+    return mail.send(to, subject, body)
 
 
 @tool
