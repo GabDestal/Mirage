@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, realpath, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { digest, type CommandRunner, type RepairJob } from "../src/repair-supervisor.js";
+import { digest, digestBytes, type CommandRunner, type RepairJob } from "../src/repair-supervisor.js";
 import { inspectMergedPullRequest, RecoverySupervisor, type RecoveryState } from "../src/recovery.js";
 
 const base = "a".repeat(40), candidate = "b".repeat(40), merged = "c".repeat(40), tree = "d".repeat(40);
@@ -40,11 +40,15 @@ async function harness(changedTree = false, badVerification = false, changedPoli
     allow: { tools: ["read_calendar", "send_email"], email_to: [config.DEMO_USER_EMAIL], url_hosts: [] },
     entrypoint: "agents.run_demo_fleet:meeting_assistant", legit };
   const snapshot = { incident_id: "incident", run_id: "old", agent: spec.name, task: "Original useful task",
-    entrypoint: spec.entrypoint, model_id: config.MEETING_ASSISTANT_MODEL_ID, legit, policy: { canary: "FLAG{team26-canary}" } };
+    entrypoint: spec.entrypoint, model_id: config.MEETING_ASSISTANT_MODEL_ID, legit, policy: { canary: "FLAG{team26-canary}" },
+    model_calls: [{ request: { temperature: 1 } }] };
   const cleanSnapshot = { ...snapshot, incident_id: "clean" };
-  const context = { job: { ...job, snapshot_digest: digest(snapshot), verification: {
-    ...job.verification!, clean_snapshot_digest: digest(cleanSnapshot) } }, snapshot,
-    clean_snapshot: cleanSnapshot, baseline_effects: [] };
+  const snapshotJson = JSON.stringify(snapshot).replace('"temperature":1', '"temperature":1.0');
+  const cleanJson = JSON.stringify(cleanSnapshot).replace('"temperature":1', '"temperature":1.0');
+  const context = { job: { ...job, snapshot_digest: digestBytes(snapshotJson), verification: {
+    ...job.verification!, clean_snapshot_digest: digestBytes(cleanJson) } }, snapshot,
+    clean_snapshot: cleanSnapshot, baseline_effects: [], snapshot_json: snapshotJson, clean_snapshot_json: cleanJson,
+    baseline_json: "[]", policy_digest: digest(snapshot.policy) };
   let state: RecoveryState | undefined, moved = false;
   const commands: { command: string; args: string[]; cwd: string; env?: NodeJS.ProcessEnv }[] = [];
   const requests: { path: string; body?: any }[] = [];
@@ -60,6 +64,8 @@ async function harness(changedTree = false, badVerification = false, changedPoli
     }
     if (args.includes("engine.cli")) {
       const runs = args[args.indexOf("--runs") + 1];
+      const raw = await readFile(join(options.env!.MIRAGE_SNAPSHOTS!, `${args[args.indexOf("--incident") + 1]}.json`), "utf8");
+      expect(raw).toContain('"temperature":1.0');
       return receipt({ incident_id: args[args.indexOf("--incident") + 1], attack_blocked: `${runs}/${runs}`,
         legit_task_completed: `${runs}/${runs}`, passed: !badVerification,
         effects: Array.from({ length: Number(runs) }, (_, index) => ({ detonation_id: "synthetic", run_index: index + 1,
@@ -89,7 +95,10 @@ async function harness(changedTree = false, badVerification = false, changedPoli
       const policy = changedPolicy ? { changed: true } : snapshot.policy;
       return Response.json({ policy_digest: digest(policy), policy, agent_spec: spec, config, config_digest: digest(config) });
     }
-    if (path.endsWith("/report")) { state = { status: "prepared", report: { ...body, verification: null, clean_control: null } }; return Response.json(state); }
+    if (path.endsWith("/report")) {
+      if (body.clean_control) expect(String(init?.body)).toContain(`"snapshot":${cleanJson}`);
+      state = { status: "prepared", report: { ...body, verification: null, clean_control: null } }; return Response.json(state);
+    }
     return Response.json(state);
   };
   const supervisor = new RecoverySupervisor({ repository: job.repository, repoPath, baseSha: base, python: "python",

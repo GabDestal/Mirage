@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -68,13 +69,14 @@ def test_register_before_approval_then_execute_fresh_exact_task_once(environment
     assert receipt["run"]["status"] == "completed"
     assert len(store.state()["outbox"]) == 1
     assert all(store.state()[key] == checkpoint[key] for key in ("calendar", "contacts", "inbox"))
-    assert json.loads(open(request["state_output_path"]).read()) == store.state()
+    assert json.loads(Path(request["state_output_path"]).read_text()) == store.state()
     assert [path for path, _ in calls].count("/runs") == 1
 
 
 def test_actual_protected_graph_claims_once_and_sends_one_preserved_brief(environment, monkeypatch):
     import mirage
     from langchain_core.messages import AIMessage
+
     from agents.common.testing import call, scripted
     from agents.meeting_assistant.agent import build_agent
 

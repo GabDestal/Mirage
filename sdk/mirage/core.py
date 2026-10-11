@@ -6,9 +6,9 @@ Sandbox: `sandbox.run` sets `_sandbox`; tools go to the engine's `call_tool`, no
 """
 
 import contextvars
-from contextlib import contextmanager
 import json
 import os
+from contextlib import contextmanager
 
 import httpx
 

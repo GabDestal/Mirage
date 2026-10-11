@@ -29,9 +29,8 @@ def test_failed_invocation_stays_failed_and_restores_context(monkeypatch):
         return {"run_id": "new", "run_token": "synthetic"} if path == "/runs" else None
 
     monkeypatch.setattr(core, "_post", post)
-    with pytest.raises(ValueError):
-        with core.recovery_run("assistant", "Original task", restarted_from="old"):
-            raise ValueError("Synthetic callback error")
+    with pytest.raises(ValueError), core.recovery_run("assistant", "Original task", restarted_from="old"):
+        raise ValueError("Synthetic callback error")
     assert requests[-1] == ("/runs/new/complete", {"error": "ValueError"})
     assert core._run.get() is None
 
@@ -39,15 +38,15 @@ def test_failed_invocation_stays_failed_and_restores_context(monkeypatch):
 def test_recovery_refuses_nested_context_before_claim(monkeypatch):
     token = core._run.set({"id": "existing", "token": "synthetic"})
     try:
-        with pytest.raises(core.Blocked):
-            with core.recovery_run("assistant", "Original task", restarted_from="old"):
-                pytest.fail("Nested recovery must not execute")
+        with pytest.raises(core.Blocked), core.recovery_run("assistant", "Original task", restarted_from="old"):
+            pytest.fail("Nested recovery must not execute")
     finally:
         core._run.reset(token)
 
 
 def test_http_claim_selects_exact_approved_queue_and_executes_callback(monkeypatch):
     from fastapi.testclient import TestClient
+
     from engine.api.server import app
     from engine.gateway import gate
 
@@ -70,7 +69,8 @@ def test_http_claim_selects_exact_approved_queue_and_executes_callback(monkeypat
     assert client.get(f"/runs/{queues[1]}").json()["status"] == "completed"
     assert client.get(f"/runs/{queues[0]}").json()["status"] == "queued"
     assert all(client.get(f"/runs/{old}").json()["status"] == "killed" for old in originals)
-    with pytest.raises(Exception) as denied:
-        with core.recovery_run("assistant", "Exact original task", restarted_from=originals[1]):
-            pytest.fail("An already claimed queue must never start twice")
+    with pytest.raises(Exception) as denied, core.recovery_run(
+        "assistant", "Exact original task", restarted_from=originals[1]
+    ):
+        pytest.fail("An already claimed queue must never start twice")
     assert denied.value.response.status_code == 409

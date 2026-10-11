@@ -8,10 +8,10 @@ import json
 import os
 from pathlib import Path
 
-from contracts.models import AgentSpec
 from mirage import core
 
 from agents.services import store
+from contracts.models import AgentSpec
 
 ENTRYPOINT = "agents.run_demo_fleet:meeting_assistant"
 
@@ -142,7 +142,7 @@ def main():
     args = parser.parse_args()
     try:
         result = execute(json.loads(Path(args.request).read_text()), args.phase)
-    except Exception as error:  # sanitized receipt; no provider text or credentials
+    except Exception as error:  # noqa: BLE001 - sanitized process receipt, no provider text
         Path(args.output).write_text(json.dumps({"error": type(error).__name__}) + "\n")
         return 1
     Path(args.output).write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")

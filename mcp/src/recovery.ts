@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { assertSanitized, digest, privateDirectory, privateJson, runCommand, verifyCurrentCode,
+import { assertSanitized, digest, digestBytes, privateDirectory, privateJson, runCommand, serializeEvidenceReport, verifyCurrentCode,
   type CommandResult, type CommandRunner, type RepairConfig, type RepairJob, type Verification } from "./repair-supervisor.js";
 
 const sha = z.string().regex(/^[a-f0-9]{40}$/);
@@ -35,7 +35,8 @@ export type RecoveryReport = { repair_job_id: string; original_run_id: string; a
   clean_control?: Proof & { snapshot: Record<string, any> } };
 export type RecoveryState = { status: "prepared" | "queued" | "running" | "completed" | "failed";
   report: RecoveryReport; new_run_id?: string | null; error?: string | null };
-type Context = { job: RepairJob; snapshot: Record<string, any>; clean_snapshot: Record<string, any>; baseline_effects: unknown[] };
+type Context = { job: RepairJob; snapshot: Record<string, any>; clean_snapshot: Record<string, any>; baseline_effects: unknown[];
+  snapshot_json: string; clean_snapshot_json: string; baseline_json: string; policy_digest: string };
 export type RecoveryConfig = RepairConfig & { checkpointPath: string; originalConfig?: Record<string, string> };
 export type RecoveryController = { prepareRecovery(jobId: string): Promise<RecoveryState>;
   launchApprovedRecovery(incidentId: string, queuedRunId: string): Promise<RecoveryState> };
@@ -63,7 +64,7 @@ export class RecoverySupervisor implements RecoveryController {
     const response = await (this.config.fetch ?? fetch)(this.config.api.replace(/\/$/, "") + path, {
       method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json",
         ...(privateAccess && { authorization: `Bearer ${this.config.supervisorToken}` }) },
-      body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15_000),
+      body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body), signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error("Engine refused recovery. Review the incident before trying again.");
     return await response.json() as T;
@@ -103,8 +104,11 @@ export class RecoverySupervisor implements RecoveryController {
         || job.repository.toLowerCase() !== this.config.repository.toLowerCase() || job.base_sha !== this.config.baseSha
         || !job.candidate_sha || !job.pr_url || job.verification?.attack_blocked !== "3/3"
         || job.verification?.legit_task_completed !== "3/3" || job.verification?.clean_task_completed !== "1/1"
-        || job.verification?.clean_snapshot_digest !== digest(context.clean_snapshot)
-        || digest(context.snapshot) !== job.snapshot_digest || digest(context.baseline_effects) !== job.baseline_digest)
+        || job.verification?.clean_snapshot_digest !== digestBytes(context.clean_snapshot_json)
+        || digestBytes(context.snapshot_json) !== job.snapshot_digest || digestBytes(context.baseline_json) !== job.baseline_digest
+        || digest(JSON.parse(context.snapshot_json)) !== digest(context.snapshot)
+        || digest(JSON.parse(context.clean_snapshot_json)) !== digest(context.clean_snapshot)
+        || digest(JSON.parse(context.baseline_json)) !== digest(context.baseline_effects))
         throw new Error("Recovery requires the exact verified repair and snapshot.");
       assertSanitized(context.snapshot); assertSanitized(context.clean_snapshot);
       const snapshot = context.snapshot;
@@ -159,13 +163,13 @@ export class RecoverySupervisor implements RecoveryController {
         throw new Error("Prepared policy or factory identity does not match engine provenance.");
       await privateJson(join(dir, "effective-policy.json"), provenance.policy);
       let verification: Proof | undefined, cleanControl: RecoveryReport["clean_control"];
-      const needsVerification = candidateTree !== mergedTree || provenance.policy_digest !== digest(snapshot.policy);
+      const needsVerification = candidateTree !== mergedTree || provenance.policy_digest !== context.policy_digest;
       if (needsVerification) {
         if (!this.config.liveVerification) throw new Error("Merged code or policy changed; a provider verification slot is required.");
         const verifyConfig = { ...this.config, env: { ...(this.config.env ?? process.env), ...originalConfig,
           PYTHON_DOTENV_DISABLED: "1" } };
-        const result = await verifyCurrentCode(verifyConfig, cwd, dir, snapshot, "candidate");
-        const clean = await verifyCurrentCode(verifyConfig, cwd, dir, context.clean_snapshot, "clean");
+        const result = await verifyCurrentCode(verifyConfig, cwd, dir, snapshot, "candidate", context.snapshot_json);
+        const clean = await verifyCurrentCode(verifyConfig, cwd, dir, context.clean_snapshot, "clean", context.clean_snapshot_json);
         verification = { exit_code: 0, result, replay_errors: 0 };
         cleanControl = { snapshot: context.clean_snapshot, exit_code: 0, result: clean, replay_errors: 0 };
       }
@@ -176,7 +180,8 @@ export class RecoverySupervisor implements RecoveryController {
         config: originalConfig, config_digest: registration.config_digest, checkpoint_digest: checkpointDigest, ...(verification && { verification }),
         ...(cleanControl && { clean_control: cleanControl }) };
       await this.inspectCheckout(cwd, pr.mergeCommit.oid, mergedTree);
-      const state = await this.call<RecoveryState>(`/incidents/${job.incident_id}/recovery/report`, report, true);
+      const body = cleanControl ? serializeEvidenceReport(report, context.clean_snapshot_json) : report;
+      const state = await this.call<RecoveryState>(`/incidents/${job.incident_id}/recovery/report`, body, true);
       await privateJson(join(dir, "prepared.json"), report);
       this.prepared.set(job.incident_id, { cwd, dir, report: state.report, request: { ...request, ...registration,
         state_output_path: join(dir, "recovered-services.json") } });
