@@ -35,9 +35,36 @@ TRANSITIONS = {"queued": {"running", "failed"}, "running": {"verifying", "failed
                "verifying": {"verifying", "pr_open", "failed"}}
 
 
+def canonical_json(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
 def digest(value):
-    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
-                                     ensure_ascii=False).encode()).hexdigest()
+    return hashlib.sha256(canonical_json(value).encode()).hexdigest()
+
+
+def _sanitize(value):
+    """Private recording copies carry synthetic inputs, never credentials/capabilities."""
+    private_keys = {"authorization", "api_key", "access_token", "refresh_token", "id_token",
+                    "mirage_token", "run_token", "supervisor_token", "password", "secret",
+                    "aws_bearer_token_bedrock", "github_token", "gh_token"}
+    private_values = [os.getenv(key) for key in (
+        "AWS_BEARER_TOKEN_BEDROCK", "MIRAGE_REPAIR_SUPERVISOR_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
+        if os.getenv(key)]
+
+    def scrub(item):
+        if isinstance(item, dict):
+            return {key: (scrub(val) if key.lower() not in private_keys or
+                         isinstance(val, str) and val.startswith("FLAG{team26-")
+                         else "[redacted]") for key, val in item.items()}
+        if isinstance(item, list):
+            return [scrub(val) for val in item]
+        if isinstance(item, str):
+            for secret in private_values:
+                item = item.replace(secret, "[redacted]")
+        return item
+
+    return scrub(value)
 
 
 def supervisor_only(request: Request, authorization: str = Header("")):
@@ -104,20 +131,20 @@ def _context(job):
     if not incident or not incident.verdict or not incident.verdict.confirmed:
         raise HTTPException(409, "Repair requires the original confirmed incident")
     try:
-        snap = Snapshot.model_validate(snapshot.load(job.incident_id)).model_dump(mode="json")
+        snap = _sanitize(Snapshot.model_validate(snapshot.load(job.incident_id)).model_dump(mode="json"))
     except (OSError, ValueError):
         raise HTTPException(409, "Repair snapshot is unavailable") from None
-    baseline = _baseline(log, job.incident_id)
+    baseline = _sanitize(_baseline(log, job.incident_id))
     if digest(snap) != job.snapshot_digest or digest(baseline) != job.baseline_digest:
         raise HTTPException(409, "Repair context changed")
     if snap["incident_id"] != job.incident_id or snap["id"] != incident.snapshot_id:
         raise HTTPException(409, "Repair snapshot identity mismatch")
     if not any(sandbox.violations(snap, effect, [snap["policy"]]) for effect in baseline):
         raise HTTPException(409, "Repair baseline does not demonstrate harm")
-    return incident, snap, baseline
+    return incident.model_validate(_sanitize(incident.model_dump(mode="json"))), snap, baseline
 
 
-def _clean_counterpart(original, clean):
+def _clean_counterpart(original, clean, cause_input_id=None):
     """Keep the task and all read records; change only one input's untrusted text."""
     if len(original["inputs"]) != len(clean["inputs"]):
         return False
@@ -126,7 +153,8 @@ def _clean_counterpart(original, clean):
     if len(changed) != 1:
         return False
     old, new = changed[0]
-    if old["kind"] == "user_task" or not isinstance(old["item"], dict):
+    if (old["kind"] not in {"calendar_event", "email", "web_page", "attachment"} or
+            not isinstance(old["item"], dict) or cause_input_id and old["id"] != cause_input_id):
         return False
     if {k: v for k, v in old.items() if k not in ("item", "preview")} != {
             k: v for k, v in new.items() if k not in ("item", "preview")}:
@@ -157,16 +185,16 @@ def _clean_counterpart(original, clean):
         k: v for k, v in clean.items() if k not in ignored}
 
 
-def _clean_snapshot(snap):
+def _clean_snapshot(snap, cause_input_id=None):
     # shortcut: one trusted counterpart file for the demo, use an incident map for more stories.
     path = os.getenv("MIRAGE_REPAIR_CLEAN_SNAPSHOT", "")
     if not path:
         raise HTTPException(503, "Repair clean counterpart is not configured")
     try:
-        clean = Snapshot.model_validate_json(Path(path).read_text(encoding="utf-8"))
+        clean = Snapshot.model_validate(_sanitize(json.loads(Path(path).read_text(encoding="utf-8"))))
     except (OSError, ValueError):
         raise HTTPException(409, "Repair clean counterpart is unavailable") from None
-    if not _clean_counterpart(snap, clean.model_dump(mode="json")):
+    if not _clean_counterpart(snap, clean.model_dump(mode="json"), cause_input_id):
         raise HTTPException(409, "Repair clean counterpart changes trusted task or read records")
     return clean
 
@@ -190,11 +218,11 @@ def _command_passes(evidence, snap, incident_id, count):
     return True
 
 
-def _verification(job, report, snap):
+def _verification(job, report, snap, cause_input_id=None):
     if not report.candidate_sha or not report.verification or not report.clean_control:
         return None
     clean = report.clean_control.snapshot.model_dump(mode="json")
-    if not (_clean_counterpart(snap, clean) and
+    if not (_clean_counterpart(snap, clean, cause_input_id) and
             _command_passes(report.verification, snap, job.incident_id, 3) and
             _command_passes(report.clean_control, clean, clean["incident_id"], 1)):
         return None
@@ -223,10 +251,10 @@ def router(live_only):
                     not re.fullmatch(r"[0-9a-f]{40}", base_sha)):
                 raise HTTPException(503, "Repair repository and base revision are not configured")
             try:
-                snap = Snapshot.model_validate(snapshot.load(incident_id)).model_dump(mode="json")
+                snap = _sanitize(Snapshot.model_validate(snapshot.load(incident_id)).model_dump(mode="json"))
             except (OSError, ValueError):
                 raise HTTPException(409, "Repair snapshot is unavailable") from None
-            baseline = _baseline(log, incident_id)
+            baseline = _sanitize(_baseline(log, incident_id))
             now = datetime.now(UTC)
             job = RepairJob(id=f"repair_{uuid4().hex}", incident_id=incident_id,
                             repository=repository, base_sha=base_sha, status="queued",
@@ -254,8 +282,11 @@ def router(live_only):
         with jobs.lock:
             job = get_job(job_id)
             incident, snap, baseline = _context(job)
-            return RepairJobContext(job=job, snapshot=snap, clean_snapshot=_clean_snapshot(snap),
-                                    baseline_effects=baseline,
+            clean = _clean_snapshot(snap, incident.cause_input_id).model_dump(mode="json")
+            return RepairJobContext(job=job, snapshot=snap, clean_snapshot=clean,
+                                    baseline_effects=baseline, snapshot_json=canonical_json(snap),
+                                    clean_snapshot_json=canonical_json(clean),
+                                    baseline_json=canonical_json(baseline), policy_digest=digest(snap["policy"]),
                                     incident=incident, report=handoff.report(incident, snap))
 
     @api.post("/repair-jobs/{job_id}/report", response_model=RepairJob,
@@ -273,11 +304,15 @@ def router(live_only):
                 job.status, job.error = "failed", body.error
                 job.candidate_sha = body.candidate_sha
                 return _emit(job)
-            _, snap, _ = _context(job)
+            incident, snap, _ = _context(job)
             if body.error:
                 raise HTTPException(422, "Only failed reports may carry an error")
+            if body.status == "verifying" and not body.candidate_sha:
+                raise HTTPException(422, "Verification requires a committed candidate SHA")
             if body.status == "pr_open":
-                verification = _verification(job, body, snap)
+                if body.candidate_sha != job.candidate_sha:
+                    raise HTTPException(409, "Repair candidate changed after verification started")
+                verification = _verification(job, body, snap, incident.cause_input_id)
                 pr = body.pull_request
                 if not verification:
                     raise HTTPException(409, "Repair verification evidence did not pass")

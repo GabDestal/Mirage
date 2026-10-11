@@ -1,5 +1,6 @@
 """Repair progress is durable; only candidate-bound useful proof can publish a draft PR."""
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -158,7 +159,7 @@ def test_passing_candidate_records_actual_pr_and_preserves_containment(api):
 
 @pytest.mark.parametrize("change", ["head", "base", "digest", "failed_exit", "refusal",
     "forged_counts", "harm", "replay_error", "clean_task", "clean_deleted_meeting",
-    "clean_wrong_read_args", "clean_wrong_incident", "pr_repo", "not_draft"])
+    "clean_wrong_read_args", "clean_wrong_incident", "pr_repo", "not_draft", "candidate_changed"])
 def test_bad_evidence_cannot_certify_success(api, change):
     job = verifying(api)
     evidence = success(api, job)
@@ -191,6 +192,9 @@ def test_bad_evidence_cannot_certify_success(api, change):
         evidence["pull_request"]["url"] = "https://github.com/Other/Repo/pull/42"
     elif change == "not_draft":
         evidence["pull_request"]["isDraft"] = False
+    elif change == "candidate_changed":
+        evidence["candidate_sha"] = "c" * 40
+        evidence["pull_request"]["headRefOid"] = "c" * 40
     assert report(api, job, "pr_open", **evidence).status_code == 409
     assert not any(e.type in ("fix.verified", "pr.opened") for e in events.read())
     assert fold(events.read())[0]["run_001"].status == "frozen"
@@ -198,6 +202,8 @@ def test_bad_evidence_cannot_certify_success(api, change):
 
 def test_restart_interrupts_active_jobs_durably_without_relaunch(api):
     job = verifying(api)
+    events._conn.close()
+    events._conn = None
     repair.restore()
     found = api.get(f"/repair-jobs/{job['id']}").json()
     assert found["status"] == "failed" and found["error"] == "interrupted"
@@ -228,8 +234,46 @@ def test_changed_snapshot_cannot_supply_candidate_context(api):
     assert api.get(f"/repair-jobs/{job['id']}/context", headers=AUTH).status_code == 409
 
 
+def test_private_export_strips_credentials_and_preserves_fake_canary(api, monkeypatch):
+    monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", "private-provider-test-token")
+    path = snapshot.SNAP_DIR / "inc_001.json"
+    snap = json.loads(path.read_text())
+    snap["model_calls"] = [{"model_id": "synthetic", "request": {
+        "headers": {"Authorization": "Bearer private-provider-test-token"},
+        "context": "private-provider-test-token FLAG{team26-canary}"}, "response": {}}]
+    path.write_text(json.dumps(snap))
+    job = create(api)
+    out = api.get(f"/repair-jobs/{job['id']}/context", headers=AUTH)
+    assert out.status_code == 200
+    assert "private-provider-test-token" not in out.text
+    assert "FLAG{team26-canary}" in out.text
+    assert repair.digest(out.json()["snapshot"]) == job["snapshot_digest"]
+
+
+def test_private_canonical_bytes_match_pinned_digests(api):
+    job = create(api)
+    out = api.get(f"/repair-jobs/{job['id']}/context", headers=AUTH).json()
+    assert hashlib.sha256(out["snapshot_json"].encode()).hexdigest() == job["snapshot_digest"]
+    assert hashlib.sha256(out["baseline_json"].encode()).hexdigest() == job["baseline_digest"]
+    assert json.loads(out["snapshot_json"]) == out["snapshot"]
+    assert json.loads(out["clean_snapshot_json"]) == out["clean_snapshot"]
+
+
+def test_clean_control_changes_only_untrusted_source_and_proven_cause(api):
+    job = create(api)
+    out = api.get(f"/repair-jobs/{job['id']}/context", headers=AUTH).json()
+    original, clean = out["snapshot"], out["clean_snapshot"]
+    assert repair._clean_counterpart(original, clean, "in_01")
+    assert not repair._clean_counterpart(original, clean, "another_input")
+    original["inputs"][1]["kind"] = clean["inputs"][1]["kind"] = "crm_record"
+    assert not repair._clean_counterpart(original, clean)
+
+
 def test_public_job_fixture_and_unicode_digest():
     data = json.loads(Path("contracts/fixtures/repair_job.json").read_text())
     assert RepairJob.model_validate(data).model_dump(mode="json") == data
     assert repair.digest({"z": {"é": "café"}, "a": [1, "東京"]}) == repair.digest(
         {"a": [1, "東京"], "z": {"é": "café"}})
+    example = json.loads(Path("contracts/fixtures/repair_canonical.json").read_text())
+    assert repair.canonical_json(example["value"]) == example["canonical_json"]
+    assert repair.digest(example["value"]) == example["digest"]

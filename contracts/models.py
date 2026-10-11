@@ -432,6 +432,10 @@ class RepairJobContext(Model):
     snapshot: Snapshot
     clean_snapshot: Snapshot
     baseline_effects: list[Effect]
+    snapshot_json: str
+    clean_snapshot_json: str
+    baseline_json: str
+    policy_digest: ContentDigest
     incident: Incident
     report: str  # the existing handoff report, with attack text marked as untrusted data
 
