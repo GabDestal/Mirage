@@ -1,0 +1,41 @@
+.rules-page { max-width: 1040px; margin-inline: auto; padding: 32px 36px 64px; color: var(--ink); font-size: 14px; line-height: 1.5; }
+.rules-page h1 { margin: 0 0 8px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.rules-page h2 { margin: 0 0 16px; font-size: 16px; font-weight: 600; }
+.rules-page h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.rules-page p { max-width: 72ch; color: var(--ink-2); }
+.rules-header { margin-bottom: 32px; }
+.rules-section { border-top: 1px solid var(--line); padding-top: 24px; margin-top: 32px; }
+.rules-form { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.rules-form label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; }
+.rules-form input, .rules-form textarea, .rules-form select { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--paper); font: inherit; caret-color: var(--mirage); }
+.rules-form textarea { resize: vertical; min-height: 96px; }
+.rules-form input::placeholder, .rules-form textarea::placeholder { color: var(--ink-2); opacity: 1; }
+.rules-form input:disabled, .rules-form textarea:disabled, .rules-form select:disabled { opacity: 0.6; }
+.rules-form small { display: block; color: var(--ink-2); margin-top: 6px; font-size: 12px; }
+.rules-wide { grid-column: 1 / -1; }
+.rules-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.rules-actions > button { min-height: 36px; }
+.rules-sentence { background: var(--paper-2); border-radius: 8px; padding: 12px 16px; overflow-wrap: anywhere; }
+.rules-page .rules-error { color: color-mix(in srgb, var(--alarm) 92%, var(--ink)); margin-block: 12px; overflow-wrap: anywhere; }
+.rules-feedback { margin-block: 16px; }
+.rules-row { display: flex; align-items: flex-start; gap: 16px; justify-content: space-between; padding-block: 20px; border-bottom: 1px solid var(--line); }
+.rules-row p { margin-top: 6px; overflow-wrap: anywhere; }
+.rules-row button { flex-shrink: 0; }
+.rules-status { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 6px; background: var(--paper-2); font-size: 12px; font-weight: 500; }
+.rules-status-active { color: var(--ink); background: var(--mirage-wash); }
+.rules-digest { margin-top: 12px; font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.rules-digest code { color: var(--ink); font-family: var(--font-mono); }
+.rules-preview dl { display: grid; grid-template-columns: minmax(100px, auto) 1fr; gap: 8px 16px; margin-block: 16px; }
+.rules-preview dt { color: var(--ink-2); }
+.rules-preview dd { margin: 0; overflow-wrap: anywhere; }
+.rules-empty { padding-block: 16px; }
+.rules-page :focus-visible { outline: 2px solid var(--mirage); outline-offset: 3px; }
+.rules-page ::selection { background: var(--mirage-wash); color: var(--ink); }
+@media (max-width: 640px) {
+  .rules-page { padding: 24px 16px 40px; }
+  .rules-form { grid-template-columns: minmax(0, 1fr); }
+  .rules-form input, .rules-form select, .rules-form textarea { font-size: 16px; }
+  .rules-row { flex-wrap: wrap; gap: 12px; }
+  .rules-preview dl { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .rules-preview dd { margin-bottom: 8px; }
+}
