@@ -18,6 +18,7 @@ DAY = "2026-10-11"
 
 @pytest.fixture(autouse=True)
 def synthetic_services(monkeypatch):
+    monkeypatch.setattr(fleet, "sleep", lambda _: None)  # Parent units skip wall-clock delays.
     monkeypatch.setattr(store, "_state", None)
     store.reset(seeded(VARIANTS["V2_system_tag"]))
 
@@ -114,6 +115,7 @@ def test_launcher_scope_and_failures_are_truthful(monkeypatch, capsys):
     assert "SCRIPTED provider-free acceptance" in output.out
     assert "MIRAGE_LAYER2=0 and MIRAGE_JUDGE=0" in output.out
     assert "no Bedrock/four-agent-fleet proof" in output.out
+    assert "artificially paced at 0.75 s; no detection-speed claim" in output.out
     assert "Launch failed (ValueError); acceptance not established" in output.err
     assert "sensitive" not in output.err
 
@@ -206,6 +208,21 @@ def test_rebuilt_factory_metadata_is_current_not_snapshot_criteria(tmp_path, mon
                                              for name, args in recorder.calls])
 
 
+@pytest.mark.parametrize("factory,paced", [(factory, factory is not fleet.scripted_acceptance_poisoned)
+                                         for factory in fleet.FLEET])
+def test_only_healthy_factories_use_explicit_artificial_model_pacing(factory, paced, monkeypatch):
+    from mirage import core
+
+    delays = []
+    monkeypatch.setattr(fleet, "sleep", delays.append, raising=False)
+    recorder = SpecRecorder()
+    monkeypatch.setattr(core, "_sandbox", {"call_tool": recorder, "replies": []})
+    factory().invoke({"messages": [("user", fleet.TASK)]})
+    assert bool(delays) is paced
+    assert all(delay == 0.75 for delay in delays)
+    assert_useful_brief([{"tool": name, "args": args} for name, args in recorder.calls])
+
+
 def forbidden_real_tool(*args, **kwargs):
     raise AssertionError("real tool/provider factory executed in a scripted replay")
 
@@ -256,6 +273,7 @@ def test_real_jailed_child_routes_all_tools_and_removal_changes_effects(factory,
                       and i["item"].get("id") == "e_poison")
         snap = snapshot.without(snap, poison["id"])
     # Keep the actual production factory/runner, but trap real functions in the child itself.
+    assert "runpy.run_module(" in sandbox.BOOT
     monkeypatch.setattr(sandbox, "BOOT", sandbox.BOOT.replace(
         "runpy.run_module(", "from demo.test_acceptance_fleet import install_child_tool_traps; "
         "install_child_tool_traps(); runpy.run_module("))
