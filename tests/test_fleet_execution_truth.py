@@ -397,8 +397,7 @@ def test_faster_sibling_cannot_shrink_requirements_during_fleet_construction(fle
 
 def test_trusted_opt_out_ids_preserve_both_eligible_leads_and_require_unsubscribe(fleet, transport):
     # These exact IDs stand for caller-audited explicit replies in the clean inbox.
-    fleet.setup_demo_services(opted_out={"c_001", "c_005"})
-    fleet.outreach()
+    assert fleet.run_fleet(opted_out={"c_001", "c_005"}) is True
     want = transport[0]["outreach"].get("legit", {})
     required = want["required"]
     positive = [item for item in required if item.get("count", 1) > 0]

@@ -127,9 +127,9 @@ def setup_demo_services(*, opted_out=()):
     print("[Demo] Seeded synthetic data with 4 agents & poisoned calendar invite.")
 
 
-def run_fleet(blocking: bool = True):
+def run_fleet(blocking: bool = True, *, opted_out=()):
     """Blocking returns whether all invocations completed; a request alone has no outcome."""
-    setup_demo_services()
+    setup_demo_services(opted_out=opted_out)
 
     threads = []
     outcomes = []
