@@ -2,12 +2,13 @@
 
 Toolset mirrors pr-agent's git provider. pr-agent cannot merge, so neither can this agent.
 """
+import os
 from typing import Literal
 
 from langchain.agents import create_agent
 from langchain.tools import tool
 
-from agents.common.model import chat_model
+from agents.common.model import chat_model, clean_tool_names
 from agents.pr_reviewer import pull_requests
 
 TASK = "Review every open pull request and submit one review on each."
@@ -68,4 +69,9 @@ TOOLS = [list_pull_requests, read_pull_request, read_file, post_inline_comment, 
 
 
 def build_agent(model=None, middleware=()):
-    return create_agent(model or chat_model(), TOOLS, system_prompt=SYSTEM, middleware=list(middleware))
+    return create_agent(
+        model or chat_model(os.getenv("PR_REVIEWER_MODEL_ID")),
+        TOOLS,
+        system_prompt=SYSTEM,
+        middleware=[clean_tool_names, *middleware],
+    )

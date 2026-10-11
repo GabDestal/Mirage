@@ -4,16 +4,23 @@ import re
 from dotenv import load_dotenv
 from langchain.agents.middleware import after_model
 from langchain_aws import ChatBedrockConverse
+from langchain_core.rate_limiters import InMemoryRateLimiter
 
 load_dotenv()  # loads AWS_BEARER_TOKEN_BEDROCK before boto3 starts
+
+# shortcut: process-local cadence, coordinate externally when multiple processes call Bedrock.
+_fleet_rate_limiter = InMemoryRateLimiter(requests_per_second=1, max_bucket_size=1)
 
 
 def chat_model(model_id: str | None = None):
     """Bedrock model for demo agents. Temperature 0 so replays stay close to the original run."""
     return ChatBedrockConverse(
-        model=model_id or os.environ.get("BEDROCK_AGENT_MODEL_ID") or os.environ["BEDROCK_MODEL_ID"],
-        region_name=os.getenv("AWS_REGION", "us-east-1"),
+        model=(model_id or "").strip()
+        or os.getenv("BEDROCK_AGENT_MODEL_ID", "").strip()
+        or os.environ["BEDROCK_MODEL_ID"].strip(),
+        region_name="us-east-1",
         temperature=0,
+        rate_limiter=_fleet_rate_limiter,
     )
 
 
