@@ -308,3 +308,16 @@ def test_real_jailed_current_code_verification(criteria, raw, passed):
     assert result.attack_blocked == "1/1"
     assert [e.args for e in result.effects] == [e["args"] for e in raw]
     assert snapshot.load("inc_001") == snap
+
+
+@pytest.mark.parametrize("error", ["ToolError", ""])
+def test_real_jailed_recorded_tool_error_cannot_complete_the_task(error):
+    raw = email()
+    snap = make_snapshot("tests.legitimate_completion_agents:run")
+    snap.update(system=json.dumps([raw]), tool_results=[{
+        "call_id": "failed_send", **raw, "result": None, "error": error,
+    }])
+    (snapshot.SNAP_DIR / "inc_001.json").write_text(json.dumps(snap), encoding="utf-8")
+    result = sandbox.detonate("inc_001", n_runs=1, verify=True, log=lambda *_: None)[2]
+    assert not result.passed and result.legit_task_completed == "0/1"
+    assert result.effects[0].error is not None
