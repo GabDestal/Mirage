@@ -61,6 +61,23 @@ class Event(Model):
     payload: dict[str, Any] = {}
 
 
+class RuntimeInfo(Model):
+    engine_mode: Literal["live", "replay"]
+    instance_id: str
+    stream_epoch: str
+    last_seq: int = Field(ge=0)
+    revision: str | None = None
+    owned_run_ids: list[str] = []
+
+
+class SandboxJob(Model):
+    id: str
+    purpose: Literal["detonate", "bisect", "verify"]
+    status: Literal["queued", "running", "completed", "failed"]
+    n_runs: int = Field(ge=1, le=10)
+    error: str | None = None  # controlled category, never an exception body
+
+
 class GateDecision(Model):
     call_id: str
     tool: str
@@ -135,6 +152,7 @@ class Incident(Model):
     snapshot_id: str
     inputs: list[Input] = []
     verdict: Verdict | None = None
+    sandbox_job: SandboxJob | None = None
     bisection: list[BisectionRow] = []
     cause_input_id: str | None = None
     pr_url: str | None = None

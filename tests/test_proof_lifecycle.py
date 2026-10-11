@@ -193,8 +193,7 @@ def test_crashed_bisection_cannot_prove_a_cause(monkeypatch, error):
     assert not any(e.type in ("fix.verified", "verdict.ready", "bisection.step")
                    for e in events.read()[4:])
     failure = events.read()[-1].payload
-    assert failure["error"].startswith("DetonationError: ")
-    assert failure["error"].removeprefix("DetonationError: ").strip()
+    assert failure["error"] == "execution_failed"
     assert "synthetic crash" not in str([e.payload for e in events.read()])
     assert failure["purpose"] == "bisect"
 

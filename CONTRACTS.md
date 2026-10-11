@@ -68,6 +68,47 @@ open → detonating → false_positive → closed (run unfrozen)
 
 All times are ISO 8601 UTC. All IDs are strings.
 
+### RuntimeInfo
+
+`GET /runtime` reports this process's current control truth independently of event history:
+
+```json
+{
+  "engine_mode": "live",
+  "instance_id": "engine_demo",
+  "stream_epoch": "engine_demo:stream_demo",
+  "last_seq": 3,
+  "revision": null,
+  "owned_run_ids": ["run_demo"]
+}
+```
+
+`engine_mode` is the immutable startup `live | replay` config. `instance_id` changes on a
+new process; `stream_epoch` also changes when the log is reset/replaced in the same process
+or the recording restarts. Both are opaque strings. `last_seq` is the visible high-water mark.
+`revision` is the full Git source SHA captured at startup, or null when Git provenance is
+unavailable. `owned_run_ids` lists this process's in-memory run owners (always empty in replay).
+Historical running/frozen/queued status alone never establishes active control after restore.
+Restoring history does not restore run tokens or owners, restart production, or replay jobs.
+
+### SandboxJob
+
+`Incident.sandbox_job` is optional and defaults to null for legacy events/recordings:
+
+```json
+{"id": "det_demo", "purpose": "detonate", "status": "queued", "n_runs": 3, "error": null}
+```
+
+`purpose`: `detonate | bisect | verify`; `status`: `queued | running | completed | failed`.
+`n_runs` is the requested count (1..10). This is scheduler state, separate from the incident's
+proof stage: a completed verification can still fail its proof check. Queue/start/terminal
+metadata is durable `payload.sandbox_job` in existing event types, never inferred from prose.
+Bounded system `agent.message` frames carry queued/running/completed metadata; failures carry
+it in `detonation.failed` or `bisection.completed`. Error values are only controlled categories:
+`execution_failed`, `scheduling_failed`, `stopped`, `interrupted`; no exception bodies or arguments.
+New-process restore marks recorded queued/running jobs failed/interrupted without executing them.
+Human release, restart and proof retry remain explicit.
+
 ### Run
 
 ```json
@@ -294,8 +335,9 @@ All POST bodies with a human action carry `{actor, reason}`.
 |---|---|---|
 | GET | `/runs` | `Run[]` |
 | GET | `/runs/{id}` | `Run` |
-| GET | `/events?after={seq}` | `Event[]` (polling, works with any UI) |
-| GET | `/stream` | Server-Sent Events, one `Event` per message |
+| GET | `/runtime` | `RuntimeInfo` |
+| GET | `/events?after={seq}` | `Event[]`, with `X-Mirage-Stream-Epoch` from the same atomic read |
+| GET | `/stream` | Named `runtime` frame before business `Event` messages; supports `Last-Event-ID` |
 | GET | `/incidents` | `Incident[]` |
 | GET | `/incidents/{id}` | `Incident` |
 | GET | `/services/{service}?env=prod\|mirage` | `ServiceView`, folded from the event log. prod outbox: sent emails (`normal`) + frozen/blocked ones (`blocked`, never sent). mirage outbox: what the main detonation would have sent (`malicious` if it broke a rule). calendar/crm: what the agents read (mirage: the frozen run's inputs). The proven cause is `malicious`. |
@@ -330,6 +372,13 @@ All POST bodies with a human action carry `{actor, reason}`.
 | POST | `/demo/reset` | Live: stops the demo agents process, clears runs, agents, event log, snapshots and handoff tokens, lifts a global STOP. Also terminates agents relaunched by resume. Replay: restarts the recording. |
 
 Long actions (detonate, bisect, verify) return at once. Progress comes as events.
+
+SSE runtime frames have `event: runtime`, JSON `RuntimeInfo` data and no business `id`.
+The first frame is always runtime metadata, including on reconnect with a stale `Last-Event-ID`;
+later metadata changes are sent before the next business batch. Epoch changes reset the
+business cursor. Polling consumers compare the events response's epoch header, discard stale
+history on change, and fetch from zero; API failures must not be projected as successful jobs
+or active control. Runtime frames are not new `EventType` values or persisted business events.
 
 In live mode, a newly opened gate incident automatically queues three detonation replays
 **after** its snapshot is persisted and its production run is frozen. The SDK/HTTP gate and
@@ -381,6 +430,8 @@ mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json
 - `contracts/fixtures/state/` holds `runs.json`, `incidents.json`, `services_*.json` at the end of the demo.
 - `execution_failure.jsonl` and `execution_snapshot.json` are synthetic contract examples for
   failed completion/results/effects and story declarations; they are not the default demo recording.
+- `runtime_metadata.json` contains synthetic `RuntimeInfo` and `SandboxJob` wire examples;
+  legacy demo fixtures retain a null job projection without guessing state from text.
 - With `MIRAGE_MODE=replay`, the real API server plays the `.jsonl` file over `/stream` and `/events`.
   Same endpoints, same OpenAPI. There is no separate mock server, so nothing can drift.
 - POST actions in replay mode move the replay forward (example: `/incidents/{id}/detonate` plays the detonation events).

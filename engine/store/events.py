@@ -11,6 +11,7 @@ import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from contracts.models import Event
 
@@ -19,10 +20,20 @@ listeners = []  # callables(Event): the CLI printer now, the SSE stream later
 
 _lock = threading.Lock()
 _conn = None
+_identity = None
+_epoch = None
 
 
 def _db():
-    global _conn
+    global _conn, _identity, _epoch
+    try:
+        stat = DB_PATH.stat()
+        identity = (str(DB_PATH.resolve()), stat.st_dev, stat.st_ino)
+    except FileNotFoundError:
+        identity = None
+    if _conn is not None and identity != _identity:
+        _conn.close()  # an external reset replaced the file behind this connection
+        _conn = None
     if _conn is None:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         # autocommit mode: emit() opens its own BEGIN IMMEDIATE; timeout waits for other writers
@@ -42,6 +53,9 @@ def _db():
             "CREATE TABLE IF NOT EXISTS events (seq INTEGER PRIMARY KEY, ts TEXT, run_id TEXT,"
             " incident_id TEXT, env TEXT, type TEXT, body TEXT, prev_hash TEXT, hash TEXT)"
         )
+        stat = DB_PATH.stat()
+        _identity = (str(DB_PATH.resolve()), stat.st_dev, stat.st_ino)
+        _epoch = uuid4().hex
     return _conn
 
 
@@ -81,9 +95,21 @@ def emit(type, payload=None, *, env="prod", run_id=None, incident_id=None) -> Ev
 
 
 def read(after=0) -> list[Event]:
+    return read_batch(after)[2]
+
+
+def read_batch(after=0):
+    """Epoch, high-water seq and events from one SQLite read snapshot, under the reset lock."""
     with _lock:
-        rows = _db().execute("SELECT body FROM events WHERE seq > ? ORDER BY seq", (after,))
-        return [Event.model_validate_json(body) for (body,) in rows]
+        db = _db()
+        db.execute("BEGIN")
+        try:
+            last_seq = db.execute("SELECT COALESCE(MAX(seq), 0) FROM events").fetchone()[0]
+            rows = db.execute("SELECT body FROM events WHERE seq > ? ORDER BY seq",
+                              (after,)).fetchall()
+            return _epoch, last_seq, [Event.model_validate_json(body) for (body,) in rows]
+        finally:
+            db.execute("ROLLBACK")
 
 
 def max_number(prefix):

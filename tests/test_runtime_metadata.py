@@ -98,7 +98,7 @@ def child(code, tmp_path, *, mode="live", git_available=True):
     return json.loads(result.stdout)
 
 
-def first_frame(last_event_id):
+def stream_frames(last_event_id, count):
     async def read():
         async def connected():
             return False
@@ -107,11 +107,16 @@ def first_frame(last_event_id):
                                   is_disconnected=connected)
         response = await server.stream(request)
         try:
-            return await asyncio.wait_for(anext(response.body_iterator), timeout=1)
+            return [await asyncio.wait_for(anext(response.body_iterator), timeout=1)
+                    for _ in range(count)]
         finally:
             await response.body_iterator.aclose()
 
     return asyncio.run(read())
+
+
+def first_frame(last_event_id):
+    return stream_frames(last_event_id, 1)[0]
 
 
 def test_runtime_reports_current_owners_separately_from_external_history(api):
@@ -175,9 +180,11 @@ def test_failure_is_durable_and_never_exposes_private_exception(api, deferred, p
     assert PRIVATE_MARKER not in api.get("/events").text
     failed = public_job(api, incident_id)
     assert failed["status"] == "failed" and failed["purpose"] == purpose
-    assert failed["error"] and len(failed["error"]) < 80
+    assert failed["error"] == "execution_failed"
     assert PRIVATE_MARKER not in api.get("/incidents").text
-    assert PRIVATE_MARKER not in json.dumps(first_frame(0))
+    frames = stream_frames(0, len(events.read()) + 1)
+    assert PRIVATE_MARKER not in json.dumps(frames)
+    assert json.loads(frames[-1]["data"])["payload"]["sandbox_job"] == failed
     assert gate.runs[run_id].status == "frozen" and not gate.runs[run_id].resume.is_set()
     assert not jobs.running(incident_id)
     assert any(e.payload.get("sandbox_job") == failed for e in events.read())
@@ -200,6 +207,43 @@ def test_executor_failure_is_publicly_sanitized_and_releases_reservation(api, mo
     assert PRIVATE_MARKER not in response.text + api.get("/events").text
     assert public_job(api, incident_id)["status"] == "failed"
     assert not jobs.running(incident_id)
+
+
+def test_event_batch_keeps_its_epoch_when_reset_happens_before_response(api, monkeypatch):
+    before = runtime(api)
+    original = server._event_batch
+    old_events = [event.model_dump(mode="json") for event in events.read()]
+    reset = False
+
+    def interrupted_read(after=0):
+        nonlocal reset
+        result = original(after)
+        if not reset:
+            reset = True
+            events.reset()
+            events.emit("agent.message", {"role": "system", "text": "Fresh generation"})
+        return result
+
+    monkeypatch.setattr(server, "_event_batch", interrupted_read)
+    response = api.get("/events")
+    assert response.headers["X-Mirage-Stream-Epoch"] == before["stream_epoch"]
+    assert response.json() == old_events
+    fresh = api.get("/events")
+    assert fresh.headers["X-Mirage-Stream-Epoch"] != before["stream_epoch"]
+    assert [event["payload"]["text"] for event in fresh.json()] == ["Fresh generation"]
+
+
+def test_runtime_and_job_fixture_matches_the_generated_contract():
+    from contracts.models import RuntimeInfo, SandboxJob
+
+    fixture = json.loads((server.FIXTURES / "runtime_metadata.json").read_text())
+    assert RuntimeInfo.model_validate(fixture["runtime"]).model_dump() == fixture["runtime"]
+    for job in fixture["jobs"]:
+        assert SandboxJob.model_validate(job).model_dump() == job
+    schema = server.app.openapi()["components"]["schemas"]
+    assert set(schema["RuntimeInfo"]["required"]) == {
+        "engine_mode", "instance_id", "stream_epoch", "last_seq"}
+    assert "sandbox_job" in schema["Incident"]["properties"]
 
 
 def test_reset_is_excluded_while_active_and_changes_epoch_only_when_accepted(api):

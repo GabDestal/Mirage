@@ -76,7 +76,8 @@ def test_the_api_reports_a_failed_detonation_not_a_false_positive(monkeypatch):
             break
         time.sleep(0.1)
     failed = next(e for e in events.read() if e.type == "detonation.failed")
-    assert "crashed" in failed.payload["error"] and "start_worker" in failed.payload["error"]
+    assert failed.payload["error"] == "execution_failed"
+    assert "start_worker" not in failed.payload["error"]
     incident = api.get("/incidents/inc_003").json()
     assert incident["status"] == "open" and incident["verdict"] is None  # retry, not "false alarm"
     assert incident["next_action"] == "detonate"

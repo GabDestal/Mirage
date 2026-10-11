@@ -183,8 +183,9 @@ def test_submission_failure_never_releases_blocked_tool(api, monkeypatch):
     assert gate.runs[run_id].status == "frozen" and not gate.runs[run_id].resume.is_set()
     assert not jobs.running(inc_id)
     assert check(api, run_id, auth, "send_email", to=USER).json()["rule_id"] == "RUN_FROZEN"
-    assert "executor unavailable" in next(e.payload["error"] for e in events.read()
-                                          if e.type == "detonation.failed")
+    assert next(e.payload["error"] for e in events.read()
+                if e.type == "detonation.failed") == "scheduling_failed"
+    assert "executor unavailable" not in str([e.payload for e in events.read()])
 
 
 def test_stop_rejects_jobs_and_cancels_queued_work_without_releasing_prod(api, held):

@@ -1,0 +1,16 @@
+{
+  "runtime": {
+    "engine_mode": "live",
+    "instance_id": "engine_demo",
+    "stream_epoch": "engine_demo:stream_demo",
+    "last_seq": 3,
+    "revision": null,
+    "owned_run_ids": ["run_demo"]
+  },
+  "jobs": [
+    {"id": "det_demo", "purpose": "detonate", "status": "queued", "n_runs": 3, "error": null},
+    {"id": "det_demo", "purpose": "detonate", "status": "running", "n_runs": 3, "error": null},
+    {"id": "det_demo", "purpose": "detonate", "status": "completed", "n_runs": 3, "error": null},
+    {"id": "det_verify", "purpose": "verify", "status": "failed", "n_runs": 1, "error": "execution_failed"}
+  ]
+}

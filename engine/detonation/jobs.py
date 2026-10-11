@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from uuid import uuid4
 
+from contracts.models import SandboxJob
 from engine.store import events
 
 lock = threading.RLock()
@@ -31,9 +32,22 @@ def running(incident_id):
         return incident_id in _pending
 
 
-def _failed(incident_id, detonation_id, purpose, error):
+def _changed(incident_id, job, status, error=None):
+    job.status, job.error = status, error
+    events.emit("agent.message", {"role": "system",
+                "text": f"Sandbox {job.purpose} {status}.",
+                "sandbox_job": job.model_dump()}, incident_id=incident_id, env="mirage")
+
+
+def _failed(incident_id, detonation_id, purpose, error, *, n_runs=3,
+            category="execution_failed"):
+    if isinstance(error, Busy):
+        category = "stopped"
+    detonation_id = detonation_id or f"det_{incident_id.removeprefix('inc_')}_{uuid4().hex[:12]}"
+    job = SandboxJob(id=detonation_id, purpose=purpose, status="failed", n_runs=n_runs,
+                     error=category)
     payload = {"incident_id": incident_id, "purpose": purpose,
-               "error": f"{type(error).__name__}: {error}"}
+               "error": category, "sandbox_job": job.model_dump()}
     if purpose == "bisect":
         payload["cause_input_id"] = None
         kind = "bisection.completed"
@@ -54,7 +68,8 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
         if incident_id in _pending:
             raise AlreadyRunning("A detonation or bisection is already running for this incident")
         det_id = f"det_{incident_id.removeprefix('inc_')}_{uuid4().hex[:12]}"
-        job = {"future": None}
+        metadata = SandboxJob(id=det_id, purpose=purpose, status="queued", n_runs=n_runs)
+        job = {"future": None, "metadata": metadata}
         _pending[incident_id] = job
 
         def run():
@@ -66,20 +81,23 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
             try:
                 if gate.STOP.is_set():
                     raise Busy("Global STOP cancelled queued sandbox work")
+                _changed(incident_id, metadata, "running")
                 if purpose != "bisect":
                     events.emit("detonation.started", {"incident_id": incident_id,
                                 "detonation_id": det_id, "n_runs": n_runs,
                                 "removed_input_id": None, "purpose": purpose},
                                 incident_id=incident_id, env="mirage")
                 work(det_id)
+                _changed(incident_id, metadata, "completed")
             except Exception as error:  # noqa: BLE001 - preserve freeze; explicit retry only
-                _failed(incident_id, det_id, purpose, error)
+                _failed(incident_id, det_id, purpose, error, n_runs=n_runs)
             finally:
                 with lock:
                     _pending.pop(incident_id, None)
                     _active = None
 
         try:
+            _changed(incident_id, metadata, "queued")
             if audit:
                 audit()
             if _pool is None:
@@ -89,7 +107,8 @@ def submit(incident_id, work, *, purpose="detonate", n_runs=3, audit=None, queue
                 queued()
         except Exception as error:
             _pending.pop(incident_id, None)
-            _failed(incident_id, det_id, purpose, error)
+            _failed(incident_id, det_id, purpose, error, n_runs=n_runs,
+                    category="scheduling_failed")
             raise
         return det_id
 
@@ -131,6 +150,19 @@ def start():
         _accepting = True
 
 
+def restore():
+    """History has no executor after a process restart; never replay interrupted work."""
+    with lock:
+        latest = {}
+        for event in events.read():
+            if "sandbox_job" in event.payload:
+                latest[event.incident_id] = SandboxJob.model_validate(event.payload["sandbox_job"])
+        for incident_id, job in latest.items():
+            if job.status in ("queued", "running") and incident_id not in _pending:
+                _failed(incident_id, job.id, job.purpose, None, n_runs=job.n_runs,
+                        category="interrupted")
+
+
 def shutdown():
     """Cancel queued jobs, drain active work before the event store/process goes away."""
     global _accepting, _pool
@@ -141,6 +173,9 @@ def shutdown():
             if job is not _active:
                 if job["future"]:
                     job["future"].cancel()
+                metadata = job["metadata"]
+                _failed(incident_id, metadata.id, metadata.purpose, None,
+                        n_runs=metadata.n_runs, category="interrupted")
                 _pending.pop(incident_id)
     if pool:
         pool.shutdown(wait=True, cancel_futures=True)
