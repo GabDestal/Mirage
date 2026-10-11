@@ -121,13 +121,13 @@ def denied(result, mode):
 
 @pytest.mark.parametrize("action", ["unfreeze"])
 def test_exact_human_grant_executes_the_original_callback_once(held, api, action):
-    run, call_id, result, release, effects, polls, _ = held
+    run, call_id, result, release, effects, polls, mode = held
     path = f"/runs/{run.id}/{action}"
     assert api.post(path, json=HUMAN).status_code == 200
     assert effects == []  # approval still precedes the real callback
     release.set()
     error = result.exception(timeout=3)
-    assert effects == [langgraph.USER] and run.status == "completed"
+    assert effects == [openai.USER if mode == "openai" else langgraph.USER] and run.status == "completed"
     assert error is None
     assert polls == [{"timeout": 60, "call_id": call_id}]
     assert len(run.tool_results) == 1
@@ -179,7 +179,7 @@ def test_sibling_high_unfreeze_never_releases_the_original_callback(held, api):
 
 
 def test_denied_sibling_cannot_cancel_the_exact_human_grant(held, api, monkeypatch):
-    run, call_id, result, release, effects, _, _ = held
+    run, call_id, result, release, effects, _, mode = held
     entered, sibling_release = threading.Event(), threading.Event()
     sibling_effects = []
     original_post = core._post
@@ -213,7 +213,7 @@ def test_denied_sibling_cannot_cancel_the_exact_human_grant(held, api, monkeypat
             result.result(timeout=3)
         finally:
             sibling_release.set()
-    assert effects == [langgraph.USER] and run.status == "completed"
+    assert effects == [openai.USER if mode == "openai" else langgraph.USER] and run.status == "completed"
     assert len(run.tool_results) == 1 and run.tool_results[0]["call_id"] == call_id
 
 

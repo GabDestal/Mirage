@@ -37,7 +37,7 @@ async def send_email(args):
 def build():
     options = ClaudeAgentOptions(mcp_servers={"demo": create_sdk_mcp_server(
         "demo", tools=[read_calendar, send_email])})
-    return mirage.protect(options, name="assistant",
+    return mirage.protect(options, name="claude-assistant",
                           allow={"tools": [READ, SEND], "email_to": [USER]})
 
 
