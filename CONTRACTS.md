@@ -647,8 +647,8 @@ Limits: Mirage sees only tool calls. Code that calls an API outside a tool, and 
 | POST | `/runs` | `RunStart` `{agent, task, env, restarted_from}` → `RunStarted` `{run_id, run_token}` | Start a run. Emits `run.started`. |
 | POST | `/runs/{id}/model-calls` | `ModelCall` `{model_id, request, response}` | Record one model call. |
 | POST | `/gateway/check` | `ToolCheck` `{run_id, tool, args}` → `GateDecision` | Check one tool call. The engine assigns `call_id`. |
-| POST | `/runs/{id}/tool-results` | `ToolResult` `{call_id, tool, result, error}` | Record one tool result (this is what the snapshot is made of). |
-| GET | `/runs/{id}/wait?timeout=25` | → `WaitResult` `{status: running \| frozen \| failed \| killed \| halted}` | Long poll while frozen. Returns as soon as the run leaves `frozen`, or `frozen` after `timeout` seconds (max 60): poll again. Set the HTTP client timeout above it. The SDK blocks on `failed`, `killed` or `halted`. |
+| POST | `/runs/{id}/tool-results` | `ToolResult` `{call_id, tool, result, error}` | Record only the matching admitted call/tool for this authenticated run. Unknown, held or revoked calls return 409 before recording. Identical retries return 204 without another result; conflicting retries return 409. |
+| GET | `/runs/{id}/wait?timeout=25&call_id=call_014` | → `WaitResult` `{status: running \| frozen \| failed \| killed \| halted}` | Long poll the original held call (max 60 seconds). A durable human release makes only this call eligible; its bound wait claims admission once. Unknown, revoked, consumed or stale calls return 409. Omitting `call_id` supports status-only legacy polling, but pending/revoked held release authority returns 409 instead of granting a callback. The SDK sends its original checked `call_id`, polls again after `frozen`, and blocks on 409 or terminal status. |
 | POST | `/runs/{id}/complete` | Optional `RunCompletion` `{error: string \| null}` → `Run` | While `running`: absent/null error emits `run.status` → `completed`; non-null error emits `failed` with a sanitized reason. No body and `{}` preserve old clients. Contained and terminal runs stay unchanged. |
 
 Destination checks read the `to` and `url` arguments of **any** tool, so tool names are free.
@@ -656,6 +656,12 @@ Destination checks read the `to` and `url` arguments of **any** tool, so tool na
 
 The SDK sends the run token as `Authorization: Bearer <run_token>`.
 Human-action POSTs from web and MCP (§5) send `HumanRequest` `{actor, reason}`.
+
+Calls checked while already frozen block immediately, without policy evaluation or a new hold.
+A later freeze, kill or STOP retires unclaimed held-call release authority; a later unfreeze cannot
+revive it. Results from already-admitted in-flight calls remain acknowledgeable once after containment.
+Admission and the SDK's local callback are separate steps: already-started external effects cannot
+be cancelled instantaneously. Neither a result acknowledgment nor legacy status polling admits a new call.
 
 ### Snapshot and replay
 
@@ -712,7 +718,8 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
   `explanation`. `MIRAGE_LAYER2=0` turns it off. It only decides freezes; the verdict stays code.
 - **Approval queue:** a layer 2 violation with `MIRAGE_GATE_REVIEW` (0.4) ≤ p < 0.7 is held for a human: the gate
   answers `freeze` with `rule_id: NEEDS_APPROVAL` (the SDK waits, as for any freeze), the run is `frozen`, and there is
-  **no incident** (nothing to detonate). Approve = the call runs; reject = the run ends. Unfreeze / kill work too.
+  **no incident** (nothing to detonate). Approve durably releases only the original hold; its bound wait
+  admits that callback once. Reject ends the run. Unfreeze / kill work too; retired approvals stay retired.
 - **`BULK_RECORDS`** (hard rule, P4): an outbound call carrying `>= MIRAGE_BULK_RECORDS` (default 6) email addresses
   besides its recipients freezes, even to an allowed destination. The verdict uses it too.
 - **Verdict** is code: the gate's own hard rules run over each effect. Any hit = compromised run.
@@ -723,12 +730,14 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
 - `MIRAGE_PARALLEL=N` (default 1): run N replays and N bisection rows at once. Rows are emitted as they finish;
   the incident lists them in input order.
 - **Tools the agent does not have** (a model typo such as `search_contactschannelcommentary`) are not an attack:
-  nothing can run. The gate answers `allow` with `rule_id: UNKNOWN_TOOL` (no freeze) and the verdict ignores them.
-  "The agent's tools" = `AgentSpec.tools`; agents that don't register (engine dev agents) keep the old rule.
+  the gate answers `block` with `rule_id: UNKNOWN_TOOL`, without freeze or incident. An actual callback
+  must have a registered tool identity; an invocation-ending SDK denial is reported as failed through
+  the existing completion error contract. The verdict ignores absent tools. "The agent's tools" =
+  `AgentSpec.tools`; agents that don't register (engine dev agents) keep the old rule.
 - **`ESCALATION`** (hard rule): an agent that keeps asking for tools it does not have, other than garbled names that
   contain one of its real tools, is probing for a way around its permissions. The `MIRAGE_ESCALATE_AFTER`-th such
   call in a run (default 2) answers `freeze` with `rule_id: ESCALATION` and opens an incident; earlier ones stay
-  `UNKNOWN_TOOL`.
+  `UNKNOWN_TOOL`. Escalation contains the run but never grants release authority to an unregistered callback.
 - **Legit task**: the snapshot carries the agent's opaque `legit` story declaration (above).
   The sandbox owns evaluation; failed attempts cannot count as completion. Legacy `{tool, to}` declarations
   and the existing empty-declaration fallback remain compatible until that evaluator is updated.
