@@ -151,7 +151,7 @@ def test_crm_mutation_after_gate_cannot_redirect_write(
         protected(module, call(name, **args), AIMessage("Done")).invoke(
             {"messages": [("user", "Send the message")]})
     assert offline_api[0][-1]["args"] == args
-    assert "recipient" in offline_api[1][-1]["error"]
+    assert offline_api[1][-1]["error"].split(":", 1)[0] == "ValueError"
     assert_no_writes()
 
 
@@ -180,7 +180,7 @@ def test_missing_contact_records_failure_without_write(module, name, base, conta
     with pytest.raises(ValueError, match="contact"):
         protected(module, call(name, **args), AIMessage("Done")).invoke(
             {"messages": [("user", "Send the message")]})
-    assert "contact" in offline_api[1][-1]["error"]
+    assert offline_api[1][-1]["error"].split(":", 1)[0] == "ValueError"
     assert_no_writes()
 
 
@@ -189,5 +189,5 @@ def test_missing_invoice_records_failure_without_write(offline_api):
     with pytest.raises(ValueError, match="invoice"):
         protected(invoicing, call("send_invoice", **args), AIMessage("Done")).invoke(
             {"messages": [("user", "Send the invoice")]})
-    assert "invoice" in offline_api[1][-1]["error"]
+    assert offline_api[1][-1]["error"].split(":", 1)[0] == "ValueError"
     assert_no_writes()
