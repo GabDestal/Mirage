@@ -185,19 +185,20 @@ def score(native: Path, case: dict, prediction: dict, destination: Path) -> dict
                   "most_common_failure": str(category), "gt_failure_case": str(gt_category)}
         native_functions(native, "agentrx/judge/judge.py", {"analysis"}, namespace)
         namespace["os"] = os
+        destination.parent.mkdir(parents=True, exist_ok=True)
         with contextlib.redirect_stdout(io.StringIO()):
             namespace["analysis"]([detail], str(destination), case["model_id"], "bedrock-thin-adapter")
         scores["native_analysis"] = read_json(destination)
     return scores
 
 
-def run(native: Path, output: Path, model: str, split: str, grant: str, env: Path):
+def run(native: Path, output: Path, model: str, split: str, grant: str, env: Path, lease_stop_at: str):
     from dotenv import load_dotenv
     load_dotenv(env)  # Must precede boto3 import/client creation.
     import boto3
     from botocore.config import Config
     manifest = read_json(output / "manifest.json")
-    if not grant or manifest["adapter_sha"] != digest(Path(__file__).read_bytes()):
+    if not grant or not lease_stop_at or manifest["adapter_sha"] != digest(Path(__file__).read_bytes()):
         raise ValueError("inference_grant_or_frozen_adapter_missing")
     if revision(native) != SOURCE_SHA:
         raise ValueError("source_revision_mismatch")
@@ -216,7 +217,8 @@ def run(native: Path, output: Path, model: str, split: str, grant: str, env: Pat
             continue
         if (selected["case_id"], model, selected["arm"]) in done:
             continue  # No retry-until-pass or overwrite of recorded outcomes.
-        if datetime.now(timezone.utc) >= datetime.fromisoformat(manifest["stop_at"]):
+        deadline = min(datetime.fromisoformat(manifest["stop_at"]), datetime.fromisoformat(lease_stop_at))
+        if datetime.now(timezone.utc) >= deadline:
             break
         row = {**selected, "code_sha": revision(Path.cwd()), "calls": 0,
                "inference_grant": grant, "native_scores": {}, "unknown_reason": None}
@@ -231,10 +233,12 @@ def run(native: Path, output: Path, model: str, split: str, grant: str, env: Pat
                 messages=[{"role": "user", "content": [{"text": request}]}], inferenceConfig=PARAMETERS)
             text = "".join(b.get("text", "") for b in response["output"]["message"]["content"])
             row["tokens"] = response.get("usage")
-            prediction = parse_prediction(text, len(messages(native, row)))
             prediction_path = output / "predictions" / f"{stem}.json"
-            write_json(prediction_path, {"prediction": prediction, "stop_reason": response.get("stopReason")})
+            write_json(prediction_path, {"raw_model_text": text, "stop_reason": response.get("stopReason")})
             row["evidence_refs"] = [str(prediction_path)]
+            prediction = parse_prediction(text, len(messages(native, row)))
+            write_json(prediction_path, {"prediction": prediction, "raw_model_text": text,
+                                         "stop_reason": response.get("stopReason")})
             row["native_scores"] = score(native, row, prediction, output / "native_scores" / f"{stem}.json")
             row["status"] = "completed"
             row["validation_method"] = "released_native_label_loader_and_analysis; scorer_only"
@@ -275,6 +279,7 @@ if __name__ == "__main__":
     parser.add_argument("--model")
     parser.add_argument("--split", choices=("development", "heldout"))
     parser.add_argument("--inference-grant")
+    parser.add_argument("--lease-stop-at")
     parser.add_argument("--stop-at", default="2026-10-11T05:10:00+00:00")
     args = parser.parse_args()
     if args.command == "self-check":
@@ -284,4 +289,4 @@ if __name__ == "__main__":
         load_dotenv(args.env)
         prepare(args.native, args.output, [os.environ[k] for k in args.model_env], args.stop_at)
     else:
-        run(args.native, args.output, args.model, args.split, args.inference_grant, args.env)
+        run(args.native, args.output, args.model, args.split, args.inference_grant, args.env, args.lease_stop_at)
