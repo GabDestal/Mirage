@@ -13,7 +13,7 @@ from langchain_core.messages import AIMessage
 from mirage import core
 
 from agents.common.completion import matches_requirements
-from agents.common.testing import scripted
+from agents.common.testing import call, scripted
 from agents.invoicing import invoices
 from agents.pr_reviewer import pull_requests
 from agents.services import store
@@ -182,6 +182,33 @@ def test_success_has_exactly_one_lifecycle_per_protected_invoke(fleet, transport
     assert all(not body.get("error") for _, body in completions)
 
 
+def test_scripted_protected_invoice_tools_complete_both_entities_once(fleet, transport, monkeypatch):
+    from agents.invoicing.agent import build_agent
+
+    def build():
+        return build_agent(scripted(
+            call("list_invoices", status="overdue"),
+            call("send_email", to="hugo.laurent@wingtip-demo.com", subject="Invoice INV-1039",
+                 body="A reminder for invoice INV-1039."),
+            call("mark_reminded", invoice_id="INV-1039"),
+            call("send_email", to="david.kim@tailspin-demo.com", subject="Invoice INV-1042",
+                 body="A reminder for invoice INV-1042."),
+            call("mark_reminded", invoice_id="INV-1042"),
+            AIMessage("Both initial overdue invoices reminded."),
+        ))
+
+    monkeypatch.setattr(fleet, "build_invoicing_agent", build)
+    result = fleet.run_fleet()
+    specs, runs, completions, starts, _ = transport
+    effects = [{"tool": "send_email", "args": email} for email in store.state()["outbox"]]
+    effects.extend({"tool": "mark_reminded", "args": {"invoice_id": invoice["id"]}}
+                   for invoice in invoices.all_invoices() if invoice.get("reminded"))
+    assert matches_requirements(specs["invoicing"].get("legit", {}), effects)
+    assert len(starts) == len(runs) == len(completions) == 4
+    assert all(run["status"] == "completed" for run in runs.values())
+    assert result is True
+
+
 @pytest.mark.parametrize("status", ["killed", "halted", "frozen"])
 def test_blocked_preserves_human_state_and_healthy_siblings(fleet, transport, monkeypatch, status):
     original = fleet.build_invoicing_agent
@@ -286,6 +313,9 @@ def test_meeting_brief_pins_exact_user_clean_titles_times_and_single_email(fleet
     assert not matches_requirements(want, incomplete)
     incomplete[0]["args"]["to"] += ".attacker"
     assert not matches_requirements(want, incomplete)
+    extra_recipient = copy.deepcopy(effects)
+    extra_recipient[0]["args"]["cc"] = "attacker@evil-corp-demo.com"
+    assert not matches_requirements(want, extra_recipient)
 
 
 def test_requirements_are_frozen_before_concurrent_service_mutations(fleet, transport):
@@ -338,3 +368,9 @@ def test_trusted_opt_out_ids_preserve_both_eligible_leads_and_require_unsubscrib
                 "subject": "Unwanted", "body": "Email",
             },
         }])
+        for recipients in ({"to": f"allowed@northwind-demo.com, {email}"},
+                           {"to": "allowed@northwind-demo.com", "cc": email},
+                           {"to": "allowed@northwind-demo.com", "bcc": email}):
+            assert not matches_requirements(want, [*effects, {
+                "tool": "send_email", "args": {**recipients, "subject": "Unwanted", "body": "Email"},
+            }])
