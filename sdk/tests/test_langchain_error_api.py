@@ -57,8 +57,9 @@ def test_crashed_model_is_failed_in_the_run_api(engine_client, method):
 
 
 def test_handled_email_validation_error_never_appears_as_sent(engine_client):
+    # Not "assistant": that canonical role also applies policies.yaml, which rejects USER's domain.
     graph = build(call("send_email", to=USER, body="Missing required subject"), AIMessage("handled"),
-                  allow={"tools": ["send_email"], "email_to": [USER]})
+                  name="error-assistant", allow={"tools": ["send_email"], "email_to": [USER]})
     output = graph.invoke(TASK)
     assert output["messages"][-2].status == "error"
     (run,) = engine_client.get("/runs").json()
