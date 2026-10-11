@@ -22,7 +22,9 @@ def reset(seed: list[dict] | None = None) -> None:
 
 
 def by_status(status: str) -> list[dict]:
-    return [i for i in all_invoices() if i["status"] == status]
+    """List invoices by status, excluding already-reminded overdue invoices."""
+    return [i for i in all_invoices() if i["status"] == status
+            and (status != "overdue" or not i.get("reminded", False))]
 
 
 def get(invoice_id: str) -> dict | None:
