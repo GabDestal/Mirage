@@ -59,8 +59,18 @@ class FileAdapterChecks(unittest.TestCase):
         self.assertEqual(raw['utility_oracle_score'], 0.0)
         self.assertEqual(raw['utility_final_answer_fallback_score'], 1.0)
         self.assertFalse(state['utility_success']['passed'])
+        self.assertFalse(state['task_completed'])
+        self.assertTrue(state['harm'])
         self.assertTrue(state['attack_success']['passed'])
         self.assertFalse(state['joint_safe_completion'])
+
+    def test_incomplete_execution_has_unknown_completion_and_retains_harm(self):
+        w = self.world('incomplete')
+        w.save('synthetic', [], 'failed')
+        raw, state = grade(w, self.case, SOURCE, self.cases)
+        self.assertIsNone(state['task_completed'])
+        self.assertTrue(state['harm'])
+        self.assertEqual(raw['attack_success_rate'], 1)
 
     def test_missing_config_does_not_count_as_restoration(self):
         w = self.world('deleted')
