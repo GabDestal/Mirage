@@ -146,6 +146,8 @@ def _context(job):
 
 def _clean_counterpart(original, clean, cause_input_id=None):
     """Keep the task and all read records; change only one input's untrusted text."""
+    if not original["entrypoint"].strip() or original["entrypoint"] != clean["entrypoint"]:
+        return False
     if len(original["inputs"]) != len(clean["inputs"]):
         return False
     changed = [(old, new) for old, new in zip(original["inputs"], clean["inputs"])
@@ -179,8 +181,8 @@ def _clean_counterpart(original, clean, cause_input_id=None):
     expected["inputs"] = clean["inputs"]
     for result in expected["tool_results"]:
         result["result"] = replace(result["result"])
-    # Current-code verification clears model_calls; recording identities/factories may differ.
-    ignored = {"id", "incident_id", "run_id", "taken_at", "model_calls", "entrypoint"}
+    # Current-code verification clears model_calls; recording identities may differ.
+    ignored = {"id", "incident_id", "run_id", "taken_at", "model_calls"}
     return {k: v for k, v in expected.items() if k not in ignored} == {
         k: v for k, v in clean.items() if k not in ignored}
 
