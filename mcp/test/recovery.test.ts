@@ -16,7 +16,7 @@ const receipt = (value: unknown, code = 0) => ({ code, stdout: JSON.stringify(va
 
 describe("actual merged PR identity", () => {
   it.each([
-    { state: "OPEN" }, { baseRefName: "main" }, { headRefOid: "e".repeat(40) }, { mergeCommit: null },
+    { state: "OPEN" }, { baseRefName: "main" }, { headRefOid: "e".repeat(40) }, { mergeCommit: null }, { isDraft: true },
     { url: "https://github.com/attacker/Mirage/pull/123" },
   ])("refuses an untrusted merge receipt %j", (change) => {
     expect(() => inspectMergedPullRequest(receipt({ ...pr, ...change }), job, job.repository)).toThrow();
@@ -85,7 +85,10 @@ async function harness(changedTree = false, badVerification = false, changedPoli
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     requests.push({ path, body });
     if (path.endsWith("/context")) return Response.json(context);
-    if (path.endsWith("/provenance")) return Response.json({ policy_digest: digest(changedPolicy ? { changed: true } : snapshot.policy), config, config_digest: digest(config) });
+    if (path.endsWith("/provenance")) {
+      const policy = changedPolicy ? { changed: true } : snapshot.policy;
+      return Response.json({ policy_digest: digest(policy), policy, agent_spec: spec, config, config_digest: digest(config) });
+    }
     if (path.endsWith("/report")) { state = { status: "prepared", report: { ...body, verification: null, clean_control: null } }; return Response.json(state); }
     return Response.json(state);
   };

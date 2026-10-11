@@ -10,7 +10,7 @@ const sha = z.string().regex(/^[a-f0-9]{40}$/);
 const id = z.string().regex(/^[\w-]+$/);
 const mergedPr = z.object({ url: z.string().url(), number: z.number().int().positive(),
   baseRefName: z.literal("special-improvements"), state: z.literal("MERGED"), headRefOid: sha,
-  isDraft: z.boolean(), mergeCommit: z.object({ oid: sha }) });
+  isDraft: z.literal(false), mergeCommit: z.object({ oid: sha }) });
 export type MergedPullRequest = z.infer<typeof mergedPr>;
 
 export function inspectMergedPullRequest(receipt: CommandResult, job: RepairJob, repository: string) {
@@ -120,6 +120,7 @@ export class RecoverySupervisor implements RecoveryController {
         || digest(snapshot.legit) !== digest(context.clean_snapshot.legit)
         || digest(snapshot.policy) !== digest(context.clean_snapshot.policy))
         throw new Error("Original agent configuration or clean control does not match.");
+      sha.parse(job.candidate_sha);
       const pr = inspectMergedPullRequest(await this.run("gh", ["pr", "view", job.pr_url, "--repo", this.config.repository,
         "--json", "url,number,baseRefName,state,headRefOid,isDraft,mergeCommit"], { cwd: this.config.repoPath }), job, this.config.repository);
       await this.command("git", ["fetch", "origin", "special-improvements"]);
@@ -149,10 +150,14 @@ export class RecoverySupervisor implements RecoveryController {
         || registration.agent_spec?.name !== snapshot.agent || registration.agent_spec?.entrypoint !== snapshot.entrypoint
         || digest(registration.agent_spec?.legit) !== digest(snapshot.legit))
         throw new Error("Prepared factory identity does not match the original task.");
-      const provenance = await this.call<{ policy_digest: string; config: Record<string, string>; config_digest: string }>(
+      const provenance = await this.call<{ policy_digest: string; policy: Record<string, unknown>; agent_spec: Spec;
+        config: Record<string, string>; config_digest: string }>(
         `/incidents/${job.incident_id}/recovery/provenance`, undefined, true);
       if (provenance.config_digest !== registration.config_digest || digest(provenance.config) !== registration.config_digest)
         throw new Error("Engine configuration changed since the original recording.");
+      if (digest(provenance.policy) !== provenance.policy_digest || digest(provenance.agent_spec) !== digest(registration.agent_spec))
+        throw new Error("Prepared policy or factory identity does not match engine provenance.");
+      await privateJson(join(dir, "effective-policy.json"), provenance.policy);
       let verification: Proof | undefined, cleanControl: RecoveryReport["clean_control"];
       const needsVerification = candidateTree !== mergedTree || provenance.policy_digest !== digest(snapshot.policy);
       if (needsVerification) {

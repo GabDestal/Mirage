@@ -72,6 +72,30 @@ def test_register_before_approval_then_execute_fresh_exact_task_once(environment
     assert [path for path, _ in calls].count("/runs") == 1
 
 
+def test_actual_protected_graph_claims_once_and_sends_one_preserved_brief(environment, monkeypatch):
+    import mirage
+    from langchain_core.messages import AIMessage
+    from agents.common.testing import call, scripted
+    from agents.meeting_assistant.agent import build_agent
+
+    request, checkpoint, spec, calls, _, _ = environment
+
+    def factory(_):
+        graph = build_agent(scripted(call("send_email", to="user@mirage-demo.com",
+                                          subject="Prep brief", body="Useful synthetic brief"), AIMessage("done")))
+        return mirage.protect(graph, name=spec["name"], allow=spec["allow"], owner=spec["owner"],
+                              entrypoint=spec["entrypoint"], legit=spec["legit"])
+
+    monkeypatch.setattr(launcher, "build_factory", factory)
+    prepared = launcher.execute(request, "prepare")
+    result = launcher.execute({**request, **prepared}, "launch")
+    assert result["run"]["status"] == "completed"
+    assert store.state()["calendar"] == checkpoint["calendar"]
+    assert len(store.state()["outbox"]) == 1
+    assert [path for path, _ in calls].count("/runs") == 1
+    assert [path for path, _ in calls].count("/runs/new/complete") == 1
+
+
 def test_changed_spec_refused_before_claim(environment):
     request, _, _, calls, invocations, _ = environment
     prepared = launcher.execute(request, "prepare")
