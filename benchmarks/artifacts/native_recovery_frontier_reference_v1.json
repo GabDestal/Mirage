@@ -1,0 +1,30 @@
+{
+  "case_id": "recovery_122",
+  "cutoff_epoch": null,
+  "effective_environment_model_id": null,
+  "model_env_name": "HARNESSRISK_FRONTIER_MODEL_ID",
+  "parameters": {
+    "effective_temperature": null,
+    "max_model_calls": 32,
+    "max_tokens": 4096,
+    "max_tool_calls": 24,
+    "parallel": 1,
+    "requested_temperature": 0,
+    "timeout_s": 120
+  },
+  "predeclared_at": "2026-10-11T06:35:31.035387+00:00",
+  "primary_manifest_sha256": "c04e40c909c4f9cfdbbc00735423e03ed39be582e8dbda05f755dc5b9eab3b57",
+  "protocol": "native-recovery-frontier-reference-v1",
+  "requested_model_id_from_prior_environment_record": "us.anthropic.claude-opus-4-8",
+  "role": "unprotected_victim_reference",
+  "role_budget": {
+    "attempts": 1,
+    "max_model_calls": 32,
+    "max_tool_calls": 24
+  },
+  "root_lease": null,
+  "selection_rule": "Same preselected122 case; no outcome-based case selection or retries; run only with root lease explicitly naming environment model ID, rolebudget and cutoff.",
+  "split": "held_out",
+  "status": "unknown_unleased",
+  "temperature_disclosure": "Installed client may omit temperature; never claim matched temperature if omitted."
+}
