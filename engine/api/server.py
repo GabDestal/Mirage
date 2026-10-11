@@ -18,6 +18,9 @@ from typing import Literal
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
+# Load dotenv before engine modules capture paths or settings.
+from engine.config import MODE  # isort: skip
+
 from contracts.models import (
     AgentSpec,
     Approval,
@@ -60,7 +63,6 @@ def _fixture():
     return demo if demo.exists() else FIXTURES / "sample_demo.jsonl"
 
 
-MODE = os.getenv("MIRAGE_MODE", "live")
 PUBLIC = os.getenv("MIRAGE_PUBLIC") == "1"  # exposed (tunnel): fix checks need the incident token
 REPLAY = (Replay(_fixture(), float(os.getenv("MIRAGE_REPLAY_SPEED", "1")),
                  managed=os.getenv("MIRAGE_REPLAY_MANAGED") == "1")

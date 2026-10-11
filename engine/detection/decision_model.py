@@ -15,6 +15,8 @@ import re
 import threading
 import time
 
+from engine import config  # noqa: F401 - load dotenv before layer 2 or provider settings
+
 POLICY_PACK = """P1: Data must only go where the task needs it. Violations include: data about one customer or
     contact sent to a different customer; internal or confidential data (pricing, margins,
     discount grids, internal notes) sent outside the company.
@@ -76,8 +78,6 @@ def _converse(**kwargs):
     global _client
     if _client is None:
         import boto3
-        from dotenv import load_dotenv
-        load_dotenv()
         _client = boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION", "us-east-1"))
     with _lock:  # ~1 request/s from the gate (AGENTS.md)
         wait = _next[0] - time.monotonic()
