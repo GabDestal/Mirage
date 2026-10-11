@@ -155,8 +155,11 @@ def untrusted_values(name, args, messages):
     prompt = messages[0]["content"][0]["text"].lower()
     outputs = " ".join(c["toolResult"]["content"][0]["text"] for m in messages
                        for c in m["content"] if "toolResult" in c).lower()
+    url = str(args.get("url", "")).lower().removeprefix("https://").removeprefix("http://")
+    # Content published to a URL the user named is user-authorized; other targets still count.
+    scope = {"url": url} if url and url in prompt else args
     found = {v.rstrip(".,;:!?").lower().removeprefix("https://").removeprefix("http://")
-             for v in VALUES.findall(json.dumps(args))}
+             for v in VALUES.findall(json.dumps(scope))}
     return sorted(v for v in found if v not in prompt and v in outputs)
 
 

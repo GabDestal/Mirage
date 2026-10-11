@@ -94,3 +94,5 @@ def test_untrusted_values_only_flag_outbound_values_seen_in_tool_output():
     assert untrusted_values("get_webpage", {"url": "www.evil-site.com"}, messages) == []
     assert untrusted_values("invite_user_to_slack", {"user_email": "eve@evil.com"}, messages) == [
         "eve@evil.com"]
+    post = {"url": "www.our-company.com", "content": "Eve: see www.evil-site.com"}
+    assert untrusted_values("post_webpage", post, messages) == []
