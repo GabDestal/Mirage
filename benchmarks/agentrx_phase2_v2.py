@@ -97,7 +97,7 @@ def prepare(native: Path, cohort: str):
     selected_cases = EXPECTED_CASES
     split = 'within_seen_domain_heldout_task_families_v2'
     if cohort == 'development':
-        ledger = copy.deepcopy(lane.base.read_json(V1_OUTPUT / 'selection-frozen.json'))
+        ledger = copy.deepcopy(lane.base.read_json(V1_OUTPUT / 'eligibility-ledger.json'))
         selected_cases = {'tau:2', 'tau:3'}
         representatives = [r for r in ledger['records'] if r['case_id'] in selected_cases]
         split = 'development_same_case_v2'
@@ -189,6 +189,8 @@ def self_check():
         rejects(json.dumps({'constraints': [{'id': 'D1', 'criterion': 'x', 'source': source, 'source_steps': [1]}]}), 'dynamic', 1)
     rejects('{"constraints":[{"id":"D1","criterion":"x","source":"policy","source_steps":[0]}]}', 'dynamic', 1)
     assert lane.base.SYSTEM_PROMPT == lane.base.read_json(V1_OUTPUT / 'families/manifest.json')['systems']['diagnosis']
+    development = lane.base.read_json(V1_OUTPUT / 'eligibility-ledger.json')
+    assert all('annotation_record_present' in r for r in development['records'] if r['case_id'] in {'tau:2', 'tau:3'})
     print('v2 saved-development provenance compatibility and strict source/citation checks passed; no rescoring')
 
 
