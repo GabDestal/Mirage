@@ -22,6 +22,7 @@ from contracts.models import (
     RepairJobContext,
     RepairJobReport,
     RepairJobRequest,
+    RepairPullRequest,
     RepairVerification,
     Snapshot,
 )
@@ -267,6 +268,10 @@ def router(live_only):
                         "target": incident_id, "reason": body.reason, "ts": now.isoformat()})
             return _emit(job)
 
+    @api.get("/repair-jobs", response_model=list[RepairJob])
+    def list_jobs():
+        return list(repair_jobs(events.read()).values())
+
     @api.get("/repair-jobs/{job_id}", response_model=RepairJob)
     def read(job_id: str):
         return get_job(job_id)
@@ -332,5 +337,24 @@ def router(live_only):
                             incident_id=job.incident_id, env="mirage")
                 handoff.pr_opened(job.incident_id, job.pr_url)
             return result
+
+    @api.post("/repair-jobs/{job_id}/pull-request", response_model=RepairJob,
+              dependencies=[Depends(supervisor_only)])
+    def pull_request(job_id: str, body: RepairPullRequest):
+        """The supervisor's later gh pr view of the same tested PR: open, merged or closed."""
+        with jobs.lock:
+            job = get_job(job_id)
+            old = job.pull_request
+            if job.status != "pr_open" or not old:
+                raise HTTPException(409, "Only an opened repair PR can change state")
+            if (body.url, body.number, body.baseRefName, body.headRefOid) != (
+                    old.url, old.number, old.baseRefName, job.candidate_sha):
+                raise HTTPException(409, "Repair PR does not match the tested draft candidate")
+            if body == old:
+                return job
+            if old.state == "MERGED":
+                raise HTTPException(409, "A merged repair PR is final")
+            job.pull_request = body
+            return _emit(job)
 
     return api

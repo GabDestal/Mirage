@@ -1,13 +1,4 @@
 .exposure-panel, .exposure-results { min-width: 0; overflow-wrap: anywhere; }
-.exposure-panel h2 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
-.exposure-panel form { margin-top: 16px; }
-.exposure-candidates { padding: 0; margin-bottom: 12px; border: 0; }
-.exposure-candidates legend { font-size: 13px; font-weight: 500; margin-bottom: 8px; }
-.exposure-candidate { display: flex; align-items: flex-start; gap: 10px; padding-block: 8px; cursor: pointer; }
-.exposure-candidate input { width: 16px; height: 16px; margin-top: 2px; accent-color: var(--ink); flex-shrink: 0; }
-.exposure-candidate strong { font-size: 13px; font-weight: 500; }
-.exposure-candidate small { display: block; color: var(--ink-2); font-size: 12px; line-height: 1.5; margin-top: 2px; }
-.exposure-candidates:disabled .exposure-candidate { cursor: default; opacity: .65; }
 .exposure-panel > .exposure-note { margin-top: 8px; }
 .exposure-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-block: 16px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
 .exposure-summary strong { font-size: 13px; font-weight: 500; }

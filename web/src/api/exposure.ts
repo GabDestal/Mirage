@@ -113,6 +113,18 @@ export async function readExposureCandidates(incidentId: string, signal?: AbortS
   return value
 }
 
+/** Every capability match the engine accepts in one job: at most eight, one meeting assistant. */
+export function exposureTargets(candidates: ExposureCandidate[]) {
+  const names: string[] = []
+  let assistant = false
+  for (const candidate of candidates) {
+    if (candidate.status !== 'unassessed' || names.length === 8) continue
+    if (candidate.role === 'meeting_assistant') { if (assistant) continue; assistant = true }
+    names.push(candidate.agent_name)
+  }
+  return names
+}
+
 export const exposureJobsKey = (incidentId?: string) => ['exposure-jobs', incidentId ?? 'fleet']
 export const useExposureJobs = (incidentId?: string) => useQuery({
   queryKey: exposureJobsKey(incidentId), queryFn: ({ signal }) => readExposureJobs(incidentId, signal), refetchInterval: 2_000,

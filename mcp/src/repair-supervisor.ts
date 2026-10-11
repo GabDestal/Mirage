@@ -80,6 +80,17 @@ export function verifyPullRequest(receipt: CommandResult, head: string, reposito
   return pr;
 }
 
+const prStateSchema = prSchema.extend({ isDraft: z.boolean(), state: z.enum(["OPEN", "CLOSED", "MERGED"]) });
+/** A later read of the same tested PR: only its state and draft flag may change. */
+export function observePullRequest(receipt: CommandResult, job: RepairJob) {
+  if (receipt.code !== 0) throw new Error("GitHub could not read the repair pull request.");
+  const { headRefName: _, ...pr } = prStateSchema.parse(JSON.parse(receipt.stdout));
+  const known = job.pull_request;
+  if (!known || pr.url !== known.url || pr.number !== known.number || pr.headRefOid !== job.candidate_sha)
+    throw new Error("Pull request no longer matches the verified candidate.");
+  return pr;
+}
+
 export async function inspectCandidate(run: CommandRunner, cwd: string, baseSha: string) {
   sha.parse(baseSha);
   const git = async (args: string[]) => {
@@ -157,7 +168,7 @@ export type RepairController = { start(incidentId: string, actor: string, reason
 type HttpCall = <T>(method: "GET" | "POST", path: string, body?: unknown, privateAccess?: boolean) => Promise<T>;
 export type RepairConfig = { repository: string; repoPath: string; baseSha: string; python: string;
   supervisorToken: string; api: string; liveVerification: boolean; retryEvidencePath?: string;
-  orca?: string; run?: CommandRunner; fetch?: typeof fetch; pollMs?: number; env?: NodeJS.ProcessEnv };
+  orca?: string; run?: CommandRunner; fetch?: typeof fetch; pollMs?: number; prPollMs?: number; env?: NodeJS.ProcessEnv };
 type RepairContext = { job: RepairJob; snapshot: Record<string, any>; clean_snapshot: Record<string, any>;
   baseline_effects: unknown[]; incident: Record<string, unknown>; report: string; snapshot_json: string; clean_snapshot_json: string;
   baseline_json: string; policy_digest: string };
@@ -190,7 +201,8 @@ export function repairConfig(env: NodeJS.ProcessEnv = process.env): RepairConfig
   return { repository: env.MIRAGE_REPAIR_REPOSITORY ?? "GabDestal/Mirage", repoPath: env.MIRAGE_REPAIR_REPO_PATH,
     baseSha: sha.parse(env.MIRAGE_REPAIR_BASE_SHA), python: env.MIRAGE_REPAIR_PYTHON ?? join(env.MIRAGE_REPAIR_REPO_PATH, ".venv/bin/python"),
     supervisorToken: env.MIRAGE_REPAIR_SUPERVISOR_TOKEN, api, liveVerification: env.MIRAGE_REPAIR_LIVE_VERIFY === "1",
-    orca: env.ORCA_CLI_COMMAND ?? "orca", retryEvidencePath: env.MIRAGE_REPAIR_RETRY_EVIDENCE };
+    orca: env.ORCA_CLI_COMMAND ?? "orca", retryEvidencePath: env.MIRAGE_REPAIR_RETRY_EVIDENCE,
+    prPollMs: Number(env.MIRAGE_REPAIR_PR_POLL_MS) || 15_000 };
 }
 
 export class RepairSupervisor implements RepairController {
@@ -228,6 +240,29 @@ export class RepairSupervisor implements RepairController {
       void this.execute(job, retry).finally(() => { this.active = false; });
       return job;
     } catch (error) { this.active = false; throw error; }
+  }
+  /** Re-read every open repair PR on GitHub and report merged/closed to the engine. Never merges. */
+  async refreshPullRequests() {
+    const jobs = z.array(jobSchema).parse(await this.call("GET", "/repair-jobs"));
+    for (const job of jobs) {
+      if (job.status !== "pr_open" || job.pull_request?.state !== "OPEN") continue;
+      try {
+        const pr = observePullRequest(await this.run("gh", ["pr", "view", job.pull_request.url, "--repo", job.repository,
+          "--json", "url,number,baseRefName,headRefName,headRefOid,isDraft,state"], { cwd: this.config.repoPath }), job);
+        if (pr.state !== job.pull_request.state || pr.isDraft !== job.pull_request.isDraft)
+          await this.call("POST", `/repair-jobs/${job.id}/pull-request`, pr, true);
+      } catch { console.error(`Repair PR state for ${job.id} could not be refreshed.`); }
+    }
+  }
+  /** One loop for this operator process; returns a stop function. */
+  watchPullRequests() {
+    let timer: ReturnType<typeof setTimeout> | undefined, stopped = false;
+    const tick = async () => {
+      await this.refreshPullRequests().catch(() => console.error("Repair PR states could not be listed."));
+      if (!stopped) timer = setTimeout(tick, this.config.prPollMs ?? 15_000);
+    };
+    void tick();
+    return () => { stopped = true; clearTimeout(timer); };
   }
   private async command(command: string, args: string[], options?: Partial<CommandOptions>) {
     const receipt = await this.run(command, args, { cwd: this.config.repoPath, ...options });
