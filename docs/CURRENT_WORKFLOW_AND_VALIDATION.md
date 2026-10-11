@@ -60,6 +60,9 @@ Checking/inconclusive medium human-unfreeze is blocked; a later manual freeze of
 already-cleared run permits human unfreeze without repeating its original callback.
 High/hard/escalation, STOP, Kill, fix merge and clean restart stay human-directed.
 Miragio approvals concern operator-requested actions, not routine protected tools.
+Initial layer-2 outage retains the existing gate policy: hard rules still apply, otherwise
+the call may be allowed. Classifier failure during already-held medium clearance stays frozen.
+This added semantic check is model-assisted evidence, not universal deterministic proof.
 
 For a new persisted gate incident, the engine automatically queues three sandbox
 replays. Reads use the snapshot; writes are captured. Real service tools do not run.
@@ -92,8 +95,9 @@ The engine's reported bounded attachment was PID 51886 on 8040 with an empty
 owner list. UI HMR, compiled chat and Python imports had separate revisions.
 Disk HEAD and an open port cannot prove what code those processes loaded.
 Reported idle engine 8040 still loaded `c116744767053793662dcbccc49c498f607e10f4`;
-chat still loaded `d9c5f7744b1d742da03c9910427566ad9c5d0247`. Neither demonstrates
-a fresh runtime on final main. The UI/provider fleet route remains unexecuted.
+chat still loaded `d9c5f7744b1d742da03c9910427566ad9c5d0247`. MCP/chat files were
+rebuilt on disk at final main without restarting chat. Neither process demonstrates a fresh
+runtime on final main. The UI/provider fleet route remains unexecuted.
 
 Selected owning validation below is historical and composition-specific, not
 rerun by this worker. The retained ledger gives the other repair heads/results.
@@ -101,6 +105,7 @@ rerun by this worker. The retained ledger gives the other repair heads/results.
 | Composition | Recorded command/result | Provenance |
 |---|---|---|
 | Medium #158, reviewed `a8d75c4cb697c383d0af8979f3434a87db00b78e` | Full command below: **1235 passed**, 177.77 s, 16 existing dependency warnings. Independent A checks: 52 passed, 27.30 s, separately. | [Merged #158](https://github.com/GabDestal/Mirage/pull/158), exact main/tree above; provider-free fixtures and real jailed synthetic children. |
+| Final main consumer builds, `d72eb8c0848ad797dad4213d671c8480e60e8f41` | From `mcp/`: `npm run build` passed. From `web/`: `npm run build` (tsc/Vite) and `npm run lint` (oxlint) passed, seven existing Fast Refresh warnings and existing >500 kB chunk warning. | Coordinator/B build-only checks; MCP worker 68 passing tests reused on unchanged source, no new test campaign or runtime restart. |
 | Policy pin #155, reviewed `4ebb19d60ec30f3d1e3dd47e19f535cd7d75d943` on base `5c9e2df` | Provider-off `pytest tests sdk/tests agents -q -p no:cacheprovider --tb=short`: 1176 passed. Separate focused 24 and coordinator 54 checks are not added to that total. | [Merged #155](https://github.com/GabDestal/Mirage/pull/155); squash `f93f818d8c100cccf7e5eb120c433c44f4862798`. |
 | Restart #157, reviewed `22f056cda15ea57303b4f57178c5c44b91cef0fb` on base `f93f818` | `MIRAGE_MODE=live MIRAGE_LAYER2=0 MIRAGE_JUDGE=0 uv run pytest -q`: 1203 passed with stable HEAD. `uv run pytest -q tests/test_restart_identity_authority.py tests/test_registered_policy_authority.py tests/test_restart.py tests/test_resume.py`: 58 passed; independent coordinator 58 separately. | [Merged #157](https://github.com/GabDestal/Mirage/pull/157); squash `1e6052e073886abf36f54af10c48e8c521f4b86e`, local C report below. |
 | Restart UI, same reviewed C head | From `web/`, `node tests/run-lifecycle-truth-selfcheck.mjs`: 32 passed; `--demo`: 6 passed. Typecheck/build/lint passed with existing warnings. | Synthetic render/REST consumer checks; no browser/provider acceptance. |
@@ -112,6 +117,12 @@ Final medium full-suite command, reported by its owning worker (not rerun here):
 
 ```sh
 PYTHONPATH="$PWD:$PWD/sdk" PYTHON_DOTENV_DISABLED=1 AWS_EC2_METADATA_DISABLED=true MIRAGE_MODE=live /Users/liamszefner/Business/hacks/Mirage/.venv/bin/python -m pytest -q --tb=short
+```
+
+Independent A command at the same reviewed head, from its assigned checkout:
+
+```sh
+PYTHONPATH="$PWD:$PWD/sdk" PYTHON_DOTENV_DISABLED=1 AWS_EC2_METADATA_DISABLED=true MIRAGE_MODE=live MIRAGE_LAYER2=0 MIRAGE_JUDGE=0 /Users/liamszefner/Business/hacks/Mirage/.venv/bin/python -m pytest -q --tb=short tests/test_medium_sandbox_clearance.py tests/test_containment_persistence.py
 ```
 
 The medium matrix began RED: 32 failed/4 passed; later high/hard/escalation transitions
@@ -206,6 +217,6 @@ definitions/examples to four linked references; models remain authoritative.
 `python3 /tmp/mirage-current-docs-check.py d72eb8c0848ad797dad4213d671c8480e60e8f41`
 passed: 75 local links/anchors, all 39 contract headings/anchors (13 full sections),
 31 historical plan headings, and all 11 documents ≤299 lines. Exact section accounting
-checks the mechanical move separately from 21 source-aligned semantic edits; whitespace
+checks the mechanical move separately from 23 source-aligned semantic edits; whitespace
 and docs-only scope pass. Person A accuracy review will be recorded on PR #156 before ready.
 This worker ran no code/runtime/provider tests; coordinator MCP/web checks are separate.

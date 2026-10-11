@@ -186,11 +186,11 @@ The incident page has one button: **Hand off to coding agent**. It opens a drawe
 ### Access to the same sandbox (most important part)
 
 The coding agent must test against the **same snapshot** that we used for the detonation.
-Mirage gives three ways to reach it. All three call the same code.
+CLI and HTTP verification use the same snapshot; operator replay is a separate check.
 
 - CLI: `mirage detonate --incident INC-7`
-- MCP server: tool `mirage.detonate(incident_id, ...)`
-- HTTP API: `POST /incidents/INC-7/detonate`
+- HTTP fix verification: `POST /incidents/INC-7/verify`
+- Operator baseline replay: MCP `detonate` or `POST /incidents/INC-7/detonate` (not fix verification)
 
 Each incident has its own access token. The token gives access to that snapshot only.
 A cloud coding agent would need a reachable API. Hosting/tunnel access remains unconfigured;

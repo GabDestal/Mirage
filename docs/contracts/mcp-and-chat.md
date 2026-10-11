@@ -22,8 +22,9 @@ A second front end, like `web/`. It calls the control plane API. It never import
 
 Rules:
 
-- Read tools are on by default. Act tools carry `destructiveHint`, ask for a reason (MCP elicitation), and are
-  logged as `"<actor> via <client> (MCP)"`.
+- Read tools are on by default. Containment/recovery/handoff actions ask for confirmation/reason
+  (MCP elicitation); baseline detonation and cause search do not require that approval.
+  Human-requested actions log the actor/client and reason; engine system clearance is not human approval.
 - All checks run in the engine, not in the MCP server.
 - No tool merges a PR.
 

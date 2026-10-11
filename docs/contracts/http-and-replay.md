@@ -95,7 +95,8 @@ and cross-process live STOP append synchronization is outside this prototype's c
 
 ## 6. Coding agent contract (`mirage detonate`)
 
-Same output for CLI, MCP and HTTP.
+Fix output below belongs to CLI `detonate` (default current-code verification) and HTTP
+`/verify`. MCP `detonate` calls HTTP `/detonate` for baseline proof, not current-code verification.
 
 ```
 mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json]
