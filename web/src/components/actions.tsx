@@ -95,9 +95,9 @@ export function CleanRestartButton({ run }: { run: Run }) {
   const { data: events = [] } = useEvents()
   if (isDemo || run.env !== 'prod' || !['killed', 'halted'].includes(run.status)) return null
   const restart = runs.find((r) => r.restarted_from === run.id)
-  if (restart) return <Link className="clean-restart-status" role="status" to={`/runs/${encodeURIComponent(restart.id)}`} onClick={(e) => e.stopPropagation()}>
+  if (restart) return <span className="clean-restart-status" role="status"><Link to={`/runs/${encodeURIComponent(restart.id)}`} onClick={(e) => e.stopPropagation()}>
     {restart.status === 'queued' ? 'Clean restart pending · awaiting owner start' : `Clean restart: ${restart.status}`}
-  </Link>
+  </Link></span>
   const stopped = stopOn(events)
   return <Button disabled={stopped} title={stopped ? 'Global STOP is on. Lift STOP before approving a clean restart.' : 'Queues a new run; the owner must start it.'}
     onClick={(e) => { e.stopPropagation(); ask('restart', run) }}>Approve clean restart</Button>
