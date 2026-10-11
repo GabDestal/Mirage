@@ -1,9 +1,9 @@
 /// <reference types="node" />
 // Run: node --experimental-strip-types src/pages/fleet-presentation.selfcheck.ts
 import assert from 'node:assert/strict'
-import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, sandboxStatus } from './fleet-presentation.ts'
+import { agentCount, fleetActivity, fleetStatus, groupByAgent, healthyAgents, latestProductionRuns, sandboxStatus } from './fleet-presentation.ts'
 import type { Incident, MirageEvent, Run } from '../api/client'
-const run = (status: Run['status'], env: Run['env'] = 'prod') => ({ status, env, agent: status } as Run)
+const run = (status: Run['status'], env: Run['env'] = 'prod') => ({ id: `run_${status}`, started_at: '2026-10-11T00:00:00Z', status, env, agent: status } as Run)
 assert.equal(fleetStatus(run('completed')), 'Healthy')
 assert.equal(fleetStatus(run('failed')), 'Failed')
 assert.equal(fleetStatus(run('running')), 'Working')
@@ -13,10 +13,24 @@ assert.equal(fleetStatus(run('queued')), 'Queued')
 assert.equal(fleetStatus(run('frozen')), 'Frozen')
 assert.equal(healthyAgents([run('completed'), run('running'), run('frozen'), run('queued'), run('halted'), run('completed', 'mirage')]), 2)
 assert.equal(healthyAgents([run('failed')]), 0)
-const fleet = ['a', 'b', 'c', 'd', 'a', 'b', 'c', 'd'].map((agent, i) => ({ id: `run_${8 - i}`, agent, env: 'prod', status: 'completed' } as Run))
+const fleet = ['a', 'b', 'c', 'd', 'a', 'b', 'c', 'd'].map((agent, i) => ({ id: `run_${8 - i}`, started_at: '2026-10-11T00:00:00Z', agent, env: 'prod', status: 'completed' } as Run))
 assert.equal(agentCount(fleet), 4)
 assert.equal(agentCount([...fleet, { agent: 'e', env: 'mirage' } as Run]), 4)
 assert.equal(healthyAgents(fleet), 4)
+const oldHealthy = { ...run('completed'), agent: 'same', started_at: '2026-10-10T22:00:00Z' }
+for (const status of ['failed', 'queued', 'halted'] as const) {
+  const newest = { ...run(status), agent: 'same', started_at: '2026-10-11T00:00:00+01:00' }
+  assert.equal(healthyAgents([oldHealthy, newest]), 0)
+  assert.equal(healthyAgents([newest, oldHealthy]), 0) // Never depend on API ordering.
+}
+assert.equal(healthyAgents([oldHealthy, { ...run('failed', 'mirage'), agent: 'same' }]), 1)
+const tied = [{ ...oldHealthy, id: 'run_2' }, { ...oldHealthy, id: 'run_10', status: 'failed' as const }]
+assert.equal(healthyAgents(tied), 0)
+assert.equal(healthyAgents([...tied].reverse()), 0) // Same instant: numeric run-ID order decides deterministically.
+const history = [...tied, { ...run('running'), agent: 'other' }, { ...run('completed', 'mirage'), agent: 'same' }]
+const originalOrder = [...history]
+assert.deepEqual(latestProductionRuns(history).map((r) => r.id), ['run_running', 'run_10'])
+assert.deepEqual(history, originalOrder) // Selection must preserve caller-owned history and ordering.
 assert.deepEqual(groupByAgent(fleet).map((g) => [g.agent, g.runs.map((r) => r.id)]),
   [['a', ['run_8', 'run_4']], ['b', ['run_7', 'run_3']], ['c', ['run_6', 'run_2']], ['d', ['run_5', 'run_1']]])
 const incident: Incident = { id: 'inc_test', run_id: 'run_test', status: 'open', verdict: null,
@@ -68,3 +82,9 @@ assert.equal(sandboxStatus(incident, [{ ...queued, run_id: 'other' }]), undefine
 assert.equal(sandboxStatus(incident, [{ ...queued, payload: { ...queued.payload, actor: 'Liam' } }]), undefined)
 assert.equal(sandboxStatus(incident, [{ ...queued, payload: { ...queued.payload, reason: 'Manual freeze' } }]), undefined)
 console.log('Target-bound automatic replay queue checks passed')
+const job = (purpose: NonNullable<Incident['sandbox_job']>['purpose'], status: NonNullable<Incident['sandbox_job']>['status']) => ({ id: 'durable', purpose, status, n_runs: 3, error: status === 'failed' ? 'interrupted' : null })
+assert.equal(sandboxStatus({ ...incident, sandbox_job: job('detonate', 'queued') }, []), 'Sandbox replay queued')
+assert.equal(sandboxStatus({ ...incident, sandbox_job: job('detonate', 'failed') }, []), 'Sandbox replay failed')
+assert.equal(sandboxStatus({ ...incident, status: 'detonating', sandbox_job: job('verify', 'queued') }, []), undefined)
+assert.equal(sandboxStatus(incident, [event('agent.message', { sandbox_job: job('bisect', 'failed') }), event('detonation.failed', { detonation_id: 'durable', error: 'interrupted' })]), undefined)
+console.log('Durable sandbox state and job-purpose isolation checks passed')

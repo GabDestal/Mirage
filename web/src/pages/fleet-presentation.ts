@@ -19,8 +19,14 @@ export function agentCount(runs: Pick<Run, 'agent' | 'env'>[]) {
   return new Set(runs.filter((run) => run.env === 'prod').map((run) => run.agent)).size
 }
 
+/** Current production run per agent, independent of API ordering or historical success. */
+export function latestProductionRuns(runs: Run[]): Run[] {
+  return groupByAgent(runs.filter((run) => run.env === 'prod').sort((a, b) =>
+    Date.parse(b.started_at) - Date.parse(a.started_at) || b.id.localeCompare(a.id, undefined, { numeric: true }))).map(({ runs }) => runs[0])
+}
+
 export function healthyAgents(runs: Run[]) {
-  return agentCount(runs.filter((run) => ['Working', 'Healthy'].includes(fleetStatus(run))))
+  return latestProductionRuns(runs).filter((run) => ['Working', 'Healthy'].includes(fleetStatus(run))).length
 }
 
 /** Runs grouped by agent, keeping input order: newest-first runs give newest-first groups. */
