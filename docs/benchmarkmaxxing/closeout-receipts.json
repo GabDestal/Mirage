@@ -1,0 +1,124 @@
+{
+  "recorded_at_utc": "2026-10-11T07:43:22.361782+00:00",
+  "status": "CLOSED AT USER REQUEST",
+  "accepted_benchmaxing_base_sha": "a6c543a5aa043ba1a74b199368b1d3fc5d2c3203",
+  "branch_deliveries": [
+    {
+      "headRefOid": "fdcbcfc61e788301761ebcfc9ebf46a9f7d2622a",
+      "mergeCommit": {
+        "oid": "173081ff35c3fc84a2738dc7302c6cd4929320ed"
+      },
+      "mergedAt": "2026-10-11T07:15:24Z",
+      "number": 186,
+      "title": "Publish benchmark diagnosis and utility proof figures",
+      "url": "https://github.com/GabDestal/Mirage/pull/186"
+    },
+    {
+      "headRefOid": "24657d15380a7d9f5f2df18b5823db5eda894448",
+      "mergeCommit": {
+        "oid": "75228b632e3ab5162c4502c6b46b07e463cbed11"
+      },
+      "mergedAt": "2026-10-11T07:17:02Z",
+      "number": 185,
+      "title": "Add state-backed native fixture replay and frozen verification",
+      "url": "https://github.com/GabDestal/Mirage/pull/185"
+    },
+    {
+      "headRefOid": "7e7d437cc79ad58c48a0d7191c12f5463bea03f5",
+      "mergeCommit": {
+        "oid": "a6c543a5aa043ba1a74b199368b1d3fc5d2c3203"
+      },
+      "mergedAt": "2026-10-11T07:33:02Z",
+      "number": 183,
+      "title": "Add native recovery checkpoint and state-backed benchmark workflow",
+      "url": "https://github.com/GabDestal/Mirage/pull/183"
+    },
+    {
+      "headRefOid": "efc29622132c1cd5e789ce2cd86ab8f68789f9fa",
+      "mergeCommit": {
+        "oid": "ed8693bff2a31b254acb63a47d9053f01930cf3f"
+      },
+      "mergedAt": "2026-10-11T06:54:14Z",
+      "number": 171,
+      "title": "Capture selected native mutations and scalar replay inputs",
+      "url": "https://github.com/GabDestal/Mirage/pull/171"
+    },
+    {
+      "headRefOid": "da025d2257acd8d35b54c2996e555dd31fdc5712",
+      "mergeCommit": {
+        "oid": "d4ca976233ba3fa5559a075f2976008d4c3e1d91"
+      },
+      "mergedAt": "2026-10-11T07:31:58Z",
+      "number": 166,
+      "title": "Benchmark failure diagnosis and honest fixed-denominator scorecard",
+      "url": "https://github.com/GabDestal/Mirage/pull/166"
+    },
+    {
+      "headRefOid": "463d943c9684899590f2b87e7d38c8861e1e736b",
+      "mergeCommit": {
+        "oid": "2640720f45a987c507f74a905f25d06948b86921"
+      },
+      "mergedAt": "2026-10-11T06:55:37Z",
+      "number": 165,
+      "title": "Evaluate native HarnessRisk recovery cases with actual file evidence",
+      "url": "https://github.com/GabDestal/Mirage/pull/165"
+    }
+  ],
+  "operational_source_pins": [
+    {
+      "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/CLAUDE_HANDOFF.md",
+      "sha256": "1ca7ef35f6cd3c75847252019651d1f37d14544483e392fc06f76b3ac17d0597"
+    },
+    {
+      "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/C2_IMPROVEMENT_HANDOFF.md",
+      "sha256": "3ffb8346074e1e7aed5f392a931f26b6038340b649ca19c596e8bc2e3fb6b910"
+    },
+    {
+      "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/final-readiness.json",
+      "sha256": "6b906ca1a2a466ac595c1ac2fdd4ad8b60889c0d55509e07d1cc9db2ad459e72"
+    },
+    {
+      "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/C2_PHASE2_REVIEW.md",
+      "sha256": "124ff5798731e8d2390035f3c7c25832a150157b8641686182d7827a102782cb"
+    },
+    {
+      "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/native/claude-handoff-7e7d437.md",
+      "sha256": "4e9586fdaea0aed09e39a9d8ba7305ee0ba2deba760a8fe071676ff2942c4e41"
+    },
+    {
+      "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/native/invoke-7e7d437.sh",
+      "sha256": "cc07201e4e3e90fac982d276f7b6287b9c5602a496716733a9774027ed7002f1"
+    },
+    {
+      "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/native/paired-7e7d437.json",
+      "sha256": "62637baf222a62cba8a64f9c52f75a91424cf3e4825fa838022836723876e541"
+    },
+    {
+      "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/C3_review.json",
+      "sha256": "8f025d3b1e1103044fd35856c88a6e530a9ad6e9cdaf37cc5360fcaf43bc04f0"
+    }
+  ],
+  "durable_summary": "BENCHMARKMAXXING_CLAUDE_HANDOFF.md and closeout-run-ledger.json preserve key prerequisites, counts, IDs, heads and future invocation shapes without secrets, hidden label records or fixture contents",
+  "accepted_v2_source_sha": "ec210359a289102ad5beae3d26a3445175fa5ba8",
+  "w5_acceptance": "Root adopted C3 scoped source review and W5 evidence at 24657d15380a7d9f5f2df18b5823db5eda894448; fresh final Owner A approval not received",
+  "w6_offline_evidence": {
+    "head": "7e7d437cc79ad58c48a0d7191c12f5463bea03f5",
+    "reported_checks_passed": 31,
+    "rerun_by_reporting_worker": false,
+    "proof_level": "Actual jailed children with fake model responses; actual SDK TestClient admission and automated original-task restart",
+    "provider_calls": 0,
+    "host_live_or_provider_efficacy": false,
+    "operator_checkpoint_origin": "benchmark_operator",
+    "product_incident": false,
+    "human_approval": "unmeasured"
+  },
+  "live_prerequisites": [
+    "Propagate absolute root lease cutoff into every child/model launch; factory-relative 120s and parent-only checks are insufficient",
+    "Drain genuine automatic jobs before root scheduling handback",
+    "AgentRx serialized one-cell leases and outer >=1.1s pause after every exit including failure"
+  ],
+  "provider_drain": "Reported by final W2/W6 handoffs and root settlement; reporting launched no service/provider job",
+  "main_scope": "No benchmark-lane merge into main; other lanes not covered",
+  "historical_source_preservation": "PASS: seven original source/table/chart/render files byte-identical to published history",
+  "frozen_chart_snapshot_at_utc": "2026-10-11T07:13:07.023785+00:00"
+}

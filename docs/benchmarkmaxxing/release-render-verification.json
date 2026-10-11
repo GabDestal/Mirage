@@ -1,0 +1,66 @@
+{
+  "inspected_at_utc": "2026-10-11T07:43:21.706800+00:00",
+  "exports": [
+    {
+      "figure": "agentrx-critical-step-release",
+      "width": 1320,
+      "height": 940,
+      "svg": {
+        "path": "docs/benchmarkmaxxing/agentrx-critical-step-release.svg",
+        "sha256": "4c0d6013e22bb82b3e509389daa13ca06f6a94af84cee9a6ecc4b7cbcc5121b0"
+      },
+      "png": {
+        "path": "docs/benchmarkmaxxing/agentrx-critical-step-release.png",
+        "sha256": "ce5aa1eaf067a4687d872a613b8278667d6a1a522b26dc68aec58ab99dec73a6"
+      }
+    },
+    {
+      "figure": "agentrx-coverage-release",
+      "width": 1320,
+      "height": 940,
+      "svg": {
+        "path": "docs/benchmarkmaxxing/agentrx-coverage-release.svg",
+        "sha256": "e39321e26082095c9efe7385322b376de85acc0b44b119699f72304cbc66a09d"
+      },
+      "png": {
+        "path": "docs/benchmarkmaxxing/agentrx-coverage-release.png",
+        "sha256": "efee7e75b8497572dcb9dc533f68cca80339dc8b7c1bcf2dda125d25db8fa332"
+      }
+    },
+    {
+      "figure": "harnessrisk-safe-completion-release",
+      "width": 1320,
+      "height": 940,
+      "svg": {
+        "path": "docs/benchmarkmaxxing/harnessrisk-safe-completion-release.svg",
+        "sha256": "cb8b7712faf30c0ca873017ddfd3c0aacdb30bba1be6cdd5e1890455034d3499"
+      },
+      "png": {
+        "path": "docs/benchmarkmaxxing/harnessrisk-safe-completion-release.png",
+        "sha256": "bd167e271d2c59264aaca8635a7af8d59659b01107e710e8ba1209e2a3fda5fd"
+      }
+    }
+  ],
+  "frozen_source": {
+    "path": "docs/benchmarkmaxxing/chart-source.json",
+    "sha256": "0931071ce5721f82efd2910fdcf3f3d9540418c0246ba42bf17aa5d6ec6080d9"
+  },
+  "renderer": {
+    "path": "benchmarks/benchmarkmaxxing_charts.py",
+    "sha256": "4a70bfe31e7d4f15c506640c9e0d24a8d6f4e66ae03e091b777651fc2adc52ff"
+  },
+  "native_export_script": {
+    "path": "docs/benchmarkmaxxing/render-release-charts.sh",
+    "sha256": "18062304a2d6f482635ae9079b8c4bab98ae191e3f9646817333a26f33c6e651"
+  },
+  "method": "stdlib SVG; native macOS QuickLook at 1320 with square wrapper; exact CoreGraphics top-left 1320x940 crop",
+  "arithmetic": "PASS: frozen groups recomputed from all original rows, selected N/S/F/U and same-case final completion asserted",
+  "visual_inspection": "All three final PNGs inspected at original 1320x940 dimensions: complete titles/captions, no clipping/overlap/tiling; coverage percentages separated from UNKNOWN labels; zero bars explicitly labelled",
+  "history_preserved": "PASS: seven original source/table/chart/render files byte-identical to published history",
+  "accessibility": "Direct counts, arm text, hatch pattern and numeric bounds supplement color; formal color-vision simulation not run",
+  "unavailable": [
+    "No new provider/benchmark/grader execution",
+    "No broad tests",
+    "No actual USD receipt or real human restart/wait measurement"
+  ]
+}
