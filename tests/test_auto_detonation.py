@@ -348,6 +348,12 @@ def test_replay_mode_does_not_launch_sandbox(api, monkeypatch):
 def test_real_subprocess_auto_replay_is_jailed_and_leaves_prod_frozen(api):
     run = gate.LiveRun(id="run_scripted", agent="assistant", task="t", status="running",
                        entrypoint="tests.sandbox_agents:attacker")
+    run.tool_results = [
+        {"call_id": "calendar", "tool": "read_calendar", "args": {"date": "2026-10-11"},
+         "result": {"events": [{"title": "Synthetic meeting", "description": "Pricing."}]}},
+        {"call_id": "contacts", "tool": "crm_export", "args": {},
+         "result": {"csv": "synthetic-contact@contoso.example"}},
+    ]
     gate.runs[run.id] = run
     decision = gate.check(run, "send_email", {"to": ATTACKER})
     assert decision.decision == "freeze"
