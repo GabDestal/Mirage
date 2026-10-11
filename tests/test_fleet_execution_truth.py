@@ -280,9 +280,10 @@ def test_blocked_preserves_human_state_and_healthy_siblings(fleet, transport, mo
     monkeypatch.setattr(fleet, "build_invoicing_agent", blocked_graph)
     assert fleet.run_fleet() is False
     _, runs, completions, _, _ = transport
-    assert len(runs) == 4 and len(completions) == 3
+    assert len(runs) == len(completions) == 4
     assert by_agent(runs)["invoicing"]["status"] == status
-    assert all(not body.get("error") for _, body in completions)
+    assert all(body.get("error") == ("Blocked" if runs[run_id]["agent"] == "invoicing" else None)
+               for run_id, body in completions)
     assert all(run["status"] == "completed" for name, run in by_agent(runs).items()
                if name != "invoicing")
 
