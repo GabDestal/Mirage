@@ -84,3 +84,10 @@
   .incident-action-main > button:first-child { width: 100%; }
   .incident-secondary { margin-left: auto; }
 }
+.incident-repair { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 20px; }
+/* GitHub's own PR state colors, as text: no badge. */
+.incident-page a.incident-pr-state { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--ink); }
+.incident-pr-state span { font-weight: 600; }
+.incident-pr-state[data-state='OPEN'] :is(svg, span) { color: #1a7f37; }
+.incident-pr-state[data-state='MERGED'] :is(svg, span) { color: #8250df; }
+.incident-pr-state[data-state='CLOSED'] :is(svg, span) { color: #cf222e; }
