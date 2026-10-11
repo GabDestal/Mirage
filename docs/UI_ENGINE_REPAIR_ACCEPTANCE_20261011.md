@@ -28,6 +28,14 @@ dependencies. Broader authorization work, real-service adapters, deployment and
 speculative epoch checks on control POSTs are deferred, not new sprint requirements
 or a production roadmap.
 
+**Latest user product steering:** medium-band suspicious-tool clearance is automatic;
+manual engine approval for that band is no longer a demo acceptance requirement.
+High-risk/hard-rule/escalation recovery remains human-directed, and Miragio operator
+approvals remain explicit. Medium automatic clearance and the requested Fleet panel
+removal are pending atomic engine/UI source gates; exact PRs and composed evidence
+have not yet been supplied. Earlier queue/panel observations below retain their
+historical source scope and do not accept the new flow or layout.
+
 ## 1. Evidence boundaries
 
 | Evidence | What it establishes | What remains separate |
@@ -124,8 +132,8 @@ reproducing. This ledger does not ask for a new suite or provider rerun.
 
 | Slice | Current delivery evidence | Acceptance still pending |
 |---|---|---|
-| U1 — SDK error truth and protected fleet | Shared #140, engine callback/current-policy #142, full matcher #149 and SDK #141/#143 merged. Failure/tool-error truth and trusted full-spec/legit/current callback source gates closed; latest worker/coordinator 87 full SDK GREEN. | Fleet factory/start failure surfacing and trusted per-story registration; exact-call authority and composed UI evidence. Earlier 61-pass/1-accounting-RED and metadata 76-pass/1-jailed-failure results stay historical on their older compositions. |
-| U2 — services and human controls | #125 and #146 merged; queued/released/archived-owned/live/recorded controls are source-delivered with independent 31/6/68 checks. The earlier #146 lifecycle13 GREEN/10 RED and separately found recorded preflight RED were repaired before merge. | Browser-visible service isolation, approval vs chat approval, manual Freeze→Unfreeze/Kill, restored ownership refusal, queued restart, STOP/recovery and no repeated effects. Current restart accepts killed/halted only; failed-run restart stays unavailable until a separate agreed engine contract. No broader authorization requirement is added. |
+| U1 — SDK error truth and protected fleet | Shared #140, engine callback/current-policy #142, full matcher #149 and SDK #141/#143 merged. Failure/tool-error truth and trusted full-spec/legit/current callback source gates closed; latest worker/coordinator 87 full SDK GREEN. [#147](https://github.com/GabDestal/Mirage/pull/147) open at `ac240704c1a1b81efa41f819a3f12954eaee5535` on merged `3a50abc`;18 original fleet REDs → 359 worker checks. | Fleet repair merge, exact-call authority and composed UI evidence. Earlier 61-pass/1-accounting-RED and metadata 76-pass/1-jailed-failure results stay historical on their older compositions. |
+| U2 — services and human controls | #125 and #146 merged; queued/released/archived-owned/live/recorded controls are source-delivered with independent 31/6/68 checks. The earlier #146 lifecycle13 GREEN/10 RED and separately found recorded preflight RED were repaired before merge. Latest medium automatic clearance/Fleet panel removal is a new pending engine/UI source gate. | Exact steering PRs and browser evidence; medium automatic clearance, high/hard-rule/escalation human recovery, separate Miragio approvals, manual Freeze→Unfreeze/Kill, restored ownership refusal, queued restart, STOP/recovery and no repeated effects. Current restart accepts killed/halted only; failed-run restart stays unavailable until the agreed engine repair. No broader authorization requirement is added. |
 | U3 — stream recovery | #130 merged at `5eef2405cbb3869ea70d124b38ae31b90f318d7c`, reviewed `bfdac85b`; source delivery gate closed. Runtime contract #148 is merged; final worker24 transport/14 provider-free actual HTTP+SSE/83 backend and web checks GREEN. | Fresh engine8040/UI5180/chat8041 browser recovery/ownership acceptance. Provider-free wire checks are not browser acceptance. |
 | U4 — persistent proof | #132 merged at `93073bb429af2c7865521bdd06c8f21f3a858155`, reviewed `0ac5193a`; source delivery gate closed. Independent `ac50da1` tests and final worker GREEN apply to the coordinator-confirmed byte-identical owned tree. Shared job contract #148 is merged. | Navigate Chat/Fleet/Incident on the composed runtime without a model turn and keep baseline distinct from bisection/verification. Synthetic renders are not browser8040 acceptance. |
 | U5 — documentation acceptance | [Draft #137](https://github.com/GabDestal/Mirage/pull/137), these three documentation files; README updated for #133. | Final known source SHA and coordinator rehearsal artifacts, final link/syntax/scope checks, pushed matching PR head. Documentation readiness will not close missing runtime gates. |
@@ -143,6 +151,16 @@ result described that earlier composition and is not a current open SDK gate.
 fleet registration remains pending. #133 supplies process-local pacing, not a shared
 fleet/gateway/chat/subprocess provider budget. Final PR status must be refreshed before
 accepting the composed tree; an open PR or another branch's GREEN is not merged code.
+
+The published #147 worker result covers agents/SDK/fleet/factory/demo-control and
+completion on that exact head, with no provider/service calls. Its two-file scope
+starts an SDK run before factory construction, reports sanitized failure phases,
+preserves human containment and lets healthy siblings continue. Trusted criteria are
+captured before poison/concurrent mutation for both overdue invoices, four initial
+leads, three open PRs and a brief to the exact user; explicit opt-out IDs require an
+unsubscribe update and prohibit sending/scheduling. Blocking failure returns nonzero;
+nonblocking requests report only launch requested. Exact359-check invocation is not
+published, so not inferred. This is staged source evidence, not accepted fleet runtime.
 
 Earlier U3 wire provenance: `/tmp/mirage-pr130-runtime-http-results.json` pins frontend
 `116258461d6858543ea4c5d888e53dd2ed36690e` and premerge engine
@@ -198,11 +216,20 @@ published scope. Coordinator reports independent 78 engine/API/services checks f
 #140 and independent 160 checks for #139, but exact commands have not been supplied
 and are not inferred.
 
-A separately owned provider-free acceptance harness is planned with explicitly
-scripted two healthy meeting probes plus one poison probe and causal removal driven
-by actual tool responses. It changes neither the normal fleet nor startup. No harness
-source/runtime acceptance is yet supplied, and scripted probes will remain synthetic
-evidence rather than source-fleet provider proof.
+A separately owned provider-free acceptance harness is open as
+[#151](https://github.com/GabDestal/Mirage/pull/151) at
+`34f59396f00a7db9f657a6af31a43ca52f711445`, on merged `3a50abc`, with explicitly
+SCRIPTED two healthy meeting probes plus one poison probe. Its model path depends
+on actual calendar/CRM tool responses, so removing the injection changes causality;
+healthy briefs use the original clean titles/times/recipient/contacts/inbox.
+`uv run pytest demo/test_acceptance_fleet.py -q --tb=short` → worker27 passes,
+including pinned real jailed children, trapped real tool/provider functions and
+current-code verification. It changes neither normal fleet nor startup, requires
+explicit loopback/live/provider-disabled configuration, uses labelled artificial
+0.75-second pacing and leaves the offending run held. Component evidence is GREEN;
+merge and actual HTTP/UI/after-freeze healthy event ordering are pending. Artificial
+pacing is not detection-speed evidence, and scripted probes remain synthetic backup
+evidence rather than normal source-fleet provider proof.
 
 **Additional authority gate (coordinator report, 2026-10-11):** a separate actual-SDK
 audit produced 17 RED failures around approval of the original call releasing a
@@ -261,7 +288,7 @@ Record observed counts/errors; never replace partial evidence with expected `3/3
 | Cause | Human Find the cause runs from scratch with removed input; report observed ratios and no cause if interrupted/inconclusive | Pending; #126 synthetic retry/folding evidence only |
 | Persistent views | Chat opens after automatic job and reads existing proof without model turn; Fleet/Incident navigation and reconnect preserve baseline; removed-input/verify effects identified separately | U3/U4 source delivery merged; actual browser/composed-runtime acceptance pending |
 | Failure/retry | Job failure preserves prior proof, leaves production contained, shows sanitized category and explicit retry; missing snapshot/read/tool error cannot become success | Failure/status/job contracts merged; alternate-read fidelity and actual browser failure/retry flow pending |
-| Human controls | Reason/actor logged for manual freeze/unfreeze/kill, engine approve/reject and STOP/recovery; confirmed compromise refused; restored owner409 honest; no automatic POST retry | Pending browser/engine composition; #125 synthetic hooks/render checks only |
+| Clearance and human controls | Medium-band clearance automatic; high/hard-rule/escalation recovery and Miragio operator approvals remain human-directed. Manual freeze/unfreeze/kill and STOP/recovery preserve actor/reason; confirmed compromise refused, restored owner409 honest, no automatic POST retry | Latest medium/Fleet steering source gates and composed browser evidence pending; earlier #125/#146 synthetic controls do not accept the new flow. |
 | External handoff (2:00) | Human opens/copies incident report to their external coding agent; same snapshot reachable through local checkout/state or connected deployment; untrusted inputs fenced; tokens excluded from chat/model cards | #138 synthetic/coordinator selfchecks accept truthful drawer wording and prompt readiness; actual external handoff/access remains pending. Mirage does not write or internally generate the repair. |
 | Failed fix rejected | External agent's changed current code tested from scratch against same snapshot, freeze/current policy and full legitimate task; bad/no-op/permission-loosening/partial-task fix fails | Pending current-code verification; recorded fixture fix is an example only |
 | Clean fix passes | Positive requested runs all finish, attack blocked n/n and entire legitimate task completed n/n; exact user/content/entity inventory, useful brief, no duplicate/forbidden work | Matcher #149 merged with deterministic exact/literal/count evidence; fleet wiring and fresh rehearsal pending. Semantic grounding/prose quality remain separate; a sent email or completed card is insufficient. |
