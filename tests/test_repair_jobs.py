@@ -269,6 +269,20 @@ def test_clean_control_changes_only_untrusted_source_and_proven_cause(api):
     assert not repair._clean_counterpart(original, clean)
 
 
+@pytest.mark.parametrize("entrypoints", [
+    ("engine.dev.assistant:mirage_entry", "other.agent:build"),
+    ("", ""),
+    (" \t", " \t"),
+])
+def test_clean_control_requires_same_nonblank_factory(api, entrypoints):
+    job = create(api)
+    out = api.get(f"/repair-jobs/{job['id']}/context", headers=AUTH).json()
+    original, clean = out["snapshot"], out["clean_snapshot"]
+    assert repair._clean_counterpart(original, clean)
+    original["entrypoint"], clean["entrypoint"] = entrypoints
+    assert not repair._clean_counterpart(original, clean)
+
+
 def test_public_job_fixture_and_unicode_digest():
     data = json.loads(Path("contracts/fixtures/repair_job.json").read_text())
     assert RepairJob.model_validate(data).model_dump(mode="json") == data
