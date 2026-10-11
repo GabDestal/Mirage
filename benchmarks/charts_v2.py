@@ -1,7 +1,8 @@
 """Render the two v2 benchmark headline charts from saved summary JSON (reporting only).
 
-Input metrics are raw counts {"k": successes, "n": fixed denominator}; null = not run.
-UNKNOWN outcomes stay in n and never count as k. Intervals are Wilson 95%.
+Metrics are raw counts {"k": successes, "n": fixed denominator}; None = not run yet.
+Errors/UNKNOWN stay in n and never count as k. Whiskers are Wilson 95% intervals.
+Also writes v2-chart-source.json with every number drawn, for the doc table.
 """
 import argparse
 from html import escape
@@ -12,12 +13,10 @@ from pathlib import Path
 from benchmarkmaxxing_charts import MODELS
 
 W, H = 1600, 900
-INK, MUTED, FAINT, GRID = "#111111", "#6b6b6b", "#9a9a9a", "#ececec"
-GREY, ACCENT = "#c2c2c2", "#0f7b6c"
+INK, MUTED, FAINT, BASE = "#111111", "#6b6b6b", "#a3a3a3", "#d4d4d4"
+GREY, ACCENT, WHISKER = "#c8c8c8", "#0f7b6c", "#9a9a9a"
 FONT = "Helvetica Neue, Helvetica, Arial, sans-serif"
-DOJO_METRICS = [("attacker_success", "Attack success", "lower is better"),
-                ("utility_under_attack", "Utility under attack", "higher is better"),
-                ("clean_utility", "Clean utility", "higher is better")]
+LABELS = {"openai.gpt-oss-20b-1:0": "GPT-OSS-20B", "us.anthropic.claude-haiku-4-5-20251001-v1:0": "Haiku 4.5"}
 
 
 def wilson(k, n, z=1.96):
@@ -37,7 +36,7 @@ class SVG:
     def rect(self, x, y, w, h, fill):
         self.parts.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" fill="{fill}"/>')
 
-    def line(self, x1, y1, x2, y2, color=GRID, width=1):
+    def line(self, x1, y1, x2, y2, color=BASE, width=1):
         self.parts.append(f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" stroke="{color}" stroke-width="{width}"/>')
 
     def save(self, path, title):
@@ -46,126 +45,87 @@ class SVG:
                         f'<g font-family="{FONT}">' + "".join(self.parts) + "</g></svg>\n")
 
 
-def pct(m):
-    return f'{m["k"] / m["n"]:.0%}'
+def ok(m):
+    return bool(m and m.get("n"))
 
 
-def header(svg, title, subtitle, arms):
-    svg.text(80, 86, title, 40, 600)
-    svg.text(80, 128, subtitle, 22, 400, MUTED)
-    x = W - 80
-    for label, color in reversed(arms):
-        x -= svg_width(label, 18) + 22
-        svg.rect(x, 62, 14, 14, color)
-        svg.text(x + 22, 75, label, 18, 500)
-        x -= 36
+def frac(m):
+    return f'{m["k"]}/{m["n"]}' if ok(m) else "not run"
 
 
-def svg_width(s, size):
-    return len(s) * size * 0.55  # shortcut: rough Helvetica width, fine for short legend labels
-
-
-def axis(svg, x0, x1, top, base, size):
-    for t in (0, 25, 50, 75, 100):
-        y = base - (base - top) * t / 100
-        svg.line(x0, y, x1, y, GRID if t else "#bdbdbd")
-        svg.text(x0 - 12, y + size * 0.35, f"{t}%", size, 400, FAINT, "end")
-
-
-def bars(svg, cx, metrics, colors, bw, gap, top, base, size):
-    """Draw one group of side-by-side bars centred on cx; metrics may hold None (not run)."""
-    span = base - top
-    for i, (m, color) in enumerate(zip(metrics, colors)):
-        x = cx - (len(metrics) * bw + (len(metrics) - 1) * gap) / 2 + i * (bw + gap)
-        if m is None or not m.get("n"):
-            svg.text(x + bw / 2, base - 10, "not run", size * 0.8, 400, FAINT, "middle")
-            continue
+def bar(svg, x, bw, m, color, label, top, base):
+    """One labelled bar with a big value on top; a plain 'not run yet' when missing."""
+    mid, span = x + bw / 2, base - top
+    if ok(m):
         v, (lo, hi) = m["k"] / m["n"], wilson(m["k"], m["n"])
-        svg.rect(x, base - v * span, bw, max(v * span, 2), color)
-        mid = x + bw / 2
-        svg.line(mid, base - hi * span, mid, base - lo * span, "#3a3a3a", 1.5)
+        svg.rect(x, base - v * span, bw, max(v * span, 3), color)
+        svg.line(mid, base - hi * span, mid, base - lo * span, WHISKER, 1)
         for y in (base - hi * span, base - lo * span):
-            svg.line(mid - 6, y, mid + 6, y, "#3a3a3a", 1.5)
-        svg.text(mid, base - hi * span - 10, pct(m), size, 600, INK, "middle")
+            svg.line(mid - 5, y, mid + 5, y, WHISKER, 1)
+        svg.text(mid, base - hi * span - 16, f"{v:.0%}", 44, 600, INK, "middle")
+    else:
+        svg.text(mid, base - 14, "not run yet", 20, 400, FAINT, "middle")
+    svg.text(mid, base + 36, label, 20, 500 if color == ACCENT else 400, INK, "middle")
 
 
-def n_label(metrics):
-    ns = sorted({m["n"] for m in metrics if m and m.get("n")})
-    return "n=" + " / ".join(map(str, ns)) if ns else "n=0"
-
-
-def dojo_panel(svg, split, x0, x1, top, base, big):
-    size = 20 if big else 14
-    axis(svg, x0, x1, top, base, 16 if big else 13)
-    gw = (x1 - x0) / len(DOJO_METRICS)
-    for j, (key, label, hint) in enumerate(DOJO_METRICS):
-        cx = x0 + gw * (j + 0.5)
-        ms = [split.get(arm, {}).get(key) for arm in ("unprotected", "gate")]
-        bars(svg, cx, ms, (GREY, ACCENT), 96 if big else 30, 14 if big else 6, top, base, size)
-        if big:
-            svg.text(cx, base + 34, label, 20, 600, INK, "middle")
-            svg.text(cx, base + 58, hint, 16, 400, MUTED, "middle")
-            svg.text(cx, base + 82, n_label(ms), 16, 400, MUTED, "middle")
-        else:
-            svg.text(cx, base + 24, label.replace("Utility under attack", "Attacked utility"), 14, 600, INK, "middle")
-            svg.text(cx, base + 42, n_label(ms), 13, 400, MUTED, "middle")
-
-
-def dojo_subtitle(held):
-    u, g = held.get("unprotected", {}), held.get("gate", {})
-    parts = []
-    for key, label, _ in DOJO_METRICS[:2]:
-        if u.get(key) and g.get(key):
-            parts.append(f"{label.lower()} {pct(u[key])} → {pct(g[key])}")
-    return ("Held-out: " + ", ".join(parts) + " with the Mirage gate") if parts else "Held-out results not landed yet"
+def frame(svg, title, subtitle, lines):
+    svg.text(80, 96, title, 44, 600)
+    svg.text(80, 140, subtitle, 22, 400, MUTED)
+    svg.text(80, 818, lines[0], 21, 400, MUTED)
+    svg.text(80, 852, lines[1], 21, 500, INK)
 
 
 def agentdojo(data, out):
-    splits = data.get("splits", {})
-    held, dev = splits.get("held_out", {}), splits.get("dev", {})
+    splits, model = data.get("splits", {}), data.get("model") or "GPT-OSS-20B"
+    held = "held_out" in splits
+    s = splits.get("held_out") or splits.get("dev") or {}
+    u, g = s.get("unprotected", {}), s.get("gate", {})
+    n = next((m["n"] for m in (u.get("attacker_success"), g.get("attacker_success")) if ok(m)), None)
     svg = SVG()
-    header(svg, "AgentDojo: Mirage gate vs unprotected agent", dojo_subtitle(held),
-           [("Unprotected", GREY), ("Mirage gate", ACCENT)])
-    top, base = 230, 680
-    svg.text(80, 196, "Held-out split (run once, frozen config)", 20, 600)
-    dojo_panel(svg, held, 150, 1080, top, base, True)
-    svg.text(1150, 196, "Dev split (used for tuning)", 18, 600, MUTED)
-    dojo_panel(svg, dev, 1200, 1530, top, base, False)
-    caveats = data.get("caveats") or [
-        "Fixed denominators: every error and UNKNOWN counts as not-success. Whiskers are Wilson 95% intervals.",
-        f'Source: {data.get("source", "benchmarks/artifacts/agentdojo_v2")} · model {data.get("model") or "per row in rows JSONL"}']
-    for i, line in enumerate(caveats[:2]):
-        svg.text(80, 830 + i * 28, line, 16, 400, MUTED)
-    svg.save(out / "agentdojo-v2-headline.svg", "AgentDojo attack success and utility, unprotected vs Mirage gate")
+    where = "Held-out tasks" if held else "Tuning tasks only (held-out run not in yet)"
+    frame(svg, "AgentDojo: prompt-injection attacks",
+          f"{where} · {n} attacked tasks per bar" if n else f"{where} · results not in yet",
+          ["Each task hides instructions from an attacker in data the agent reads, like a message or a web page.",
+           result_line(u, g)])
+    top, base = 300, 700
+    for x0, key, head, hint in [(80, "attacker_success", "Attacks that succeeded", "lower is better"),
+                                (840, "utility_under_attack", "User's task still completed", "higher is better")]:
+        svg.text(x0, 214, head, 26, 600)
+        svg.text(x0, 246, hint, 19, 400, MUTED)
+        svg.line(x0, base, x0 + 680, base)
+        for i, (arm, color, label) in enumerate([(u, GREY, model), (g, ACCENT, model + " + Mirage")]):
+            bar(svg, x0 + 90 + i * 300, 200, arm.get(key), color, label, top, base)
+    svg.save(out / "agentdojo-v2-headline.svg", "AgentDojo prompt-injection attacks, with and without Mirage")
+
+
+def result_line(u, g):
+    a, b = u.get("attacker_success"), g.get("attacker_success")
+    if not (ok(a) and ok(b)):
+        return "Both arms are not in yet, so there is no comparison to read."
+    c, d = u.get("utility_under_attack"), g.get("utility_under_attack")
+    return (f"With Mirage, {b['k']} of {b['n']} attacks succeeded instead of {a['k']} of {a['n']}; "
+            f"the user's task was still done in {d['k']} of {d['n']} (vs {c['k']} of {c['n']} without).")
 
 
 def agentrx(data, out):
     models = data.get("models", [])
+    n = next((m["n"] for x in models for m in (x.get("simple"), x.get("assisted")) if ok(m)), None)
+    held = data.get("split", "").startswith("heldout")
+    where = "Held-out task families" if held else "Tuning cases only (held-out run not in yet)"
+    found = "; ".join(f'{x["label"]} {frac(x.get("simple"))} → {frac(x.get("assisted"))} with Mirage' for x in models)
     svg = SVG()
-    deltas = [f'{m["label"]} {pct(m["simple"])} → {pct(m["assisted"])}' for m in models
-              if m.get("simple") and m.get("assisted") and m["simple"].get("n") and m["assisted"].get("n")]
-    header(svg, "AgentRx v3: critical-step accuracy", ("Simple → assisted: " + ", ".join(deltas)) if deltas
-           else "AgentRx v3 results not landed yet", [("Simple diagnosis", GREY), ("Evidence-assisted", ACCENT)])
-    x0, x1, top, base = 150, 1520, 210, 680
-    axis(svg, x0, x1, top, base, 16)
-    gw = (x1 - x0) / max(len(models), 1)
-    for j, m in enumerate(models):
-        cx = x0 + gw * (j + 0.5)
-        ms = [m.get("simple"), m.get("assisted")]
-        bars(svg, cx, ms, (GREY, ACCENT), 110, 16, top, base, 20)
-        for i, a in enumerate(ms):
-            if a and a.get("n") and a.get("scored") is not None:
-                svg.text(cx + (i - 0.5) * 126, base + 24, f'scored {a["scored"]}/{a["n"]}', 14, 400, FAINT, "middle")
-        svg.text(cx, base + 56, m["label"], 20, 600, INK, "middle")
-        svg.text(cx, base + 80, n_label(ms), 16, 400, MUTED, "middle")
+    frame(svg, "AgentRx: finding where a failed agent run went wrong",
+          f"{where} · higher is better · {n} failed runs per bar" if n else f"{where} · results not in yet",
+          ["Each case is a recorded agent run that failed; the model must name the exact step where it broke.",
+           f"Broken step found: {found}." if found else "No results are in yet."])
+    top, base = 260, 700
+    svg.line(80, base, 1520, base)
+    for j, x in enumerate(models[:2]):
+        for i, (key, color, label) in enumerate([("simple", GREY, x["label"]), ("assisted", ACCENT, x["label"] + " + Mirage")]):
+            bar(svg, 150 + j * 720 + i * 290, 220, x.get(key), color, label, top, base)
     if not models:
-        svg.text(W / 2, (top + base) / 2, "not run", 24, 400, FAINT, "middle")
-    caveats = data.get("caveats") or [
-        "Accuracy over the fixed case set: unscored (UNKNOWN) cases count as wrong. Whiskers are Wilson 95% intervals.",
-        f'Source: {data.get("source", "benchmarks/artifacts/agentrx_v3")} · split {data.get("split", "see summary JSON")}']
-    for i, line in enumerate(caveats[:2]):
-        svg.text(80, 830 + i * 28, line, 16, 400, MUTED)
-    svg.save(out / "agentrx-v3-critical-step.svg", "AgentRx v3 critical-step accuracy, simple vs assisted")
+        svg.text(W / 2, (top + base) / 2, "not run yet", 28, 400, FAINT, "middle")
+    svg.save(out / "agentrx-v3-critical-step.svg", "AgentRx critical-step accuracy, with and without Mirage evidence")
 
 
 def load(path):
@@ -183,22 +143,25 @@ def from_agentdojo(raw, path):
         splits.setdefault({"heldout": "held_out"}.get(split, split), {})[arm] = {
             "attacker_success": {"k": a.get("attacker_success", 0), "n": a.get("n", 0)},
             "utility_under_attack": {"k": a.get("utility", 0), "n": a.get("n", 0)},
-            "clean_utility": {"k": c.get("utility", 0), "n": c.get("n", 0)}}
-    return {"splits": splits, "source": str(path), "model": raw.get("model")}
+            "clean_utility": {"k": c.get("utility", 0), "n": c.get("n", 0)},
+            "unknown": s.get("unknown"), "blocks": s.get("blocks")}
+    ids = {json.loads(l).get("model_id") for p in path.parent.glob("*_rows.jsonl") for l in p.read_text().splitlines() if l}
+    model = LABELS.get(ids.pop()) if len(ids) == 1 else None
+    return {"splits": splits, "source": str(path), "model": model}
 
 
 def from_agentrx(raw, path):
     """W3 summary: cohorts -> tables of {model_id, arm, critical_step_correct: {S, N, scored, U}}; held-out preferred."""
     cohorts = raw.get("cohorts", {})
-    name = "families" if "families" in cohorts else next(iter(cohorts), None)
+    name = "families" if cohorts.get("families", {}).get("tables") else next(iter(cohorts), None)
     if name is None:
         return {"source": str(path)}
     models = {}
     for t in cohorts[name]["tables"]:
         m = t["critical_step_correct"]
         arm = "simple" if t["arm"] == "simple_diagnosis" else "assisted"
-        models.setdefault(t["model_id"], {"label": MODELS.get(t["model_id"], t["model_id"]).replace(" reference", "")})[arm] = {
-            "k": m["S"], "n": m["N"], "scored": m["scored"]}
+        label = LABELS.get(t["model_id"], MODELS.get(t["model_id"], t["model_id"]))
+        models.setdefault(t["model_id"], {"label": label})[arm] = {"k": m["S"], "n": m["N"], "scored": m["scored"]}
     return {"models": list(models.values()), "split": cohorts[name]["split"], "source": str(path)}
 
 
@@ -210,9 +173,11 @@ def main():
     a = p.parse_args()
     lo, hi = wilson(0, 10)
     assert lo == 0 and 0.27 < hi < 0.28 and wilson(5, 10)[0] < 0.5 < wilson(5, 10)[1]
-    agentdojo(from_agentdojo(load(a.agentdojo), a.agentdojo), a.output)
-    agentrx(from_agentrx(load(a.agentrx), a.agentrx), a.output)
-    print("wrote agentdojo-v2-headline.svg, agentrx-v3-critical-step.svg")
+    dojo, rx = from_agentdojo(load(a.agentdojo), a.agentdojo), from_agentrx(load(a.agentrx), a.agentrx)
+    agentdojo(dojo, a.output)
+    agentrx(rx, a.output)
+    (a.output / "v2-chart-source.json").write_text(json.dumps({"agentdojo": dojo, "agentrx": rx}, indent=2) + "\n")
+    print(json.dumps({"agentdojo": dojo, "agentrx": rx}))
 
 
 if __name__ == "__main__":
