@@ -115,14 +115,16 @@ async function harness({ changedTree = false, badVerification = false, changedPo
   if (scriptedCapture) {
     const originalPath = join(repoPath, "original-snapshot.json"), sourcePath = join(repoPath, "original-config.json");
     await writeFile(originalPath, snapshotJson);
-    await writeFile(sourcePath, JSON.stringify({ agent_name: spec.name, entrypoint: spec.entrypoint, task: snapshot.task, legit,
+    const sourceReceipt = { agent_name: spec.name, entrypoint: spec.entrypoint, task: snapshot.task, legit,
       effective_agent_model_id: config.MEETING_ASSISTANT_MODEL_ID, recipient: config.DEMO_USER_EMAIL,
       region: "us-east-1", temperature: 0, git_status: "clean", code_revision: base,
       original_snapshot_path: originalPath, original_snapshot_sha256: badCapture ? "0".repeat(64) : digestBytes(snapshotJson),
       original_services_path: checkpointPath, original_services_sha256: digestBytes(await readFile(checkpointPath, "utf8")),
-      nonsecret_environment: config }));
+      nonsecret_environment: config, captured_at: "2026-10-11", code_root: repoPath, source_sha256: { "agents/example.py": tree } };
+    await writeFile(sourcePath, JSON.stringify(sourceReceipt));
     const loaded = await recoveryConfig(runtime, { MIRAGE_RECOVERY_CHECKPOINT: checkpointPath, MIRAGE_RECOVERY_CONFIG_SOURCE: sourcePath });
-    configSourceDigest = loaded!.configSourceDigest;
+    configSourceDigest = digest(sourceReceipt);
+    expect(loaded!.configSourceDigest).toBe(configSourceDigest);
     configured = loaded as typeof runtime;
   }
   const supervisor = new RecoverySupervisor(configured);
