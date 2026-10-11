@@ -406,3 +406,38 @@ def test_unbound_wait_cannot_revive_a_revoked_hold_after_manual_unfreeze(api, mo
     assert api.get(path, headers=auth, params={"timeout": 0}).status_code == 409
     assert api.get(path, headers=auth,
                    params={"timeout": 0, "call_id": held["call_id"]}).status_code == 409
+
+
+def test_pending_sdk_check_cannot_survive_manual_freeze_and_unfreeze(api, monkeypatch):
+    run_id, auth = start(api)
+    entered, release = threading.Event(), threading.Event()
+    effects = []
+
+    def slow(*args):
+        entered.set()
+        assert release.wait(5)
+
+    monkeypatch.setattr(gate.decision_model, "judge", slow)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(protected, handle(run_id, auth), USER, effects)
+        try:
+            assert entered.wait(2)
+            assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
+            assert api.post(f"/runs/{run_id}/unfreeze", json=HUMAN).status_code == 200
+        finally:
+            release.set()
+        assert pending.result(3) == "blocked"
+    assert effects == []
+    assert gate.runs[run_id].status == "running"
+
+
+def test_approval_does_not_admit_a_result_before_the_bound_wait(api, monkeypatch):
+    run_id, auth = start(api)
+    monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
+        "review": True, "policy_id": "P5", "p": 0.5, "explanation": "Synthetic review"})
+    held = check(api, run_id, auth, "send_email", to=USER).json()
+    assert api.post(f"/approvals/{held['call_id']}/approve", json=HUMAN).status_code == 200
+    response = api.post(f"/runs/{run_id}/tool-results", headers=auth, json={
+        "call_id": held["call_id"], "tool": "send_email", "result": {"status": "sent"}})
+    assert response.status_code == 409
+    assert gate.runs[run_id].tool_results == []
