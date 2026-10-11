@@ -136,12 +136,12 @@ export function CleanRestartButton({ run }: { run: Run }) {
   if (isDemo || run.env !== 'prod' || !['killed', 'halted', 'failed'].includes(run.status)) return null
   const restart = runs.find((r) => r.restarted_from === run.id)
   if (restart) return <span className="clean-restart-status" role="status"><Link to={`/runs/${encodeURIComponent(restart.id)}`} onClick={(e) => e.stopPropagation()}>
-    {restart.status === 'queued' ? 'Clean restart pending · awaiting owner start'
+    {restart.status === 'queued' ? 'Clean restart starting…'
       : runControlNote(restart, connection) ? `Recorded restart: ${restart.status} · live ownership unavailable` : `Clean restart: ${restart.status}`}
   </Link></span>
   const stopped = stopOn(events)
   const available = liveEngineAvailable(connection)
-  return <Button disabled={stopped || !available} title={!available ? 'Live engine ownership is unavailable. Wait for a successful sync.' : stopped ? 'Global STOP is on. Lift STOP before approving a clean restart.' : 'Queues a new run; the owner must start it.'}
+  return <Button disabled={stopped || !available} title={!available ? 'Live engine ownership is unavailable. Wait for a successful sync.' : stopped ? 'Global STOP is on. Lift STOP before approving a clean restart.' : 'Starts the agent again from the beginning, as a new run.'}
     onClick={(e) => { e.stopPropagation(); ask('restart', run) }}>Approve clean restart</Button>
 }
 
@@ -233,7 +233,7 @@ export function HumanReasonDialog({ open, title, effect, reasons, verb, destruct
 const runCount = (n: number) => `${n} ${n === 1 ? 'run' : 'runs'}`
 const resumeAllToast = ({ resumed, skipped }: ResumeAll) =>
   (resumed.length ? [...new Set(resumed.map((run) => run.status))].map((status) =>
-    `${runCount(resumed.filter((run) => run.status === status).length)} ${status}${status === 'queued' ? ' · awaiting owner start' : ''}.`,
+    `${runCount(resumed.filter((run) => run.status === status).length)} ${status}${status === 'queued' ? ' · starting' : ''}.`,
   ).join(' ') : 'No new recovery runs.') + (skipped.length ? ` ${runCount(skipped.length)} skipped.` : '')
 
 type Vars = { kind: ActionKind; run?: Run; body: HumanRequest; runtime?: Connection['runtime'] }

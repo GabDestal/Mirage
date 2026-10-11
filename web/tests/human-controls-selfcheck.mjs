@@ -73,7 +73,7 @@ try {
   const queued = { ...run, id: 'run/two', status: 'queued', restarted_from: run.id }
   cache.setQueryData(['runs'], [killed, queued])
   const pending = render(actions.CleanRestartButton, { run: killed })
-  assert.ok(pending.includes('Clean restart pending · awaiting owner start'))
+  assert.ok(pending.includes('Clean restart starting…'))
   assert.ok(pending.includes('<span class="clean-restart-status" role="status"><a href="/runs/run%2Ftwo"'), 'Pending status must preserve the trace link semantics')
   assert.ok(!pending.includes('Approve clean restart') && !pending.includes('running'))
   cache.setQueryData(['events'], [{ type: 'global.stop' }])
@@ -115,7 +115,7 @@ try {
   await request
   assert.deepEqual(calls.pop(), { path: '/api/runs/run%2Fone/restart', method: 'POST', body })
   assert.deepEqual(cache.getQueryData(['runs']), [killed, queued])
-  assert.ok(render(actions.CleanRestartButton, { run: killed }).includes('pending'))
+  assert.ok(render(actions.CleanRestartButton, { run: killed }).includes('starting'))
   respond = async () => new Response(JSON.stringify({ detail: 'Run run/one is owned by another process (no live control)' }), { status: 409 })
   const before = cache.getQueryData(['runs'])
   await assert.rejects(act.mutateAsync({ kind: 'freeze', run, body }), (error) => {

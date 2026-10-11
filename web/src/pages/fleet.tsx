@@ -328,7 +328,7 @@ function AgentTableRow({
   const note = runControlNote(run, connection)
   const sentence = note ?? automaticClearanceText(run, incident) ?? (run.status === 'completed' ? 'Ready for the next task'
     : run.status === 'running' ? run.task
-    : run.status === 'frozen' ? 'Held before execution' : run.status === 'queued' ? 'Queued · awaiting owner start' : rowSentence(run, events).text)
+    : run.status === 'frozen' ? 'Held before execution' : run.status === 'queued' ? 'Queued · starting' : rowSentence(run, events).text)
   const when = run.ended_at ?? run.started_at
   const isFrozen = run.status === 'frozen'
 
