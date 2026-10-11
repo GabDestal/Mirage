@@ -2,7 +2,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { expect, test } from 'vitest'
+import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { registerRules, type RuleTransport } from '../src/rules.js'
+import { createServer } from '../src/server.js'
 
 const version = 'a'.repeat(64)
 const draft = { version, agent: 'meeting_assistant', status: 'draft', created_at: '2026-10-11T00:00:00Z', activated_at: null,
@@ -66,7 +68,8 @@ test('activation previews before confirmation and uses the confirmed human reaso
 test('decline, preview failure, wrong digest and non-authoritative preview cannot activate', async () => {
   for (const overrides of [{}, { [`POST /rules/${version}/preview`]: new Error('409 preview unavailable') },
     { [`POST /rules/${version}/preview`]: { ...preview, version: 'b'.repeat(64) } },
-    { [`POST /rules/${version}/preview`]: { ...preview, authoritative: false } }]) {
+    { [`POST /rules/${version}/preview`]: { ...preview, authoritative: false } },
+    { [`POST /rules/${version}/preview`]: { ...preview, authoritative: 'true' } }]) {
     const c = await connect(null, overrides)
     try {
       const result = await c.client.callTool({ name: 'activate_rule', arguments: { version, reason: 'Review' } })
@@ -83,5 +86,32 @@ test('engine refusals and a non-active activation response remain failures', asy
       const result = await c.client.callTool({ name: 'activate_rule', arguments: { version, reason: 'Review' } })
       expect(result.isError).toBe(true)
     } finally { await c.close() }
+  }
+})
+
+test('registered activation requires actual MCP elicitation; wrong phrase and no form fail closed', async () => {
+  for (const answer of ['approve', 'wrong phrase', 'decline', 'no form']) {
+    const posts: { path: string; body: unknown }[] = []
+    const fetch = (async (url: string, init: RequestInit) => {
+      const path = url.replace('http://rules.test', '')
+      if (init.method === 'POST') posts.push({ path, body: JSON.parse(String(init.body)) })
+      if (path.endsWith('/preview')) return Response.json(preview)
+      return Response.json(path.endsWith('/activate') ? { ...draft, status: 'active' } : draft)
+    }) as typeof globalThis.fetch
+    const server = createServer({ api: 'http://rules.test', actor: 'test operator', fetch })
+    const client = new Client({ name: 'rules selfcheck', version: '1' }, { capabilities: answer === 'no form' ? {} : { elicitation: { form: {} } } })
+    if (answer !== 'no form') client.setRequestHandler(ElicitRequestSchema, async (request) => {
+      expect(request.params.message).toContain(version)
+      return answer === 'decline' ? { action: 'decline' } : { action: 'accept', content: { confirm: answer === 'approve' ? `activate rule ${version}` : 'wrong', reason: 'Human approval reason' } }
+    })
+    const [a, b] = InMemoryTransport.createLinkedPair()
+    await Promise.all([server.connect(a), client.connect(b)])
+    try {
+      const result = await client.callTool({ name: 'activate_rule', arguments: { version, reason: 'Proposed' } })
+      expect(!!result.isError).toBe(answer !== 'approve')
+      const activation = posts.filter((post) => post.path.endsWith('/activate'))
+      expect(activation).toHaveLength(answer === 'approve' ? 1 : 0)
+      if (answer === 'approve') expect(activation[0].body).toEqual({ actor: 'test operator via rules selfcheck (MCP)', reason: 'Human approval reason' })
+    } finally { await client.close(); await server.close() }
   }
 })

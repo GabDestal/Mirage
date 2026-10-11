@@ -64,7 +64,9 @@ test("same tool set for every client, with the right annotations", async () => {
     (await (await connect({ client })).client.listTools()).tools.map((t) => [t.name, t.annotations?.destructiveHint ?? false]);
   const claude = await names("claude-code");
   expect(claude).toEqual(await names("codex-mcp-client"));
-  expect(claude).toEqual([["start_repair", true], ["get_repair", false], ["list_runs", false], ["get_incident", false], ["get_audit", false], ["detonate", false],
+  expect(claude).toEqual([["list_rule_agents", false], ["list_rules", false], ["get_rule", false],
+    ["propose_rule", false], ["preview_rule", false], ["activate_rule", true],
+    ["start_repair", true], ["get_repair", false], ["list_runs", false], ["get_incident", false], ["get_audit", false], ["detonate", false],
     ["find_cause", false], ["unfreeze", true], ["kill", true], ["resume", true], ["resume_all", true], ["send_fix", true]]);
 });
 

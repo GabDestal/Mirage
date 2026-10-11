@@ -65,7 +65,7 @@ export function registerRules(server: McpServer, transport: RuleTransport) {
     inputSchema: { version: versionArg, tool: toolArg.optional(), args: z.record(z.string(), z.unknown()).default({}) }, annotations: read,
   }, safe(async ({ version, tool, args }) => {
     const preview = await transport.call<RulePreview>('POST', `${path(version)}/preview`, { ...(tool && { tool }), args })
-    if (!preview.authoritative || preview.version !== version) return refusal('Engine preview was not authoritative for this revision. Do not activate it.')
+    if (preview.authoritative !== true || preview.version !== version) return refusal('Engine preview was not authoritative for this revision. Do not activate it.')
     return result(`${preview.summary}\nRevision ${preview.version}. New runs only; existing runs retain their pinned policy.`, { preview })
   }))
 
@@ -77,7 +77,7 @@ export function registerRules(server: McpServer, transport: RuleTransport) {
     const rule = await transport.call<RuleRevision>('GET', path(version))
     if (rule.status === 'active') return result(`Revision ${rule.version} is already active. No activation was sent.`, { rule })
     const preview = await transport.call<RulePreview>('POST', `${path(version)}/preview`, { args: {} })
-    if (!preview.authoritative || preview.version !== version) return refusal('Engine preview was not authoritative for this revision. No activation was sent.')
+    if (preview.authoritative !== true || preview.version !== version) return refusal('Engine preview was not authoritative for this revision. No activation was sent.')
     const confirmedReason = await transport.confirm(`Activate rule for ${rule.agent}, exact revision ${version}. ${preview.summary} Effective tools: ${preview.effective_allow.tools.join(', ') || 'none'}. Exact recipients: ${preview.effective_allow.email_to.join(', ') || 'none'}. New runs use it; existing runs and already approved restarts retain their policy. Reason: ${reason}`, `activate rule ${version}`, reason)
     if (!confirmedReason?.trim()) return refusal('Human confirmation was declined, unavailable or invalid. No activation was sent.')
     const activated = await transport.call<RuleRevision>('POST', `${path(version)}/activate`, { actor: transport.actor(), reason: confirmedReason.trim() })
