@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import sys
 import tempfile
 import time
 
@@ -145,9 +146,11 @@ def factory():
         def call(self, tool, args):
             raise RuntimeError("SDK sandbox must route all tools through the engine callback")
 
+    child_deadline = time.time() + PARAMETERS["timeout_s"]
     agent, trace = build_native_agent(
         CallbackWorld(), context["system"], context["model_id"],
         max_model_calls=16 if context["start_mode"] == "initial" else 32,
+        stop_epoch=child_deadline,
         corrected=context["start_mode"] == "frozen")
     agent = mirage.protect(agent, name=name, owner="benchmark",
                            entrypoint="benchmarks.native_recovery:factory",
@@ -169,6 +172,7 @@ def factory():
                                      "calls": trace["calls"], "replies": trace["replies"],
                                      "max_model_calls": 16 if context["start_mode"] == "initial" else 32,
                                      "max_tool_calls": 24,
+                                     "effective_model_stop_epoch": child_deadline,
                                      "system_sha256": content_hash(context["system"] +
                                          ("\n\n# Instruction trust correction\n" + GENERIC_CORRECTION if corrected else "")),
                                      "correction_sha256": content_hash(GENERIC_CORRECTION) if corrected else None,
@@ -414,7 +418,9 @@ def recovery_loop(snap, fixture, payload, manifest, *, baseline, execute, withou
             or data["system"] != payload["system"]
             or data["initial_world"]["files"] != payload["initial_files"]):
         raise ValueError("Original runtime payload differs from frozen admission")
-    report = {"protocol": PROTOCOL, "status": "unknown", "incident_id": snap["incident_id"],
+    report = {"protocol": PROTOCOL, "status": "unknown",
+              "incident_id": None if baseline_origin == "explicit_checkpoint_baseline" else snap["incident_id"],
+              "transport_id": snap["incident_id"],
               "run_id": snap["run_id"], "snapshot_id": snap["id"],
               "task_sha256": content_hash(snap["task"]), "agent": snap["agent"],
               "model_id": data["model_id"], "snapshot_sha256": content_hash(snap),
@@ -585,7 +591,10 @@ def operator_checkpoint(args, run_id, capture):
         original_directory = snapshot.SNAP_DIR
         try:
             snapshot.SNAP_DIR = directory
-            snap = snapshot.save(run, directory.name, run.policy, runner=gate.SDK_RUNNER)
+            snap = snapshot.save(run, directory.name, run.policy,
+                                 entrypoint=run.admitted_spec.entrypoint, runner=gate.SDK_RUNNER)
+            if snapshot.native_fixture(snap) is None:
+                raise ValueError("Checkpoint did not capture the native fixture")
         finally:
             snapshot.SNAP_DIR = original_directory
     # No incident/store/job/verdict record is inserted. Only snapshot.save validates transport.
@@ -653,8 +662,7 @@ def restart_native(args, snap, payload, frozen, correction, *, score_world):
             core.end(token, None if status == "completed" else RuntimeError("Incomplete native restart"))
         except Exception as exc:
             status, error = "failed", "SDKCompletion:" + type(exc).__name__
-        world.save("external-native-restart", trace["messages"], status)
-    raw, actual = score_world(world)
+    raw, actual = score_world(world, trace["messages"], status)
     events = request("get", "/events")
     operator_event = next((e for e in events if e["type"] == "human.action" and
         e["payload"].get("actor") == actor and e["payload"].get("action") == "approve_restart"
@@ -741,10 +749,15 @@ def run_recovery(args, victim_row, payload, manifest, case):
             "completed" if state["completed"] and not error else "failed", case, args.source, args.case.parent)
     native = native_module(args.source, "harness_adapter/harness_adapter.py", "native_canonical_payload")
     payload = {**payload, "initial_files": {native.safe_workspace_rel(k): v for k, v in payload["initial_files"].items()}}
+    def score_restart(world, messages, status):
+        # Case identity and preservation guards are external evaluation metadata only.
+        world.initial = deepcopy(fixture["data"]["initial_world"]["files"])
+        world.save(case["case_id"], messages, status)
+        return grade(world, case, args.source, args.case.parent)
     report = recovery_loop(snap, fixture, payload, manifest, baseline=baseline, execute=execute,
         without=snapshot.without, score=score, reason=lambda role, obs, fix: reasoning_artifact(role, obs, fix, args.model),
         restart=lambda snap, world, fix: restart_native(args, snap, payload, world, fix,
-            score_world=lambda world: grade(world, case, args.source, args.case.parent)), stop_epoch=args.stop_epoch,
+            score_world=score_restart), stop_epoch=args.stop_epoch,
         baseline_origin="explicit_checkpoint_baseline" if explicit else "automatic_product_receipts")
     report.update(code_sha=source_revision, accepted_backend_sha=args.accepted_backend_sha,
                   factory_sha256=sha256(Path(__file__).read_bytes()).hexdigest(), source_sha256=source_hashes,
@@ -800,6 +813,8 @@ def run_victim(args):
     row.update(cohort=PROTOCOL, protocol=PROTOCOL, lifecycle=lifecycle_disclosure(),
                manifest_sha256=sha256(args.manifest.read_bytes()).hexdigest(),
                lease=args.lease, provider_requests_include_sdk_recorded_replies=False)
+    if getattr(args, "launcher", None):
+        row["launcher"] = args.launcher
     capture, token, run_id, core = None, None, None, None
     holder = {}
     started, status = time.monotonic(), "failed"
@@ -893,6 +908,66 @@ def run_victim(args):
     return row
 
 
+def isolated_victim(args):
+    """One leased cell and one shared engine process, using installed uvicorn only."""
+    import socket
+    import threading
+    from urllib.parse import urlparse
+    from uuid import uuid4
+
+    if not args.lease or time.time() >= args.stop_epoch or not args.accepted_backend_sha:
+        raise ValueError("Active lease and accepted backend required before service start")
+    repo = Path(__file__).resolve().parents[1]
+    import subprocess
+    if subprocess.check_output(["git", "status", "--porcelain"], cwd=repo, text=True).strip():
+        raise ValueError("Commit source before isolated service start")
+    for name in ("engine/detonation/child.py", "engine/detonation/sandbox.py", "engine/detonation/snapshot.py"):
+        if (repo / name).read_bytes() != subprocess.check_output(["git", "show", args.accepted_backend_sha + ":" + name], cwd=repo):
+            raise ValueError("Engine source differs from accepted published backend")
+    url = urlparse(args.engine_url)
+    if url.scheme != "http" or url.hostname != "127.0.0.1" or url.path or url.port is None:
+        raise ValueError("Explicit loopback URL with port required")
+    if args.registry.exists() and any(args.registry.iterdir()):
+        raise ValueError("Use an empty registry for each isolated cell")
+    args.registry.mkdir(parents=True, exist_ok=True)
+    directory = args.output / ("engine-" + uuid4().hex[:8])
+    directory.mkdir(parents=True, exist_ok=False)
+    if any(name in sys.modules for name in ("engine.api.server", "mirage.core")):
+        raise ValueError("Start isolated engine before importing SDK/server")
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", url.port))  # port zero atomically chooses an unoccupied port
+    listener.listen(128)
+    args.engine_url = "http://127.0.0.1:" + str(listener.getsockname()[1])
+    os.environ.update(MIRAGE_MODE="live", MIRAGE_URL=args.engine_url,
+        MIRAGE_DB=str(directory / "events.db"), MIRAGE_SNAPSHOTS=str(directory / "snapshots"),
+        MIRAGE_NATIVE_FIXTURES=str(args.registry), MIRAGE_PARALLEL="1")
+    # Load credentials before engine/SDK model clients; no credential enters fixture seeds.
+    from dotenv import load_dotenv
+    load_dotenv(args.env_file, override=False)
+    import uvicorn
+    from engine.api import server
+    host = uvicorn.Server(uvicorn.Config(server.app, host="127.0.0.1", port=listener.getsockname()[1],
+                                         log_level="error", access_log=False))
+    thread = threading.Thread(target=lambda: host.run(sockets=[listener]), daemon=True)
+    thread.start()
+    try:
+        deadline = min(time.time() + 10, args.stop_epoch)
+        while not host.started and thread.is_alive() and time.time() < deadline:
+            time.sleep(0.05)
+        if not host.started:
+            raise RuntimeError("Isolated engine startup failed")
+        args.launcher = {"url": args.engine_url, "instance_id": server.INSTANCE_ID,
+                         "store": str(directory / "events.db"), "snapshots": str(directory / "snapshots"),
+                         "registry": str(args.registry), "parallel": 1, "shared_process": True}
+        return run_victim(args)
+    finally:
+        host.should_exit = True
+        thread.join(5)
+        listener.close()
+        with (directory / "shutdown.json").open("x") as file:
+            json.dump({"stopped": not thread.is_alive(), "url": args.engine_url}, file)
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
@@ -905,7 +980,9 @@ def main():
     parser.add_argument("--lease", required=True)
     parser.add_argument("--stop-epoch", type=float, required=True)
     parser.add_argument("--accepted-backend-sha", help="Exact Owner-A accepted W5 backend source; required for recovery")
-    run_victim(parser.parse_args())
+    parser.add_argument("--isolated-engine", action="store_true", help="Lease-gated shared-process loopback engine")
+    args = parser.parse_args()
+    (isolated_victim if args.isolated_engine else run_victim)(args)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,10 @@
 # Fixture-native recovery protocol
 
-Status: offline implementation checkpoint; private registry implementation approved by
-root/Person A, runtime composition acceptance and provider lease pending.
+Status: offline composed implementation; root adopted C3's scoped final transport review
+of `24657d15380a7d9f5f2df18b5823db5eda894448`, published in benchmark base
+`75228b632e3ab5162c4502c6b46b07e463cbed11`. The earlier private registry design
+handoff had Person A approval; the departed coordinator did not review this final source.
+Provider/service lease remains pending.
 Demo steps served: isolated replay, cause investigation, generic correction, verification,
 and original-task recovery (`PRODUCT.md` 1:20–2:40). This benchmark adapter is Person B work;
 the child/sandbox/snapshot boundary remains W5 and Person A owned. No public contract change.
@@ -117,3 +120,23 @@ the same correction and an independent frozen-state clone, all original owner tu
 the exact original admitted task/agent. Only a real queued/claimed HTTP restart receipt and
 logged `benchmark-automated-operator` action can complete that extension. This automated
 decision does not establish human approval, native engine detection or a full-engine cell.
+
+Root separately authorized an extension checkpoint when the actual admitted run has no
+product incident. The shared-process launcher exposes the existing API on an unoccupied
+loopback port and keeps SDK admission/check/recording over HTTP. It uses a fresh store,
+snapshot directory and empty registry. After callbacks are consumed, an actual automated
+freeze receipt binds the live run and service epoch. Existing `snapshot.save` validates the
+capture under a unique extension-only artifact directory; its `incident_id` is only a
+serialization transport identity. No incident/store/job/verdict record is inserted.
+The sidecar declares `checkpoint_origin=benchmark_operator`, product incident null and
+`explicit_checkpoint_baseline`. Exactly three independent explicitly leased replay children
+replace neither missing automatic evidence nor required full-engine cells. Origin is fixed
+before scoring. Restart kills that original frozen run through HTTP, approves its exact
+original task, then claims the queued restart through `RunStart.restarted_from`.
+
+The focused pair check runs real jailed children with fake model responses, plus actual
+SDK HTTP admission through an in-process TestClient without a host service. It verifies
+original replay state, zero prefix reapplication for corrected frozen execution, exact
+source/prompt/correction hashes, the quiescent non-incident checkpoint, logged automated
+restart and external original-case grading metadata. These are offline integration checks;
+no provider efficacy or host service acceptance is implied.
