@@ -131,7 +131,7 @@ export function Fleet() {
         <div className="fleet-header">
           <div className="fleet-title-group">
             <h2>Agent Fleet</h2>
-            <p>{isDemo ? 'Recorded agents and incident evidence. Miragio uses real Bedrock and tools.' : 'Real-time protection and transparent observability for autonomous agents.'}</p>
+            <p>Real-time protection and transparent observability for autonomous agents.</p>
           </div>
           <div className="fleet-actions">
             <button
@@ -139,7 +139,6 @@ export function Fleet() {
               className="fleet-btn fleet-btn-secondary"
               onClick={handleStartDemo}
               disabled={startingDemo}
-              title={isDemo ? 'Restart the background recording; no real agents are launched.' : undefined}
             >
               <Play size={13} fill="currentColor" />
               {startingDemo ? (isDemo ? 'Redeploying…' : 'Deploying…') : (isDemo ? 'Redeploy Fleet' : 'Deploy Fleet')}

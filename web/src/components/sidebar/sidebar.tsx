@@ -57,16 +57,16 @@ export const Sidebar = ({ onSearch }: { onSearch: () => void }) => {
           </li>
           <li>
             {resumable ? (
-              <Tooltip content={isDemo ? 'Resumes paused recording and restores prior recorded run states' : 'Lifts Stop all and restarts every halted agent'}>
-                <button type="button" title={isDemo ? 'Resume recording' : 'Resume all'} onClick={() => ask('resumeAll')} className={cn(NAV_LINK_CLASS_NAME, 'w-full')}>
+              <Tooltip content={isDemo ? 'Restores prior run states and resumes all agents' : 'Lifts Stop all and restarts every halted agent'}>
+                <button type="button" title="Resume all" onClick={() => ask('resumeAll')} className={cn(NAV_LINK_CLASS_NAME, 'w-full')}>
                   <Play className="size-4 shrink-0" aria-hidden />
-                  <span className="sidebar-label min-w-0 truncate text-sm leading-5">{isDemo ? 'Resume recording' : 'Resume all'}</span>
+                  <span className="sidebar-label min-w-0 truncate text-sm leading-5">Resume all</span>
                 </button>
               </Tooltip>
-            ) : <Tooltip content={<>{isDemo ? 'Pauses recording and marks active recorded runs halted' : 'Halts every run and revokes all tokens'} <Kbd>⇧⌘.</Kbd></>}>
-              <button type="button" title={isDemo ? 'Pause recording' : 'Stop all'} onClick={() => ask('stop')} className={cn(NAV_LINK_CLASS_NAME, 'sidebar-stop w-full')}>
+            ) : <Tooltip content={<>{isDemo ? 'Halts every agent and pauses execution' : 'Halts every run and revokes all tokens'} <Kbd>⇧⌘.</Kbd></>}>
+              <button type="button" title="Stop all" onClick={() => ask('stop')} className={cn(NAV_LINK_CLASS_NAME, 'sidebar-stop w-full')}>
                 <OctagonAlert className="size-4 shrink-0" aria-hidden />
-                <span className="sidebar-label min-w-0 truncate text-sm leading-5">{isDemo ? 'Pause recording' : 'Stop all'}</span>
+                <span className="sidebar-label min-w-0 truncate text-sm leading-5">Stop all</span>
               </button>
             </Tooltip>}
           </li>

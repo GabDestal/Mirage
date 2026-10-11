@@ -56,10 +56,10 @@ export function CommandMenu({ open, onOpenChange }: { open: boolean; onOpenChang
             </Item>
           ))}
           {resumable ? (
-            <Item icon={<Play />} onSelect={run(() => ask('resumeAll'))}>{isDemo ? 'Resume recording' : 'Resume all agents'}</Item>
+            <Item icon={<Play />} onSelect={run(() => ask('resumeAll'))}>Resume all agents</Item>
           ) : (
             <Item icon={<OctagonAlert />} onSelect={run(() => ask('stop'))} hint="⇧⌘.">
-              <span className="text-alarm">{isDemo ? 'Pause recording' : 'Stop all agents'}</span>
+              <span className="text-alarm">Stop all agents</span>
             </Item>
           )}
         </Command.Group>
