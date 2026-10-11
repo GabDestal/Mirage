@@ -229,6 +229,13 @@ try {
       assert.equal(stat(html, 'Healthy Agents'), 0)
       for (const label of ['Freeze', 'Unfreeze', 'Kill', 'Resume', 'Approve clean restart']) assert.ok(!enabled(html, label))
     })
+    await test('an older completed run cannot make an agent with a newer failed run look healthy', () => {
+      const completed = { ...run, status: 'completed', ended_at: '2026-10-11T00:01:00Z' }
+      const failed = { ...run, id: 'run/newer-failure', status: 'failed',
+        started_at: '2026-10-11T00:02:00Z', ended_at: '2026-10-11T00:03:00Z', status_reason: 'Synthetic task failed' }
+      seed([completed, failed], runtime([]))
+      assert.equal(stat(render(Fleet), 'Healthy Agents'), 0)
+    })
     await test('restart eligibility matches the published endpoint: killed/halted only, not failed', () => {
       seed([run], runtime([]))
       for (const status of ['killed', 'halted'])
