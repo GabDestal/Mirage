@@ -1,6 +1,6 @@
 import json
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
 from agents.common.testing import call, scripted
 from agents.meeting_assistant.agent import TASK, USER_EMAIL, build_agent
@@ -50,11 +50,14 @@ def test_malformed_tool_name_does_not_reach_bedrock():
     # gpt-oss sometimes emits a name Bedrock rejects on the next call; the model gets an error and retries.
     reset()
     model = scripted(
-        call("send_email<|channel|>commentary", to=USER_EMAIL, subject="Prep", body="..."),
+        call("send_email<|channel|>analysis", to=USER_EMAIL, subject="Prep", body="..."),
         call("send_email", to=USER_EMAIL, subject="Prep", body="..."),
         AIMessage("Brief sent."),
     )
     result = build_agent(model).invoke({"messages": [("user", TASK)]})
     names = [c["name"] for m in result["messages"] for c in getattr(m, "tool_calls", [])]
-    assert names == ["send_emailchannelcommentary", "send_email"]
+    assert names == ["send_emailchannelanalysis", "send_email"]
+    replies = [m for m in result["messages"] if isinstance(m, ToolMessage)]
+    assert [m.status for m in replies] == ["error", "success"]
     assert len(state()["outbox"]) == 1
+    assert state()["outbox"][0]["to"] == USER_EMAIL
