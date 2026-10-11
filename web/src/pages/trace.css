@@ -1,5 +1,5 @@
 .trace-page {
-  /* Fleet and chat use a light surface, including on a dark OS theme. */
+  /* Same light surface as fleet and chat. */
   --paper: #fff; --paper-2: #fafafa; --line: #e2e8f0;
   --ink: #18181b; --ink-2: #52525b; --mirage: #2563eb;
   --alarm: #b91c1c; --alarm-wash: #fef2f2;

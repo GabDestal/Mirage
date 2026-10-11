@@ -218,7 +218,7 @@ function HandoffActions({ url }: { url: string }) {
   }
   return <div className="chat-handoff">
     <Button onClick={() => void show()}>Hand off to coding agent<ArrowRight /></Button>
-    <HandoffDrawer light open={open} onClose={() => setOpen(false)} prompt={prompt} error={error} />
+    <HandoffDrawer open={open} onClose={() => setOpen(false)} prompt={prompt} error={error} />
   </div>
 }
 
