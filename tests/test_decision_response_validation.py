@@ -55,8 +55,8 @@ def fake_response(monkeypatch, response):
         return response
 
     monkeypatch.setenv("MIRAGE_LAYER2", "1")
-    monkeypatch.setenv("MIRAGE_GATE_THRESHOLD", "0.7")
-    monkeypatch.setenv("MIRAGE_GATE_REVIEW", "0.4")
+    monkeypatch.setattr(decision_model.config, "GATE_THRESHOLD", 0.7)
+    monkeypatch.setattr(decision_model.config, "GATE_REVIEW", 0.4)
     monkeypatch.setattr(decision_model, "_converse", converse)
     return calls
 
@@ -164,8 +164,8 @@ def test_valid_safe_reply_and_configured_thresholds(monkeypatch):
     fake_response(monkeypatch, provider_response({**VALID, "violates": False, "policy_id": None}))
     assert decision_model.judge("a", "t", "send_email", {}) is None
     fake_response(monkeypatch, provider_response({**VALID, "p": 0.75}))
-    monkeypatch.setenv("MIRAGE_GATE_THRESHOLD", "0.8")
-    monkeypatch.setenv("MIRAGE_GATE_REVIEW", "0.6")
+    monkeypatch.setattr(decision_model.config, "GATE_THRESHOLD", 0.8)
+    monkeypatch.setattr(decision_model.config, "GATE_REVIEW", 0.6)
     assert decision_model.judge("a", "t", "send_email", {})["review"] is True
 
 
