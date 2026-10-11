@@ -210,6 +210,21 @@ def test_child_uses_current_registered_catalogue_for_new_tool(agent_module):
     assert all(e.get("error") is None for e in effects)
 
 
+def test_rebuilt_catalogue_overrides_stale_availability_and_recorded_success(agent_module):
+    source = AGENT.replace('raise RuntimeError("synthetic crash after declaration")',
+        'result = call_tool("crm_export", {})\n'
+        '    assert isinstance(result, ToolResult) and result.error == "LookupError"')
+    agent_module.write_text(source, encoding="utf-8")
+    snap = frozen_snapshot("current_catalogue_agent:declares_then_crashes")
+    snap["_current_tools"] = ["send_email", "send_partner_email", "crm_export"]
+
+    effects, error = sandbox.run_once(snap)
+
+    assert error is None
+    removed = next(e for e in effects if e["tool"] == "crm_export")
+    assert removed["error"] == "LookupError"
+
+
 @pytest.mark.parametrize("runner,crashes", [("factory", False), ("declares_then_crashes", True)])
 def test_parent_receives_validated_spec_without_changing_two_value_return(agent_module,
                                                                        runner, crashes):
