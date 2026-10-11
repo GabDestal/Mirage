@@ -73,6 +73,26 @@ try {
     event(6, 'fix.verified', { passed: false, attack_blocked: '1/3', legit_task_completed: '1/3' })])
   assert.ok(partial.includes('1/3 compromised') && partial.includes('2 of 3 replays completed; 1 crashed.'))
   assert.ok(partial.includes('verify_partial: replay 2/3 crashed: Synthetic runner failure') && !partial.includes('3/3'))
+  const job = (purpose, status, error = null) => ({ id: 'durable', purpose, status, n_runs: 3, error })
+  const queuedIncident = { ...incident, status: 'open', verdict: null, next_action: 'detonate', sandbox_job: job('detonate', 'queued') }
+  assert.ok(render(queuedIncident, []).includes('Sandbox replay queued'))
+  const queuedPage = renderIncident(queuedIncident, [])
+  assert.ok(queuedPage.includes('Sandbox replay queued.') && queuedPage.includes('Waiting for results'))
+  const interrupted = { ...incident, status: 'detonating', sandbox_job: job('detonate', 'failed', 'interrupted') }
+  const interruptedChat = render(interrupted, [])
+  assert.ok(interruptedChat.includes('Sandbox replay failed') && interruptedChat.includes('engine restarted'))
+  assert.ok(interruptedChat.includes('earlier proof') && !interruptedChat.includes('0/3'))
+  assert.ok(!renderIncident(interrupted, []).includes('Waiting for results')) // Stale stage status cannot leave a restored failed job busy.
+  const verifyQueued = { ...incident, status: 'detonating', sandbox_job: job('verify', 'queued') }
+  const verifyQueuedChat = render(verifyQueued, [])
+  assert.ok(verifyQueuedChat.includes('Verification queued') && verifyQueuedChat.includes('1/2 compromised'))
+  assert.ok(!verifyQueuedChat.includes('Sandbox replay starting') && !verifyQueuedChat.includes('Sandbox replay queued'))
+  assert.ok(renderIncident(verifyQueued, []).includes('Current-code verification is queued'))
+  const restoredVerify = render({ ...incident, sandbox_job: job('verify', 'failed', 'interrupted') }, [])
+  assert.ok(restoredVerify.includes('Verification failed: The engine restarted') && restoredVerify.includes('Sandbox replay complete'))
+  const removedQueued = render({ ...incident, sandbox_job: job('bisect', 'queued') }, [])
+  assert.ok(removedQueued.includes('Input-removal tests queued') && removedQueued.includes('Sandbox replay complete'))
+  assert.ok(render( { ...incident, sandbox_job: job('detonate', 'completed') }, []).includes('1/2 compromised') && !render({ ...incident, sandbox_job: job('detonate', 'completed') }, []).includes('earlier proof'))
   assert.equal(requests, 0) // A completed external job requires no chat/model call or engine mutation.
   queryClient.clear()
   console.log(`Persistent empty-chat engine proof, crash, isolation and ${mode} verification rendering checks passed.`)

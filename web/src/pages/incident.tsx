@@ -10,7 +10,7 @@ import { HandoffDrawer } from '@/components/handoff-drawer'
 import { Button } from '@/components/ui/button'
 import { avatarState, callPhrase, runLabel, steps } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
-import { baselineEvidence, INCIDENT_ACTIONS, incidentEvents, isIncidentAction, latestFailure, recordedHandoff, requestFinished, safeLink, verificationEvidence, type IncidentAction } from './incident-data'
+import { baselineEvidence, currentSandboxJob, INCIDENT_ACTIONS, incidentEvents, isIncidentAction, latestFailure, recordedHandoff, requestFinished, safeLink, sandboxJobError, verificationEvidence, type IncidentAction } from './incident-data'
 import './incident.css'
 
 export function IncidentPage() {
@@ -21,13 +21,14 @@ export function IncidentPage() {
   const { data: events = [] } = useEvents()
   const ask = useAsk()
   const [confirm, setConfirm] = useState<IncidentAction | null>(null)
-  const [accepted, setAccepted] = useState<{ id: string; kind: IncidentAction; after: number } | null>(null)
+  const [accepted, setAccepted] = useState<{ id: string; kind: IncidentAction; after: number; previousJobId?: string } | null>(null)
   const [handoff, setHandoff] = useState<{ id: string; prompt: string } | null>(null)
   const [drawer, setDrawer] = useState(false)
   const submitting = useRef(false)
   const incident = detail.data
   const evidence = incidentEvents(events, id)
   const baseline = incident ? baselineEvidence(incident, evidence) : null
+  const job = currentSandboxJob(incident, evidence)
   const run = runs.find((r) => r.id === incident?.run_id)
   const act = useMutation({
     mutationFn: ({ kind, reason, target }: { kind: IncidentAction; reason: string; target: string }) => {
@@ -55,15 +56,16 @@ export function IncidentPage() {
   const submit = (reason: string) => {
     if (!confirm || submitting.current || busy) return
     submitting.current = true
-    setAccepted({ id, kind: confirm, after: events.at(-1)?.seq ?? 0 })
+    setAccepted({ id, kind: confirm, after: events.at(-1)?.seq ?? 0, previousJobId: job?.id })
     act.mutate({ kind: confirm, reason, target: id })
   }
   const awaiting = accepted?.id === id && accepted.kind !== 'send_fix'
-    && !requestFinished(evidence, accepted.kind, accepted.after)
+    && !requestFinished(evidence, accepted.kind, accepted.after, job, accepted.previousJobId)
     && (accepted.kind === 'detonate' ? !incident || ['open', 'detonating'].includes(incident.status)
       : !incident || ['confirmed', 'bisecting'].includes(incident.status))
   const baselineActive = baseline?.status === 'queued' || baseline?.status === 'starting' || baseline?.status === 'running'
-  const busy = act.isPending || awaiting || baselineActive || incident?.status === 'detonating' || incident?.status === 'bisecting'
+  const jobActive = job?.status === 'queued' || job?.status === 'running'
+  const busy = act.isPending || awaiting || (job ? jobActive : baselineActive || incident?.status === 'detonating' || incident?.status === 'bisecting')
   const action = incident?.next_action
   const primary = action && isIncidentAction(action) ? INCIDENT_ACTIONS[action] : undefined
   const refresh = () => { void detail.refetch(); void refetchRuns() }
@@ -81,8 +83,9 @@ export function IncidentPage() {
   const verdict = baseline?.verdict
   const recent = steps(events, incident.run_id).filter((s) => s.callId !== incident.trigger.call_id).slice(-2)
   const detonationError = baseline?.error
-  const bisectionError = latestFailure(evidence, 'bisection')
-  const verificationState = verificationEvidence(evidence)
+  const bisectionError = job?.purpose === 'bisect' ? sandboxJobError(job) : latestFailure(evidence, 'bisection')
+  const bisectionActive = job?.purpose === 'bisect' ? jobActive : incident.status === 'bisecting'
+  const verificationState = verificationEvidence(evidence, incident)
   const verification = verificationState?.result
   const pr = safeLink(incident.pr_url)
   const cause = incident.inputs.find((input) => input.id === incident.cause_input_id)
@@ -142,7 +145,7 @@ export function IncidentPage() {
         {effects.length > 0 && <details className="incident-effects"><summary>Inspect baseline effects ({effects.length})</summary><pre>{effects.map((e) => JSON.stringify(e, null, 2)).join('\n\n')}</pre></details>}
       </StorySection>
       <StorySection number="3" title="Why it happened">
-        <p className="incident-section-intro">{cause ? `Proven cause: ${cause.label}. Removing this input prevented the compromise in the recorded tests.` : incident.status === 'bisecting' || (awaiting && accepted?.kind === 'find_cause') ? 'Testing each input removal… Results appear as each replay finishes.' : causeCompleted ? 'The input tests did not establish a single cause. Review the results below.' : 'The cause is not established yet. Bisection tests each untrusted input by replaying the snapshot without it.'}</p>
+        <p className="incident-section-intro">{cause ? `Proven cause: ${cause.label}. Removing this input prevented the compromise in the recorded tests.` : bisectionActive || (awaiting && accepted?.kind === 'find_cause') ? job?.status === 'queued' ? 'Input-removal tests queued. Baseline proof remains above.' : 'Testing each input removal… Results appear as each replay finishes.' : causeCompleted ? 'The input tests did not establish a single cause. Review the results below.' : 'The cause is not established yet. Bisection tests each untrusted input by replaying the snapshot without it.'}</p>
         {bisectionError && <Notice tone="alarm">Cause search failed: {bisectionError}. Completed input tests are shown below.</Notice>}
         <div className="incident-snapshot"><span>Snapshot <code>{incident.snapshot_id}</code></span><span>{incident.inputs.length} recorded inputs</span></div>
         {incident.inputs.length ? <ul className="incident-inputs">{incident.inputs.map((input) => {
@@ -153,6 +156,7 @@ export function IncidentPage() {
         })}</ul> : <p className="incident-muted">No input previews were returned for this snapshot.</p>}
       </StorySection>
       <StorySection number="4" title="The fix">
+        {verificationState?.status === 'queued' && <Notice>Current-code verification is queued. No new result has been returned yet.</Notice>}
         {verificationState?.status === 'running' && <Notice>Current-code verification is running. No new result has been returned yet.</Notice>}
         {verificationState?.status === 'failed' && <Notice tone="alarm">Current-code verification failed: {verificationState.error ?? 'No result returned'}. No new fix acceptance was established.</Notice>}
         {verificationState?.requestedRuns !== undefined && <p className="incident-muted">{verificationState.requestedRuns} current-code verification replays requested.</p>}
