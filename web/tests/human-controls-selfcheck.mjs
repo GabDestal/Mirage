@@ -1,5 +1,5 @@
 // Synthetic REST and server-render checks; browser/provider acceptance is separate.
-// Run from web/: node tests/human-controls-selfcheck.mjs
+// Run from web/: node tests/human-controls-selfcheck.mjs [--demo]
 import assert from 'node:assert/strict'
 import { createElement as h } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -7,6 +7,8 @@ import { MemoryRouter } from 'react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createServer } from 'vite'
 
+const demo = process.argv.includes('--demo')
+process.env.MIRAGE_UI_MODE = demo ? 'demo' : 'live'
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom' })
 const originalFetch = globalThis.fetch
 try {
@@ -33,10 +35,21 @@ try {
   for (const service of ['outbox', 'calendar', 'crm']) for (const env of ['prod', 'mirage'])
     cache.setQueryData(['services', service, env], { service, env, items: [] })
   const fleet = render(Fleet)
-  assert.ok(fleet.includes('>Freeze<'), 'Running production runs must expose manual Freeze')
+  assert.equal(fleet.includes('>Freeze<'), !demo, 'Only live production runs expose manual Freeze')
   assert.ok(fleet.includes('Service evidence'), 'Fleet must show current service evidence')
   assert.ok(fleet.includes('Engine approvals'), 'Fleet must show the engine approval queue')
-  console.log('PASS fleet exposes manual freeze, services and engine approvals')
+  console.log('PASS fleet exposes services, engine approvals and appropriate manual freeze')
+
+  if (demo) {
+    assert.equal(render(actions.FreezeButton, { run }), '')
+    assert.equal(render(actions.CleanRestartButton, { run: { ...run, status: 'killed' } }), '')
+    cache.setQueryData(['approvals'], [{ call_id: 'held', run_id: run.id, agent: run.agent, tool: 'send_email', args: {}, explanation: 'Synthetic review', ts: run.started_at }])
+    const queue = render(approvals.EngineApprovals)
+    assert.ok(queue.includes('Recorded demo: decisions are unavailable'))
+    assert.equal((queue.match(/disabled=""/g) ?? []).length, 2)
+    assert.ok(render(services.ServiceEvidence).includes('Recorded synthetic demo'))
+    console.log('PASS demo hides unsupported freeze/restart, disables engine decisions and labels recorded evidence')
+  } else {
 
   const killed = { ...run, status: 'killed' }
   cache.setQueryData(['runs'], [killed])
@@ -141,6 +154,7 @@ try {
   cache.getQueryCache().find({ queryKey: ['approvals'] }).setState({ status: 'error', error: new Error('Synthetic queue failure') })
   assert.ok(render(approvals.EngineApprovals).includes('Approval queue could not refresh: Synthetic queue failure'))
   console.log('PASS GET contracts, prod/Mirage cache and rendering isolation, evidence labels and read failures')
+  }
   cache.clear()
 } finally {
   globalThis.fetch = originalFetch
