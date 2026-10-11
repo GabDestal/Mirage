@@ -71,6 +71,16 @@ Actual repair-job canonical sanitized snapshot digest: `e771a17714a9ccc49ef8fd0c
 
 Use the root-owned loopback engine and the exact integrated checkout it supplies. Read `/openapi.json`, `/runtime`, `/runs`, `/incidents/inc_001` and `/events?after=0` through HTTP to establish current mode/identity and available contracts; audit evidence is the relevant `human.action` events. Do not import engine modules into a demo or HTTP runner. Keep private context/capabilities in the trusted supervisor; public receipts contain only safe progress, references and counts. Never reset the baseline database or launch another fleet to manufacture a clean result.
 
+For the pinned runtime receipt above, API is `http://127.0.0.1:57208`, chat is `http://127.0.0.1:57209` and dashboard is `http://localhost:55110/incidents/inc_001`. These are owned temporary ports, not permanent service addresses. A fresh rehearsal uses the new trusted runtime receipt's URLs and exact code revision. Minimal readback commands for this instance:
+
+```sh
+mirage_acceptance_api='http://127.0.0.1:57208'
+curl --fail --silent --show-error "$mirage_acceptance_api/runtime"
+curl --fail --silent --show-error "$mirage_acceptance_api/incidents/inc_001"
+curl --fail --silent --show-error "$mirage_acceptance_api/repair-jobs/repair_af57f917e8ea446f9db3c3bb881a2bcf"
+curl --fail --silent --show-error "$mirage_acceptance_api/events?after=0"
+```
+
 1. **Freeze and confirm.** Read the original incident, run and ledger through HTTP. Match the immutable snapshot and original freeze/harmful proof; the old run must remain contained. After its recorder exited, startup may append the explicit system reason retiring only that ownerless confirmed original to `failed`; read that reason and unchanged verdict/snapshot rather than presenting it as a currently owned frozen process. Keep the baseline negative result visible: attack blocked `0/1`, useful `1/1`. A replay recording alone is not a fresh fix check.
 2. **Explicit repair.** In the installed operator runtime, the operator submits `{incident_id: "inc_001", actor, reason}` to the chat service's `POST /chat/repairs` once (or approves MCP `start_repair`). The trusted supervisor creates the engine job with `POST /incidents/inc_001/repair-jobs` and launches the worker; calling that engine route alone only creates queued state. Poll the engine's `GET /repair-jobs/{job_id}` and incident job list; require root's actual launch receipt for a coding worker in an independent Orca worktree at the pinned `special-improvements` base. A 202/queued response is not proof of launch or repair. Do not retry a lost create response blindly.
 3. **Exact candidate and real PR.** Read public job progress through HTTP; privately the supervisor exports the original/clean recordings, runs the installed CLI from the clean committed repair checkout, and imports evidence with `POST /repair-jobs/{job_id}/report`. Require CLI exit 0, no replay errors, attack blocked `3/3`, useful `3/3`, clean blocked/useful `1/1`, durable regression files and the actual GitHub receipt: OPEN draft, base `special-improvements`, `headRefOid == candidate_sha`. A candidate verified by another loaded checkout, a fixture URL or `queued` status fails this gate.
