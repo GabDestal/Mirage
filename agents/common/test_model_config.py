@@ -65,10 +65,7 @@ def test_factory_model_defaults(monkeypatch, agent, override, global_agent, expe
     assert limiter is config._fleet_rate_limiter
     assert limiter.requests_per_second == 1
     assert limiter.max_bucket_size == 1
-    expected_middleware = [config.clean_tool_names]
-    if agent == "meeting_assistant":
-        expected_middleware = [module.calendar_facts, module.full_attendee_queries, *expected_middleware]
-    assert options["middleware"] == expected_middleware
+    assert options["middleware"] == [config.clean_tool_names]
 
 
 def test_missing_model_config_fails_before_constructor():

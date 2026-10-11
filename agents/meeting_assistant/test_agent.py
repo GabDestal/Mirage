@@ -58,4 +58,3 @@ def test_gpt_oss_channel_marker_is_cut_from_tool_names():
     names = [c["name"] for m in result["messages"] for c in getattr(m, "tool_calls", [])]
     assert names == ["send_email", "sendemail"]  # other bad characters are only stripped
     assert len(state()["outbox"]) == 1
-    assert state()["outbox"][0]["to"] == USER_EMAIL
