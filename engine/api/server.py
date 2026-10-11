@@ -47,6 +47,7 @@ from contracts.models import (
 from engine import bisect as engine_bisect
 from engine import handoff as engine_handoff
 from engine.api import recovery, repair, services
+from engine.api.exposure import create_router as exposure_router
 from engine.api.replay import Replay
 from engine.api.rules import router as rules_router
 from engine.api.state import fold
@@ -805,3 +806,6 @@ def demo_reset():
             _replay_epoch = uuid4().hex
         return
     _reset_live()
+
+
+app.include_router(exposure_router(get_incident, replay=REPLAY is not None))
