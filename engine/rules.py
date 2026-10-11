@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 
 from contracts.models import Allowlist
@@ -122,3 +123,33 @@ def effective_allow(agent, policy):
         hosts = sorted({host for host in hosts + other
                         if _allowed(host, hosts) and _allowed(host, other)})
     return Allowlist(tools=policy["agents"][agent]["tools"], email_to=emails, url_hosts=hosts)
+
+
+def validate_policy(agent, policy):
+    """Validate the existing effective-policy shape from a trusted operator's CLI file."""
+    required = {"canary", "agents", "destinations"}
+    optional = {"known_tools", "constraints", "rule_revision"}
+    if (not isinstance(policy, dict) or not required <= policy.keys()
+            or policy.keys() - required - optional
+            or not isinstance(policy["canary"], str) or not policy["canary"]
+            or not isinstance(policy["agents"], dict) or agent not in policy["agents"]
+            or not isinstance(policy["destinations"], dict)
+            or set(policy["destinations"]) != {"email_domains", "url_domains"}):
+        raise ValueError("Invalid effective policy shape or agent")
+    for name, role in policy["agents"].items():
+        if not isinstance(name, str) or not name or not isinstance(role, dict) or set(role) != {"tools"}:
+            raise ValueError("Invalid effective policy role")
+        Allowlist.model_validate({"tools": role["tools"],
+                                  "email_to": policy["destinations"]["email_domains"],
+                                  "url_hosts": policy["destinations"]["url_domains"]})
+    if "known_tools" in policy:
+        Allowlist.model_validate({"tools": policy["known_tools"]})
+    revision = policy.get("rule_revision")
+    if revision is not None and (not isinstance(revision, str) or not re.fullmatch(r"[0-9a-f]{64}", revision)):
+        raise ValueError("Invalid effective policy revision")
+    constraints = policy.get("constraints", [])
+    if not isinstance(constraints, list):
+        raise TypeError("Invalid effective policy constraints")
+    for constraint in constraints:
+        validate_policy(agent, constraint)
+    return copy.deepcopy(policy)

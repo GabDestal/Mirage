@@ -175,7 +175,7 @@ def blast_radius(snap, bad, n_compromised, n):
 
 
 def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, log=print,
-             verify=False, emit_started=True):
+             verify=False, emit_started=True, verification_policy=None):
     """Replay the incident's snapshot n_runs times. Returns (Detonation, Verdict, DetonateResult).
 
     Default (operator): continue from the freeze; emits verdict.ready for a full replay.
@@ -183,6 +183,8 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
     with the policy at freeze AND the current one (a fix that allowlists the attacker still
     fails), emit fix.verified. Passed = attack blocked n/n and legit task n/n."""
     validate_runs(n_runs)
+    if verification_policy is not None and not verify:
+        raise ValueError("A trusted policy override is available only for verification")
     snap = snapshot.load(incident_id)
     if removed_input_id:
         snap = snapshot.without(snap, removed_input_id)
@@ -190,7 +192,8 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
     if verify:
         snap["model_calls"] = []  # the recorded replies came from the unfixed agent
         with gate.jobs.lock:
-            current = copy.deepcopy(current_policy(snap["agent"]))
+            current = copy.deepcopy(verification_policy if verification_policy is not None
+                                    else current_policy(snap["agent"]))
         snap["_verification_policy"] = current
         policies += [p for p in [current] if p and p != snap["policy"]]
     det_id = detonation_id or f"det_{incident_id.removeprefix('inc_')}_{next(_ids):02d}"

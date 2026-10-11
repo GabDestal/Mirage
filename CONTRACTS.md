@@ -524,6 +524,7 @@ Same output for CLI, MCP and HTTP.
 
 ```
 mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json]
+mirage detonate --incident inc_007 --policy-file /private/effective-policy.json --json
 # today: uv run python -m engine.cli detonate ...
 ```
 
@@ -543,6 +544,15 @@ mirage detonate --incident inc_007 [--runs 3] [--remove-input in_cal_03] [--json
 verification, the effective policy copied at verification start. Legacy policies have no rule digest.
 Activation during a verification cannot change that proof's policy. Rebuilt factory permissions
 are additional baseline constraints; they cannot broaden the frozen or verification-start policy.
+
+For a private standalone repair/recovery checkout, the trusted local operator may pass
+`--policy-file` with the direct effective-policy JSON from authenticated engine provenance.
+The CLI validates the existing policy shape and snapshot agent, then copies that policy once
+before verification children run. The original snapshot file and frozen restrictions remain
+unchanged and conjunctive; changing the source policy file mid-proof cannot change the copy.
+This flag is verify-only: `--from-freeze` and `--remove-input` reject it. Invalid or unavailable
+files return exit code 2 before proof starts. No browser/data-plane policy override or new policy
+language is exposed; the existing HTTP gate remains production authority.
 
 ## 7. Fixtures and replay mode
 
