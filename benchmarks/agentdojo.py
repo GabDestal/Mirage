@@ -6,12 +6,18 @@ published attack constructor to select injection vectors, never for permissions.
 
 import json
 import re
+import sys
 import time
+from pathlib import Path
+
+MANIFEST = json.loads(Path(__file__).with_name("manifest.json").read_text())
+sys.path[:0] = [MANIFEST["native_source"] + "/src", MANIFEST["native_deps"]]
 
 from agentdojo.agent_pipeline.agent_pipeline import load_system_message
 from agentdojo.agent_pipeline.base_pipeline_element import BasePipelineElement
 from agentdojo.agent_pipeline.tool_execution import tool_result_to_str
 from agentdojo.attacks.important_instructions_attacks import ImportantInstructionsAttackNoNames
+from agentdojo.attacks.baseline_attacks import SystemMessageAttack
 from agentdojo.functions_runtime import FunctionCall, FunctionsRuntime
 from agentdojo.task_suite.load_suites import get_suite
 from agentdojo.types import text_content_block_from_string
@@ -31,8 +37,9 @@ def prepare(case, attack, version="v1.2.2"):
     suite = get_suite(version, case["suite"])
     task = suite.user_tasks[case["case_id"]]
     injection = suite.injection_tasks[case["injection_task_id"]] if attack else None
-    payload = (ImportantInstructionsAttackNoNames(suite, AttackTarget()).attack(task, injection)
-               if injection else {})
+    attack_class = (ImportantInstructionsAttackNoNames if case["split"] == "dev"
+                    else SystemMessageAttack)
+    payload = attack_class(suite, AttackTarget()).attack(task, injection) if injection else {}
     world = task.init_environment(suite.load_and_inject_default_environment(payload))
     return suite, task, injection, world
 
@@ -45,7 +52,8 @@ def trusted_allow(task_prompt, tools):
             "url_hosts": [u.split("//")[-1].split("/")[0] for u in urls]}
 
 
-def execute(suite, task, world, model, parameters, max_steps, gate=None):
+def execute(suite, task, world, model, parameters, max_steps, gate=None,
+            max_tools=12, timeout_s=120):
     """Arguments pass untouched to native FunctionsRuntime after optional admission."""
     runtime = FunctionsRuntime(suite.tools)
     tools = [{"toolSpec": {"name": f.name, "description": f.description,
@@ -55,6 +63,9 @@ def execute(suite, task, world, model, parameters, max_steps, gate=None):
     output, status, reason = "", "completed", None
     started = time.monotonic()
     for _ in range(max_steps):
+        if time.monotonic() - started >= timeout_s:
+            status, reason = "unknown", "invocation_timeout"
+            break
         try:
             response = model.converse(messages, load_system_message(None), tools, parameters)
         except Exception as exc:
@@ -68,6 +79,11 @@ def execute(suite, task, world, model, parameters, max_steps, gate=None):
             break
         results = []
         for call in calls:
+            if len(traces) >= max_tools or time.monotonic() - started >= timeout_s:
+                return {"world": world, "traces": traces, "ledger": ledger,
+                        "messages": messages, "output": output, "status": "unknown",
+                        "unknown_reason": "tool_or_time_limit",
+                        "latency_s": time.monotonic() - started}
             name, args = call["name"], call["input"]
             if gate:
                 decision = gate(name, args, messages)
