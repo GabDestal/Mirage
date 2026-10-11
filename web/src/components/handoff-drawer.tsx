@@ -18,14 +18,13 @@ async function copy(prompt: string, agent?: string) {
   } catch { toast.error('Clipboard unavailable. Select and copy the prompt in the drawer.') }
 }
 
-// light: pin light tokens when opened from a page that ignores the app theme (chat).
-export function HandoffDrawer({ open, onClose, prompt, error, light }: { open: boolean; onClose: () => void; prompt?: string; error?: string; light?: boolean }) {
+export function HandoffDrawer({ open, onClose, prompt, error }: { open: boolean; onClose: () => void; prompt?: string; error?: string }) {
   const handoffPrompt = prompt && isDemo ? `Recorded demo handoff: the evidence below is recorded or simulated. It does not provide a live executable snapshot or establish real fix acceptance. Obtain a live incident before validating a real fix.\n\n${prompt}` : prompt
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className={`${light ? 'theme-light ' : ''}fixed inset-0 z-40 bg-ink/20 animate-[fade_var(--dur-fast)_var(--ease-out)]`} />
-        <Dialog.Content className={`${light ? 'theme-light ' : ''}fixed inset-y-0 right-0 z-50 flex w-[min(520px,100vw)] flex-col gap-5 border-l border-line bg-paper p-6 text-ink shadow-float animate-[drawer_var(--dur-sheet)_var(--ease-drawer)]`}>
+        <Dialog.Overlay className={`fixed inset-0 z-40 bg-ink/20 animate-[fade_var(--dur-fast)_var(--ease-out)]`} />
+        <Dialog.Content className={`fixed inset-y-0 right-0 z-50 flex w-[min(520px,100vw)] flex-col gap-5 border-l border-line bg-paper p-6 text-ink shadow-float animate-[drawer_var(--dur-sheet)_var(--ease-drawer)]`}>
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-1.5">
               <Dialog.Title className="text-title font-semibold">{isDemo ? 'Demo handoff to coding agent' : 'Hand off to coding agent'}</Dialog.Title>

@@ -15,9 +15,8 @@
   font-display: swap;
 }
 
-/* Tokens: DESIGN.md §4 (color), §6 (shape), §9 (motion). Light is the default.
-   .theme-light pins light tokens on a subtree (portals from the always-light chat page). */
-:root, .theme-light {
+/* Tokens: DESIGN.md §4 (color), §6 (shape), §9 (motion). Light only. */
+:root {
   --paper: #fcfcfa;
   --paper-2: #f4f4f1;
   --paper-3: #eaeae6;
@@ -40,41 +39,6 @@
   --dur-sheet: 320ms;
 
   color-scheme: light;
-}
-
-/* Dark: an explicit choice, or the system setting when the user made none. Keep both blocks equal. */
-:root[data-theme='dark'] {
-  --paper: #0c0d0d;
-  --paper-2: #141515;
-  --paper-3: #1d1e1e;
-  --line: #262828;
-  --ink: #ecedea;
-  --ink-2: #9da19f;
-  --ink-3: #6e7270;
-  --mirage: #3cc7be;
-  --mirage-wash: #0f2826;
-  --alarm: #ff6a5c;
-  --alarm-wash: #2a1412;
-  --float-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.6);
-  color-scheme: dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --paper: #0c0d0d;
-    --paper-2: #141515;
-    --paper-3: #1d1e1e;
-    --line: #262828;
-    --ink: #ecedea;
-    --ink-2: #9da19f;
-    --ink-3: #6e7270;
-    --mirage: #3cc7be;
-    --mirage-wash: #0f2826;
-    --alarm: #ff6a5c;
-    --alarm-wash: #2a1412;
-    --float-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.6);
-    color-scheme: dark;
-  }
 }
 
 @theme inline {
