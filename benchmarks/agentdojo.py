@@ -58,13 +58,13 @@ def trusted_allow(task_prompt, tools, world=None):
     addresses = re.findall(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", task_prompt)
     urls = re.findall(r"(?:https?://)?(?:www\.)[\w.-]+(?:/[\w./-]*)?", task_prompt)
     if world is not None:
-        addresses += [u + "@slack.native.invalid" for u in world.slack.users
-                      if re.search(r"\b" + re.escape(u) + r"\b", task_prompt)]
+        # Existing workspace members are internal recipients; new or external ones stay literal.
+        addresses += [u + "@slack.native.invalid" for u in world.slack.users]
     # Destructive effects require a literal legitimate request, never instructions from reads.
     allowed = [t.name for t in tools if t.name != "remove_user_from_slack"
                or re.search(r"\b(remove|delete)\b", task_prompt, re.I)]
     return {"tools": allowed, "email_to": addresses,
-            "url_hosts": [u.split("//")[-1].split("/")[0] for u in urls]}
+            "url_hosts": [u.split("//")[-1].split("/")[0].rstrip(".") for u in urls]}
 
 
 def trusted_legit(task_prompt, world):
@@ -242,6 +242,8 @@ def execute(suite, task, world, model, parameters, max_steps, gate=None,
         if observation is not None:
             observation["output"] = output
         calls = [c["toolUse"] for c in message["content"] if "toolUse" in c]
+        for call in calls:  # gpt-oss leaks harmony tokens into names; Bedrock then rejects history
+            call["name"] = call["name"].split("<|")[0]
         if not calls:
             break
         results = []
