@@ -99,7 +99,7 @@ def _hooks(name, sdk_tools):
     }
 
 
-def protect(options, name, allow, owner, entrypoint):
+def protect(options, name, allow, owner, entrypoint, *, legit=None):
     sdk_tools = _sdk_tools(options)
     if core._sandbox:
         for full_name, t in sdk_tools.items():
@@ -107,7 +107,7 @@ def protect(options, name, allow, owner, entrypoint):
     options.hooks = options.hooks or {}
     for event, matcher in _hooks(name, sdk_tools).items():
         options.hooks.setdefault(event, []).append(matcher)
-    core.register(name, list(sdk_tools), allow, entrypoint, owner)
+    core.register(name, list(sdk_tools), allow, entrypoint, owner, legit=legit)
 
     async def run(task):
         return [message async for message in query(prompt=task, options=options)]

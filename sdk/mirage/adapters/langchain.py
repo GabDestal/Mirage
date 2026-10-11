@@ -86,7 +86,7 @@ def _task(graph_input):
     return last[1] if isinstance(last, tuple) else getattr(last, "content", str(last))
 
 
-def protect(graph, name, allow, owner, entrypoint):
+def protect(graph, name, allow, owner, entrypoint, *, legit=None):
     tool_node = graph.nodes["tools"].bound
     tool_node._wrap_tool_call = _tool_hook(tool_node._wrap_tool_call)
     model_node = graph.nodes["model"].bound.func
@@ -118,6 +118,6 @@ def protect(graph, name, allow, owner, entrypoint):
             core.end(token)
 
     graph.invoke, graph.stream = protected_invoke, protected_stream
-    core.register(name, list(tool_node.tools_by_name), allow, entrypoint, owner)
+    core.register(name, list(tool_node.tools_by_name), allow, entrypoint, owner, legit=legit)
     registry[name] = lambda task: protected_invoke({"messages": [("user", task)]})
     return graph

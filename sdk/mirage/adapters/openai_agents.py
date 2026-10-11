@@ -58,7 +58,7 @@ def _model_hook(model, state):
     return get_response
 
 
-def protect(agent, name, allow, owner, entrypoint):
+def protect(agent, name, allow, owner, entrypoint, *, legit=None):
     # Hooks run in their own asyncio tasks, so core's run contextvar set there would be lost.
     # Keep the run in a Context and enter a copy of it for each tool / model call.
     # shortcut: one run at a time per Agent instance; give each concurrent run its own Agent.
@@ -87,6 +87,6 @@ def protect(agent, name, allow, owner, entrypoint):
 
     hooks.on_start, hooks.on_end = on_start, on_end
     agent.hooks = hooks
-    core.register(name, [t.name for t in tools], allow, entrypoint, owner)
+    core.register(name, [t.name for t in tools], allow, entrypoint, owner, legit=legit)
     registry[name] = lambda task: Runner.run_sync(agent, task)
     return agent

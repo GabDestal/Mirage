@@ -45,12 +45,16 @@ def _post(path, body=None, run=None):
     return r.json() if r.content else None
 
 
-def register(name, tools, allow=None, entrypoint="", owner="unknown"):
-    if _sandbox:
-        return
+def register(name, tools, allow=None, entrypoint="", owner="unknown", *, legit=None):
     allow = Allowlist.model_validate(allow or {"tools": tools})
-    _post("/agents", AgentSpec(name=name, owner=owner, tools=tools, allow=allow,
-                               entrypoint=entrypoint))
+    spec = AgentSpec(name=name, owner=owner, tools=tools, allow=allow, entrypoint=entrypoint,
+                     **({"legit": legit} if legit is not None else {}))
+    if _sandbox:
+        register_spec = getattr(_sandbox["call_tool"], "register_spec", None)
+        if callable(register_spec):
+            register_spec(spec.model_dump(mode="json"))
+        return
+    _post("/agents", spec)
 
 
 def start(agent, task):
