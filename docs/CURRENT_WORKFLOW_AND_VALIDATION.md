@@ -19,7 +19,7 @@ This documentation worker has run no agents, services, controls or provider call
 | Runtime and transport | HTTP/SSE expose process identity, loaded revision, stream epoch, owners and typed proof jobs. Read-only reconnect discards stale responses. | Restored history is evidence, not a restored live agent or lock. |
 | Persistent proof | Fleet, Incident and Miragio can show existing baseline proof without asking a model. Bisection and verification remain separate. | Navigation should not lose the incident or confuse a later test with the initial replay. |
 | External repair | The handoff supplies incident facts, agent location, snapshot/state paths and the verification command. The drawer explains local access. | The user's coding agent repairs and opens the PR; Mirage supplies the evidence and test. |
-| Fleet simplification | Service evidence and Engine approvals panels were removed. Start demo, Ask Miragio and STOP remain. | The operator can focus on runs and the incident. Miragio's own action approvals remain separate. |
+| Fleet simplification | Service evidence and Engine approvals panels were removed. Run 4-agent demo, Ask Miragio and STOP remain. | The operator can focus on runs and the incident. Miragio's own action approvals remain separate. |
 
 These are source facts or owning-worker reports, not a full browser rehearsal.
 Source holders: [fleet](../agents/run_demo_fleet.py), [SDK](../sdk/mirage/core.py),
@@ -103,7 +103,8 @@ or run standalone CLI jobs concurrently against the same process-local job store
 
 1. Record exact code/model/task/seed/poison and loaded runtime revisions, instance,
    epoch, owner IDs and state paths. Confirm direct engine and UI proxy agree.
-2. In the signed-in live UI, click **Start demo** on that owned engine to launch
+2. In the signed-in live UI, click **Run 4-agent demo** (empty-state **Launch demo fleet**)
+   on that owned engine to launch
    `agents.run_demo_fleet`. Observe all four protected runs and truthful failures;
    a start response establishes a launch request, not four completed tasks.
 3. Observe the malicious call frozen before its production effect while healthy

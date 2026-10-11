@@ -156,7 +156,8 @@ MIRAGE_API=http://127.0.0.1:8020 MIRAGE_CHAT_API=http://127.0.0.1:8021 \
 ```
 
 After the hold is released, open [http://127.0.0.1:5175](http://127.0.0.1:5175)
-and use **Start demo** in that UI: live `POST /demo/start` resets the engine's state
+and use **Run 4-agent demo** (or empty-state **Launch demo fleet**) in that UI:
+live `POST /demo/start` resets the engine's state
 and spawns the same protected fleet; only use it on this owned isolated instance.
 `/demo/reset` also clears its history, snapshots and tokens. A 204 start response
 means spawning was requested, not that all four tasks succeeded. Support and
