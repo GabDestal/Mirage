@@ -1,0 +1,663 @@
+{
+  "report_generator_sha256": "887a12e9df5748e090eb4ee7da8cd9b235685028fb357afb254327e2121599b1",
+  "metrics": [
+    {
+      "benchmark": "AgentRx",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "arm": "evidence_assisted_diagnosis",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "parameters": {
+        "additionalModelRequestFields": {},
+        "inferenceConfig": {
+          "maxTokens": 4096
+        }
+      },
+      "recovery_cohort": null,
+      "metric": "critical_step_correct",
+      "code_shas": [
+        "0b5bf41baf36ded9890a42300a96f5d27ab9e39e"
+      ],
+      "N": 6,
+      "scored": 0,
+      "U": 6,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "benchmark": "AgentRx",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "arm": "evidence_assisted_diagnosis",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "parameters": {
+        "additionalModelRequestFields": {},
+        "inferenceConfig": {
+          "maxTokens": 4096
+        }
+      },
+      "recovery_cohort": null,
+      "metric": "root_cause_correct",
+      "code_shas": [
+        "0b5bf41baf36ded9890a42300a96f5d27ab9e39e"
+      ],
+      "N": 6,
+      "scored": 0,
+      "U": 6,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "benchmark": "AgentRx",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "arm": "simple_diagnosis",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "parameters": {
+        "additionalModelRequestFields": {},
+        "inferenceConfig": {
+          "maxTokens": 4096
+        }
+      },
+      "recovery_cohort": null,
+      "metric": "critical_step_correct",
+      "code_shas": [
+        "0b5bf41baf36ded9890a42300a96f5d27ab9e39e"
+      ],
+      "N": 6,
+      "scored": 0,
+      "U": 6,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "benchmark": "AgentRx",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "arm": "simple_diagnosis",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "parameters": {
+        "additionalModelRequestFields": {},
+        "inferenceConfig": {
+          "maxTokens": 4096
+        }
+      },
+      "recovery_cohort": null,
+      "metric": "root_cause_correct",
+      "code_shas": [
+        "0b5bf41baf36ded9890a42300a96f5d27ab9e39e"
+      ],
+      "N": 6,
+      "scored": 0,
+      "U": 6,
+      "S_or_score_sum": 0,
+      "coverage": 0.0,
+      "bounds": [
+        0.0,
+        1.0
+      ],
+      "raw_values": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    }
+  ],
+  "overhead": [
+    {
+      "benchmark": "AgentRx",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "arm": "evidence_assisted_diagnosis",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "parameters": {
+        "additionalModelRequestFields": {},
+        "inferenceConfig": {
+          "maxTokens": 4096
+        }
+      },
+      "recovery_cohort": null,
+      "N": 6,
+      "calls": 0,
+      "call_rows": 6,
+      "tokens": 0,
+      "token_rows": 0,
+      "latency_s": 0,
+      "latency_rows": 0
+    },
+    {
+      "benchmark": "AgentRx",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "arm": "simple_diagnosis",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "parameters": {
+        "additionalModelRequestFields": {},
+        "inferenceConfig": {
+          "maxTokens": 4096
+        }
+      },
+      "recovery_cohort": null,
+      "N": 6,
+      "calls": 0,
+      "call_rows": 6,
+      "tokens": 0,
+      "token_rows": 0,
+      "latency_s": 0,
+      "latency_rows": 0
+    }
+  ],
+  "rows": [
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:557e78eceec08ca8b0da5f9fdaca6e1c7ec6140a8ce600983ee716327dab005e",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:557e78eceec08ca8b0da5f9fdaca6e1c7ec6140a8ce600983ee716327dab005e",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:56137764-b4e0-45b8-9c52-1866420c3df5",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:56137764-b4e0-45b8-9c52-1866420c3df5",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:57d9dc6935e8a40b02e7f8ec81768fe70e68a0c05f6866927c9fda38db38a486",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:57d9dc6935e8a40b02e7f8ec81768fe70e68a0c05f6866927c9fda38db38a486",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:5d0080cb-90d7-4712-bc33-848150e917d3",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:5d0080cb-90d7-4712-bc33-848150e917d3",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:6b06d186921b8b390c65aebd0d16f09f60a47d2f1288ebe36953f734e84c0a3c",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:6b06d186921b8b390c65aebd0d16f09f60a47d2f1288ebe36953f734e84c0a3c",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:6e3be83d1949fa52cba03fb1ce4b5b3bf7e37a83fd7d67694b10b2e439d90cf8",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "simple_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    },
+    {
+      "benchmark": "AgentRx",
+      "case_id": "magentic:6e3be83d1949fa52cba03fb1ce4b5b3bf7e37a83fd7d67694b10b2e439d90cf8",
+      "attack_id": null,
+      "split": "within_seen_domain_heldout_task_families_v2",
+      "cohort": "within_seen_domain_provenance_v2_opus_reference",
+      "source_sha": "7a18c79708e7671be15124460f4f7296107c2a55",
+      "code_sha": "0b5bf41baf36ded9890a42300a96f5d27ab9e39e",
+      "model_id": "us.anthropic.claude-opus-4-8",
+      "parameters": {
+        "inferenceConfig": {
+          "maxTokens": 4096
+        },
+        "additionalModelRequestFields": {}
+      },
+      "policy_version": "within_seen_domain_unseen_task_families_provenance_v2",
+      "arm": "evidence_assisted_diagnosis",
+      "status": "unknown",
+      "unknown_reason": "conditional_time_access_and_separate_root_lease",
+      "native_scores": {},
+      "validation_method": null,
+      "validation_result": null,
+      "evidence_refs": [],
+      "incident_id": null,
+      "restart_id": null,
+      "calls": 0,
+      "tokens": null,
+      "latency_s": null,
+      "state_validation_result": null,
+      "metric_values": {
+        "critical_step_correct": null,
+        "root_cause_correct": null,
+        "safe_recovery": null,
+        "simulated_operator_recovery": null,
+        "false_containment": null
+      }
+    }
+  ],
+  "observed_rows": [],
+  "issues": [],
+  "native_state_disagreements": [],
+  "acceptance_evidence": [],
+  "diagnostic_coverage_audit": null,
+  "artifact_pins": [
+    {
+      "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/v2/opus-reference/manifest.json",
+      "sha256": "cf2175393396ece03dd95f3ee825c23b12e772c275bbdca5ee4fba1e8cb41b96"
+    }
+  ],
+  "raw_audit": {
+    "path": "/tmp/mirage-benchmaxing/run_1d89fe10e4c5/phase2/agentrx/v2/opus-reference/report.json",
+    "sha256": "eabebb42727c413cde5de14dd581b60f8c56995a8b94e527c476bd3d74ee08dc"
+  },
+  "publication_scope": "All selected cells and scalar native/state metrics; rows contain reconciled proof, observed_rows contain unaugmented original result metadata. Runtime contexts, raw prompts/model replies, full native datasets and detailed grader records remain outside Git."
+}
