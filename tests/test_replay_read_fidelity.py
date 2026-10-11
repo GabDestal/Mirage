@@ -134,6 +134,15 @@ def test_ambiguous_unrecorded_tool_fails_without_fabricating_success():
     assert_unavailable(observed[0], effects[0])
 
 
+def test_recorded_read_name_outside_demo_prefixes_still_uses_exact_data():
+    tool, args, answer = "lookup_customer", {"id": "b"}, {"id": "b", "name": "Synthetic B"}
+    snap = save_snapshot([recorded(tool, args, answer)], [{"tool": tool, "args": args}])
+    snap["fidelity_tools"] = [tool, "send_email"]
+    observed, effects = probe(snap)
+    assert observed == [{"typed_error": False, "value": answer}]
+    assert not effects[0].get("error")
+
+
 def test_missing_read_does_not_consume_another_exact_call_result():
     answer = {"id": "contact-a"}
     snap = save_snapshot([recorded("get_contact", {"contact_id": "contact-a"}, answer)], [
@@ -158,6 +167,17 @@ def test_recorded_error_consumes_its_position_before_a_later_success():
 def test_declared_write_is_captured_without_running_a_real_service():
     snap = save_snapshot(calls=[{"tool": "send_email", "args": {
         "to": USER, "subject": "Brief", "body": "Synthetic meeting brief."}}])
+    effects, crash = sandbox.run_once(snap)
+    assert crash is None
+    observed = json.loads(effects[-1]["args"]["body"])
+    assert observed == [{"typed_error": False, "value": {"status": "ok"}}]
+    assert effects[0]["tool"] == "send_email" and not effects[0].get("error")
+
+
+def test_recorded_write_remains_a_captured_write_and_never_becomes_a_read():
+    args = {"to": USER, "subject": "Brief", "body": "Synthetic meeting brief."}
+    snap = save_snapshot([recorded("send_email", args, "synthetic-provider-message-id")],
+                         [{"tool": "send_email", "args": args}])
     effects, crash = sandbox.run_once(snap)
     assert crash is None
     observed = json.loads(effects[-1]["args"]["body"])
