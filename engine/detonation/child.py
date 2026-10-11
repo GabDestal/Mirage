@@ -12,7 +12,7 @@ import builtins
 import importlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from contracts.models import ToolResult
 from engine.detonation import jail
@@ -22,6 +22,85 @@ WRITE_PREFIXES = ("send_", "create_", "update_", "log_", "schedule_", "record_",
                   "post_", "set_", "submit_")
 WRITE_TOOLS = {"write_file", "delete_file", "invite_user_to_slack",
                "add_user_to_channel", "remove_user_from_slack"}
+FILE_TOOLS = {"list_dir", "read_file", "write_file", "delete_file"}
+
+
+class NativeFileWorld:
+    """Four native tools over inert text, including logical .env files; never host paths."""
+
+    @staticmethod
+    def path(raw):
+        if not isinstance(raw, str):
+            raise TypeError("Fixture path must be text")
+        path = raw.replace("\\", "/").lstrip("/")
+        if path == "workspace":
+            path = ""
+        elif path.startswith("workspace/"):
+            path = path[len("workspace/"):]
+        if ".." in path.split("/"):
+            raise ValueError("Fixture path escapes root")
+        return "/".join(part for part in path.split("/") if part and part != ".")
+
+    def __init__(self, files, directories=()):
+        self.files, self.directories = {}, {""}
+        for raw, text in files.items():
+            path = self.path(raw)
+            if not path or path in self.files:
+                raise ValueError("Invalid or duplicate fixture file")
+            if not isinstance(text, str):
+                raise TypeError("Fixture contents must be text")
+            text.encode("utf-8")
+            self.files[path] = text
+        for raw in [*self.files, *directories]:
+            path = self.path(raw)
+            self.directories.update(str(p) if str(p) != "." else ""
+                                    for p in PurePosixPath(path).parents)
+        self.directories.update(self.path(p) for p in directories)
+        if self.directories & self.files.keys():
+            raise NotADirectoryError("Fixture file conflicts with directory")
+
+    def snapshot(self):
+        return {"files": dict(self.files), "directories": sorted(self.directories - {""})}
+
+    def call(self, tool, args):
+        if tool not in FILE_TOOLS:
+            raise ValueError("Unsupported fixture tool")
+        path = self.path(args["path"])
+        if tool == "read_file":
+            if path in self.directories:
+                raise IsADirectoryError("Fixture path is a directory")
+            if path not in self.files:
+                raise FileNotFoundError("Fixture file is absent")
+            return self.files[path]
+        if tool == "list_dir":
+            if path in self.files:
+                raise NotADirectoryError("Fixture path is a file")
+            if path not in self.directories:
+                raise FileNotFoundError("Fixture directory is absent")
+            prefix = path + "/" if path else ""
+            return [{"path": p, "type": "file" if p in self.files else "directory"}
+                    for p in sorted(self.files.keys() | self.directories)
+                    if p.startswith(prefix) and p != path and "/" not in p[len(prefix):]]
+        if tool == "write_file":
+            text = args["content"]
+            if not isinstance(text, str):
+                raise TypeError("Fixture contents must be text")
+            size = len(text.encode("utf-8"))
+            if path in self.directories:
+                raise IsADirectoryError("Fixture path is a directory")
+            parents = {str(p) if str(p) != "." else "" for p in PurePosixPath(path).parents}
+            if parents & self.files.keys():
+                raise NotADirectoryError("Fixture parent is a file")
+            self.directories.update(parents)
+            self.files[path] = text
+            return {"ok": True, "path": args["path"], "bytes": size}
+        if not path:
+            raise ValueError("Cannot delete fixture root")
+        self.files = {p: text for p, text in self.files.items()
+                      if p != path and not p.startswith(path + "/")}
+        self.directories = {p for p in self.directories
+                            if p != path and not p.startswith(path + "/")}
+        return {"ok": True, "path": args["path"], "deleted": True}
 
 
 def main():
