@@ -38,8 +38,12 @@ try {
   const fleet = render(Fleet)
   assert.equal(fleet.includes('>Freeze<'), !demo, 'Only live production runs expose manual Freeze')
   assert.deepEqual(['Service evidence', 'Engine approvals'].filter((label) => fleet.includes(label)), [], 'Requested panels must be absent from Fleet')
-  for (const label of ['Agent Fleet', 'Ask Miragio', 'All Runs (1)', 'Trace', demo ? 'Redeploy Fleet' : 'Deploy Fleet'])
+  for (const label of ['Agent Fleet', 'Ask Miragio', 'All Runs (1)', demo ? 'Redeploy Fleet' : 'Deploy Fleet'])
     assert.ok(fleet.includes(label), `Fleet must retain ${label}`)
+  assert.equal(fleet.includes('Trace'), false, 'A running row opens its trace by click; no Trace link')
+  cache.setQueryData(['runs'], [{ ...run, status: 'completed' }])
+  assert.ok(render(Fleet).includes('Trace'), 'A finished row shows its Trace link')
+  cache.setQueryData(['runs'], [run])
   assert.equal(fleet.includes('Recorded agents and incident evidence'), demo)
   console.log('PASS fleet omits removed panels and retains launcher, run navigation, mode truth and appropriate manual freeze')
 

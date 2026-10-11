@@ -397,7 +397,7 @@ function AgentTableRow({
           </div>
         ) : canResume(run, runs) ? (
           <ResumeButton run={run} />
-        ) : (
+        ) : ['running', 'queued'].includes(run.status) ? null : ( // live runs: the row itself opens the trace
           <Link
             to={`/runs/${run.id}`}
             className="fleet-action-link"
