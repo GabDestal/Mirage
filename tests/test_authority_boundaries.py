@@ -50,7 +50,6 @@ def test_slow_decision_cannot_admit_effect_after_revocation(api, monkeypatch, ac
     def slow(*args):
         entered.set()
         assert release.wait(5)
-        return None
 
     monkeypatch.setattr(gate.decision_model, "judge", slow)
     with ThreadPoolExecutor(max_workers=1) as pool:
@@ -88,6 +87,37 @@ def test_stop_cannot_undo_started_effect_but_blocks_the_next_one(api):
     assert len(gate.runs[run_id].tool_results) == 1
     assert protected(handle(run_id, auth), USER, effects) == "blocked"
     assert effects == [USER]
+
+
+def test_manual_freeze_during_slow_decision_holds_effect_until_human_kill(api, monkeypatch):
+    run_id, auth = start(api)
+    entered, release, waiting = threading.Event(), threading.Event(), threading.Event()
+    original_wait = core._wait
+    effects = []
+
+    def slow(*args):
+        entered.set()
+        assert release.wait(5)
+
+    def observed_wait(run):
+        waiting.set()
+        return original_wait(run)
+
+    monkeypatch.setattr(gate.decision_model, "judge", slow)
+    monkeypatch.setattr(core, "_wait", observed_wait)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(protected, handle(run_id, auth), USER, effects)
+        try:
+            assert entered.wait(2)
+            assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
+            release.set()
+            assert waiting.wait(2)
+            assert effects == []
+        finally:
+            release.set()
+            api.post(f"/runs/{run_id}/kill", json=HUMAN)
+        assert pending.result(3) == "blocked"
+    assert effects == []
 
 
 def test_approval_releases_only_the_original_checked_call(api, monkeypatch):
@@ -248,6 +278,17 @@ def test_duplicate_completion_emits_one_terminal_transition(api):
                 and e.payload["to"] == "completed"]) == 1
 
 
+def test_original_admitted_result_can_arrive_after_manual_freeze(api):
+    run_id, auth = start(api)
+    admitted = check(api, run_id, auth, "read_calendar").json()
+    assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
+    response = api.post(f"/runs/{run_id}/tool-results", headers=auth, json={
+        "call_id": admitted["call_id"], "tool": "read_calendar", "result": []})
+    assert response.status_code == 204
+    assert gate.runs[run_id].status == "frozen"
+    assert len(gate.runs[run_id].tool_results) == 1
+
+
 def test_approved_call_does_not_reappear_after_later_manual_freeze(api, monkeypatch):
     run_id, auth = start(api)
     monkeypatch.setattr(gate.decision_model, "judge", lambda *args: {
@@ -276,6 +317,52 @@ def test_sdk_cannot_forge_restart_lineage_without_a_human_queued_restart(api):
     response = api.post("/runs", json={"agent": AGENT["name"], "task": "Prep my meetings",
                                        "restarted_from": run_id})
     assert response.status_code == 409
+
+
+def test_two_starters_cannot_claim_the_same_approved_restart(api, monkeypatch):
+    run_id, _ = start(api)
+    assert api.post(f"/runs/{run_id}/kill", json=HUMAN).status_code == 200
+    queued = api.post(f"/runs/{run_id}/restart", json=HUMAN).json()
+    first_paused, second_at_boundary, release = (
+        threading.Event(), threading.Event(), threading.Event())
+    first_thread = []
+    original_status, original_lock = gate.set_status, server.jobs.lock
+
+    class ObservedLock:
+        def __enter__(self):
+            if first_paused.is_set() and threading.get_ident() != first_thread[0]:
+                second_at_boundary.set()
+            return original_lock.__enter__()
+
+        def __exit__(self, *args):
+            return original_lock.__exit__(*args)
+
+    def paused_status(run, to, actor, reason):
+        if run.id == queued["id"] and to == "running":
+            if not first_paused.is_set():
+                first_thread.append(threading.get_ident())
+                first_paused.set()
+            else:
+                second_at_boundary.set()
+            assert release.wait(5)
+        return original_status(run, to, actor, reason)
+
+    monkeypatch.setattr(server.jobs, "lock", ObservedLock())
+    monkeypatch.setattr(gate, "set_status", paused_status)
+    body = {"agent": AGENT["name"], "task": "Prep my meetings", "restarted_from": run_id}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(api.post, "/runs", json=body)
+        try:
+            assert first_paused.wait(2)
+            second = pool.submit(api.post, "/runs", json=body)
+            assert second_at_boundary.wait(2)
+        finally:
+            release.set()
+        responses = [first.result(3), second.result(3)]
+    claims = [r for r in responses if r.status_code == 200
+              and r.json()["run_id"] == queued["id"]]
+    assert len(claims) == 1
+    assert any(r.status_code == 409 for r in responses)
 
 
 @pytest.mark.parametrize("action", ["restart", "resume"])
