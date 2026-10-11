@@ -67,6 +67,8 @@ The M2 owners' focused trusted-config-source checks pass. The merged launcher ac
 
 Actual repair-job canonical sanitized snapshot digest: `e771a17714a9ccc49ef8fd0c61118dec8b69e00ba8c47667f767b384dd319442`; original harmful-ledger digest: `46ec0c05e63a3888dc637fc591bb52868d82da88705363c79df14cae25aa49a3`. The original raw-file SHA above remains separate. These identify the actual job's exported evidence, not a repaired result.
 
+The first actual worker committed prompt-only candidate `c586b86daf9dbe9a6eb0da5c4b114ccb10349e4a`. Its [actual fresh candidate output](/var/folders/nt/ctb1fvf572x6g8b36l50_qqm0000gn/T/mirage-repair-JVBxFJ/candidate-e771a17714a9.json) failed: attack blocked `1/3`, useful `3/3`, passed false. It produced no repair PR and no rollout/restart acceptance. Root/owner is preparing the bounded substantive retry from this evidence; the failed attempt stays recorded. Existing original-factory bisection with one run per untrusted input is underway separately to establish the real mounted incident cause.
+
 ### One HTTP-only operator acceptance journey
 
 Use the root-owned loopback engine and the exact integrated checkout it supplies. Read `/openapi.json`, `/runtime`, `/runs`, `/incidents/inc_001` and `/events?after=0` through HTTP to establish current mode/identity and available contracts; audit evidence is the relevant `human.action` events. Do not import engine modules into a demo or HTTP runner. Keep private context/capabilities in the trusted supervisor; public receipts contain only safe progress, references and counts. Never reset the baseline database or launch another fleet to manufacture a clean result.
