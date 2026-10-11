@@ -1,8 +1,8 @@
 # UI and engine repair acceptance — 2026-10-11
 
 **Status: draft; fresh composed acceptance pending.** Source inspected at
-`e3a0d019d3b9c3f7b22deec91e8889cd5f4da654`, verified as local HEAD and remote
-`origin/main`. GitHub independently reports the eleven PRs below merged, with the
+`e836fd4a797ec9fbe648f29164d7c4db37954b05` after rebasing the documentation draft;
+it is the verified remote `origin/main` source. GitHub independently reports the twelve PRs below merged, with the
 listed squash commits. This documentation worker inspected source, merge metadata
 and published worker reports; it ran no services, controls, providers or fleets.
 Final coordinator source SHA and rehearsal evidence have not yet been supplied.
@@ -53,6 +53,7 @@ counts describe the worker's named suite/head and must not be added together.
 | [#125](https://github.com/GabDestal/Mirage/pull/125) / B | Event-derived services, engine approvals, manual freeze/recovery, human queued restart | `e3eb805b0d0a4ac03643959dd60ea1759f31ea95` | `a38046727043e0a00a193b75ed27ba9556d7b48b` | Server-render RED: Freeze absent; review RED: manual recovery absent → live/demo selfchecks, existing UI checks, typecheck/build/lint pass. Stub fetch/rendering; browser acceptance separate. |
 | [#127](https://github.com/GabDestal/Mirage/pull/127) / A | Shared normalized email/URL destinations and decoded payload checks in gate/verdict | `f129e7c02e20ff8d7aa7e22ff3434ca8f56d36dc` | `9065380f1969b6d68297fb020c1ba7274a258e1e` | 45 failed/41 passed plus review REDs → 284 tests, including 101 destination cases. Callback held before unsafe effects; unknown field semantics/tool-internal destinations and semantic P3/P6 remain limits. |
 | [#133](https://github.com/GabDestal/Mirage/pull/133) / B | Shared process-local provider-turn cadence, individual overrides and sanitizer for all four factories | `e3a0d019d3b9c3f7b22deec91e8889cd5f4da654` | `6b68321bdbe3e4f9062073fa799bef2a7c6649a0` | 31 failed/7 passed initially → 43 model/config and 131 agent tests. Virtual-clock four-factory/12-turn check at 1-second intervals; no measured provider throughput. |
+| [#134](https://github.com/GabDestal/Mirage/pull/134) / A | Layer-2 response validation, sanitized unavailability and shared outbound destinations | `e836fd4a797ec9fbe648f29164d7c4db37954b05` | `d8efa585118709b4f9a6afb4eb4f90fba8ff273c` | 80 failed/13 passed → 264 related tests. Mocks only; outage still intentionally allows after hard rules; semantic P3/P6 acceptance remains open. |
 
 ### Published validation commands and report provenance
 
@@ -74,6 +75,7 @@ reproducing. This ledger does not ask for a new suite or provider rerun.
 | #125 | From `web/`: `node tests/human-controls-selfcheck.mjs`, same with `--demo`, `npm run typecheck`, `npm run build`, `npm run lint` → passed (existing lint/chunk warnings) | PR body |
 | #127 | `uv run pytest -q` → 284 passed; `uv run ruff check engine/detection/rules.py tests/test_destination_rules.py` → passed | PR body |
 | #133 | `env -i PATH=/usr/bin:/bin PYTHONDONTWRITEBYTECODE=1 PYTHON_DOTENV_DISABLED=1 AWS_EC2_METADATA_DISABLED=true PYTHONPATH=/Users/liamszefner/orca/workspaces/Mirage/fix-fleet-model-cadence:/Users/liamszefner/orca/workspaces/Mirage/fix-fleet-model-cadence/sdk /Users/liamszefner/Business/hacks/Mirage/.venv/bin/python /tmp/mirage-model-cadence-tests-20261011.py` → 131 passed | `/tmp/mirage-model-cadence-report-20261011.md` |
+| #134 | `/Users/liamszefner/Business/hacks/Mirage/.venv/bin/python -m pytest tests/test_decision_response_validation.py tests/test_layer2.py tests/test_judge.py tests/test_destination_rules.py tests/test_startup_mode.py tests/test_containment_persistence.py tests/test_gate.py tests/test_api.py -q --tb=short` → 264 passed | `/tmp/mirage-decision-response-report.md` |
 
 ## 3. U1–U5 delivery and open dependencies
 
@@ -92,14 +94,21 @@ not completed engine/fleet wiring. #133 supplies process-local pacing, not a sha
 fleet/gateway/chat/subprocess provider budget. Final PR status must be refreshed before
 accepting the composed tree; an open PR or another branch's GREEN is not merged code.
 
+**Additional authority gate (coordinator report, 2026-10-11):** a separate actual-SDK
+audit produced 17 RED failures around approval of the original call releasing a
+concurrent unchecked call, stale approval/manual freeze, STOP/recovery and result
+binding. Person A is allocating engine repairs and Person B's exact-call SDK seam is
+reserved. Exact audited source/report and final repair evidence are pending; no
+approval/recovery acceptance is established by #125's UI controls or this report.
+
 ## 4. Runtime and source identity
 
 | Detail | Current fact / coordinator-owned evidence slot |
 |---|---|
-| Final composed source | Pending coordinator's known full SHA; draft inspection source is `e3a0d019d3b9c3f7b22deec91e8889cd5f4da654` |
-| Engine | Planned owned loopback `http://127.0.0.1:8040`, Person A; started PID/time/loaded revision/mode/instance/epoch/owned runs pending |
-| Web/proxy | Planned `http://127.0.0.1:5180`, Person B; `/api`→8040 and `/chat`→8041 process/config/read-parity evidence pending |
-| Chat/MCP | Planned `http://127.0.0.1:8041`, Person B; engine target8040, provider/model readiness and actual request evidence pending |
+| Final composed source | Pending coordinator's known full SHA; draft inspection source is `e836fd4a797ec9fbe648f29164d7c4db37954b05` |
+| Engine | Planned owned loopback `http://127.0.0.1:8040`, Person A; coordinator reports not yet running. Started PID/time/loaded revision/mode/instance/epoch/owned runs pending. |
+| Web/proxy | Coordinator reports main UI `http://127.0.0.1:5180`, PID84720, terminal `term_146a8a2b-1ee2-4b95-9d64-9c0bab73eaa1`, source at startup `e3a0d019`; configured `/api`→8040, `/chat`→8041. Read parity/loaded final source pending. |
+| Chat/MCP | Coordinator reports `http://127.0.0.1:8041`, PID86841, terminal `term_55913927-9c65-4fd4-8984-b9dc1b19ceba`. Engine target8040 is planned; built source/provider/model readiness and actual request evidence pending. |
 | State isolation | New absolute DB/snapshot/token paths and scheduler identity pending coordinator evidence; a different port alone is insufficient |
 | Existing session | User engine8000/UI5173/chat8001 remain untouched and are not acceptance test targets |
 | Victim/companions | Four protected source agents: meeting assistant, invoicing, outreach, PR reviewer; final resolved model IDs/user/task/day/seed/poison and request/effect/error evidence pending |
@@ -147,6 +156,10 @@ The current weakness of counts/catalogue/legitimate checks means that interface 
 does not establish verified fixes. Use the actual live incident snapshot; the recorded
 M1 handoff has no executable snapshot/token and its PR URL is a placeholder.
 
+Coordinator's staged browser attachment reached login, then the tab disappeared;
+stable placement is under investigation. That observation is not browser workflow
+acceptance. No fresh control or provider call was reported for the staged UI/chat.
+
 ## 6. Open provider, service and deployment gates
 
 Coordinator-supplied sanitized configuration: Bedrock is configured in `us-east-1`
@@ -163,11 +176,11 @@ Historical metrics, selected N=4 eval results and M1 recordings remain unchanged
 
 ## 7. Documentation delivery checks
 
-Draft validation: 24 local links/anchors, 7 pinned source objects and 5 shell blocks
-(`zsh -n`, syntax only) passed; all eleven squash commits are ancestors of the
-inspection source. Exact three-file scope and byte-identical connection-plan sections
-1+ passed; `git diff --check` passed. GitHub PR metadata was fetched, but no broader
-external-link crawl or code/provider test rerun was performed.
+Draft validation command: `python3 /tmp/mirage-ui-engine-repair-docs-check.py` →
+24 local links/anchors, 7 pinned source objects, 12 squash ancestors and 5 shell blocks
+(`zsh -n`, syntax only) passed. Exact three-file scope and byte-identical connection-plan
+sections 1+ passed; `git diff --check` passed. GitHub PR metadata was fetched, but no
+broader external-link crawl or code/provider test rerun was performed.
 
 Final source/evidence refresh, documentation recheck, clean checkout and matching
 remote/PR head remain pending. No implementation/config/schema edits, new repository
