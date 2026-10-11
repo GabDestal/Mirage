@@ -55,7 +55,8 @@ def assert_revoked_denial_finished(run_id, call_id, human_actions):
     assert not any(e.type == "tool.result" and e.run_id == run_id for e in history)
     assert [e.payload for e in history if e.type == "run.status" and e.run_id == run_id
             and e.payload["to"] in ("failed", "completed", "killed", "halted")] == [{
-                "from": "running", "to": "failed", "actor": "sdk", "reason": "Run failed: Blocked."}]
+                "from": "running", "to": "failed", "actor": "sdk",
+                "reason": "Run failed: ExecutionError."}]
     assert [e.payload["action"] for e in history if e.type == "human.action"
             and e.payload["target"] == run_id] == human_actions
 
