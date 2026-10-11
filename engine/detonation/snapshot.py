@@ -4,7 +4,7 @@ File: data/snapshots/<incident_id>.json, shape `Snapshot` in contracts/models.py
 `runner` is what the sandbox child calls; None means `entrypoint` itself (engine dev agents).
 
 Each item a read tool returned (one calendar event, one contact...) is one Input. Bisection
-removes an input by dropping that item from every tool result.
+removes list items from every tool result, or empties one exactly located scalar string read.
 """
 
 import copy
@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from contracts.models import Input, Snapshot
+from engine.detonation.child import WRITE_PREFIXES, WRITE_TOOLS
 
 SNAP_DIR = Path(os.getenv("MIRAGE_SNAPSHOTS", "data/snapshots"))
 KINDS = [("calendar", "calendar_event"), ("contact", "crm_record"), ("crm", "crm_record"),
@@ -39,8 +40,18 @@ def _inputs(task, tool_results):
     found = [{"id": "in_task", "kind": "user_task", "label": "User task", "source_tool": None,
               "preview": task[:160], "item": None}]
     seen = []
-    for r in tool_results:
+    for index, r in enumerate(tool_results):
         if r.get("error") is not None:
+            continue
+        if (isinstance(r["result"], str) and r["tool"] not in WRITE_TOOLS
+                and not r["tool"].startswith(WRITE_PREFIXES)):
+            # Private item metadata binds equal strings to one exact recorded read.
+            found.append({
+                "id": f"in_{len(found):02d}", "kind": "web_page" if any(
+                    word in r["tool"] for word in ("url", "web")) else "attachment",
+                "source_tool": r["tool"], "label": r["tool"], "preview": r["result"][:160],
+                "item": {"_read_locator": {"index": index, "call_id": r["call_id"],
+                                          "tool": r["tool"], "args": copy.deepcopy(r["args"])}}})
             continue
         for item in _items(r["result"]):
             if item in seen:
@@ -103,6 +114,13 @@ def without(snap, input_id):
     snap = copy.deepcopy(snap)
     snap["model_calls"] = []  # rerun from the start: recorded replies saw the removed input
     target = next(i for i in snap["inputs"] if i["id"] == input_id)
+    if isinstance(target["item"], dict) and set(target["item"]) == {"_read_locator"}:
+        locator = target["item"]["_read_locator"]
+        for index, r in enumerate(snap["tool_results"]):
+            if (locator == {"index": index, "call_id": r["call_id"], "tool": r["tool"],
+                           "args": r["args"]} and isinstance(r["result"], str)):
+                r["result"] = ""
+                return snap
     if target["kind"] == "user_task":
         snap["task"] = "(no task)"
     for r in snap["tool_results"]:
