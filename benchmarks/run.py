@@ -119,7 +119,7 @@ def main():
     parser.add_argument("--cases", default="benchmarks/manifest_agentdojo_v2.json")
     parser.add_argument("--case", required=True, help="case id from --cases")
     parser.add_argument("--model", required=True)
-    parser.add_argument("--arm", default="unprotected", choices=["unprotected", "gate", "full"])
+    parser.add_argument("--arm", default="unprotected", choices=["unprotected", "gate", "gate_autorelease", "full"])
     parser.add_argument("--env-path", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
@@ -190,7 +190,7 @@ def main():
            "status": result["status"], "unknown_reason": result["unknown_reason"],
            "native_scores": scores, "validation_method": "native_final_world_and_traces",
            "validation_result": validation,
-           "blocked": result.get("blocked", []),
+           "blocked": result.get("blocked", []), "paused": result.get("paused", []),
            "evidence_refs": [evidence], "incident_id": run.get("incident_id"), "restart_id": None,
            "run_id": run.get("id"), "runtime": gate.runtime if gate else None,
            "gate_unavailable": any("unavailable" in d.get("explanation", "").lower()
