@@ -436,5 +436,120 @@ class VictimChecks(unittest.TestCase):
             self.assertIsNone(row["validation_result"]["task_completed"])
 
 
+class RecoveryLoopChecks(unittest.TestCase):
+    def setUp(self):
+        from benchmarks.native_recovery import GENERIC_CORRECTION
+        self.payload = {"owner_messages": ["first", "second"], "system": "system",
+                        "initial_files": {"workspace/input": "untrusted"}}
+        data = {**self.payload, "initial_world": {"files": self.payload["initial_files"], "directories": ["workspace"]},
+                "frozen_world": {"files": {"workspace/input": "untrusted", "workspace/output": "partial"},
+                                 "directories": ["workspace"]}, "callbacks": [], "model_id": "offline",
+                "initial_sha256": "initial-pin", "frozen_sha256": "frozen-pin"}
+        self.fixture = {"data": data}
+        self.snap = {"id": "snapshot", "incident_id": "incident", "run_id": "original-run",
+                     "agent": "native-agent", "task": "first\n\nsecond", "inputs": [], "tool_results": []}
+        for index in range(5):
+            record = {"call_id": str(index), "tool": "read_file", "args": {"path": f"workspace/input{index}"},
+                      "result": f"data{index}", "error": None}
+            self.snap["tool_results"].append(record)
+            self.snap["inputs"].append({"id": f"in_scalar_{index}", "source_tool": "read_file",
+                "item": {"_read_locator": {"index": index, "call_id": str(index), "tool": "read_file", "args": record["args"]}}})
+        self.manifest = {"generic_correction": GENERIC_CORRECTION}
+        self.order = []
+        self.executions = []
+
+    def state(self, mode="replay", completed=True):
+        return {"files": {}, "directories": [], "completed": completed,
+                "native_trace": {"calls": 2, "tool_attempts": 1}, "start_mode": mode}
+
+    def baseline(self, index):
+        self.order.append("baseline")
+        return self.state(), None, []
+
+    def execute(self, snap, mode):
+        self.order.append(mode)
+        self.executions.append((deepcopy(snap), mode))
+        snap["task"] = "must not mutate shared snapshot"
+        return self.state(mode), None, []
+
+    def score(self, role, index, state, error):
+        self.order.append("score")
+        return {"utility_success": 1}, {"harm": role == "baseline", "task_completed": True,
+                                         "joint_safe_completion": role != "baseline"}
+
+    def reason(self, role, evidence, correction):
+        self.order.append(role)
+        self.assertEqual(set(evidence), {"owner_messages", "tool_trace", "initial_files", "final_files"})
+        self.assertNotIn("harm", json.dumps(evidence))
+        return {"calls": 1, "text": "General instruction trust rationale", "tokens": None}
+
+    def restart(self, snap, world, correction):
+        self.order.append("restart")
+        self.assertEqual(world, self.fixture["data"]["frozen_world"])
+        receipt = {"id": "restart", "restarted_from": "original-run", "task": snap["task"], "agent": snap["agent"]}
+        return {"queued": receipt, "claimed": dict(receipt), "operator_event": {"actual": "offline-test-only"},
+                "actor": "benchmark-automated-operator", "status": "completed",
+                "validation_result": {"joint_safe_completion": True}}
+
+    def run_loop(self, **overrides):
+        from benchmarks.native_recovery import recovery_loop
+        import time
+        ports = {"baseline": self.baseline, "execute": self.execute,
+                 "without": lambda snap, key: {**snap, "removed": key}, "score": self.score,
+                 "reason": self.reason, "restart": self.restart, "stop_epoch": time.time() + 10}
+        return recovery_loop(self.snap, self.fixture, self.payload, self.manifest, **{**ports, **overrides})
+
+    def test_fixed_attempts_clone_snapshot_and_bound_before_scoring(self):
+        report = self.run_loop()
+        self.assertEqual(report["status"], "completed")
+        self.assertEqual(len(report["baseline"]), 3)
+        self.assertEqual(len(report["ablations"]), 4)
+        self.assertEqual(len(report["verification"]), 3)
+        self.assertTrue(report["ablation_coverage"]["truncated"])
+        self.assertIsNone(report["cause_input_id"])
+        self.assertEqual([mode for _, mode in self.executions], ["initial"] * 4 + ["frozen"] * 3)
+        self.assertTrue(all(snap["task"] == "first\n\nsecond" for snap, _ in self.executions))
+        self.assertEqual(self.snap["task"], "first\n\nsecond")
+        self.assertEqual(self.order.count("baseline"), 3)
+        self.assertEqual(self.order.count("diagnosis"), 1)
+        self.assertEqual(self.order.count("fix"), 1)
+        self.assertIsNone(report["human_approval"])
+
+    def test_failed_verification_keeps_world_and_harm_and_never_restarts(self):
+        def incomplete(snap, mode):
+            return self.state(mode, completed=mode != "frozen"), "crash" if mode == "frozen" else None, []
+        def score(role, index, state, error):
+            return {"utility_success": 1}, {"harm": True, "task_completed": None, "joint_safe_completion": False}
+        report = self.run_loop(execute=incomplete, score=score)
+        self.assertEqual(report["status"], "unknown")
+        self.assertEqual(len(report["verification"]), 3)
+        self.assertTrue(all(row["validation_result"]["harm"] for row in report["verification"]))
+        self.assertTrue(all(row["state"] is not None for row in report["verification"]))
+        self.assertIsNone(report["restart"])
+        self.assertNotIn("restart", self.order)
+
+    def test_mismatched_restart_and_missing_baseline_stay_unknown_without_retry(self):
+        def wrong_restart(*args):
+            row = self.restart(*args)
+            row["claimed"] = {**row["claimed"], "task": "different task"}
+            return row
+        report = self.run_loop(restart=wrong_restart)
+        self.assertEqual(report["status"], "unknown")
+        self.assertIn("Restart:ValueError", report["unknown_reason"])
+        report = self.run_loop(baseline=lambda index: ({}, "missing original automatic proof", []))
+        self.assertEqual(report["status"], "unknown")
+        self.assertEqual(len(report["baseline"]), 3)
+        self.assertTrue(all(row["status"] == "unknown" for row in report["baseline"]))
+
+    def test_exact_scalar_selection_excludes_failed_and_stale_bindings(self):
+        from benchmarks.native_recovery import scalar_candidates
+        self.snap["tool_results"][0]["error"] = "FileNotFoundError"
+        self.snap["inputs"][1]["item"]["_read_locator"]["call_id"] = "stale"
+        self.snap["tool_results"][2]["result"] = {"not": "scalar text"}
+        candidates = scalar_candidates(self.snap)
+        self.assertEqual([r["input_id"] for r in candidates["selected"]], ["in_scalar_3", "in_scalar_4"])
+        self.assertFalse(candidates["truncated"])
+
+
 if __name__ == "__main__":
     unittest.main()

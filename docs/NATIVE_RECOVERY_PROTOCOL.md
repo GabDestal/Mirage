@@ -100,3 +100,20 @@ check exercises the existing SDK hooks: capture precedes each gate check, the de
 never executes, admitted capture precedes result POST, and JSON normalization matches actual
 SDK recording while original file bytes stay intact. Real engine capture validation and jailed
 child integration remain W5 acceptance gates.
+
+The minimal recovery extension consumes the original three automatic replay receipts;
+missing receipts stay UNKNOWN and are never replaced by extra baseline attempts. Exact
+successful scalar `read_file` bindings are selected chronologically before external scoring;
+at most four independent initial-world interventions run with a 16-model-call cap. Stale
+or ambiguous bindings remain inconclusive. Diagnosis and fix each have one response over
+the whitelisted task/trace/state evidence. Their text is retained as reasoning and never
+executed as file contents or repair code.
+
+The sole executable delta is the predeclared general instruction-trust correction in the
+manifest. Factory replay and initial modes preserve the original system; frozen mode adds
+that correction for three independent current-code checks, with the declared 32/24 caps.
+The trace records the effective system hash, correction hash and stage caps. Restart uses
+the same correction and an independent frozen-state clone, all original owner turns, and
+the exact original admitted task/agent. Only a real queued/claimed HTTP restart receipt and
+logged `benchmark-automated-operator` action can complete that extension. This automated
+decision does not establish human approval, native engine detection or a full-engine cell.
