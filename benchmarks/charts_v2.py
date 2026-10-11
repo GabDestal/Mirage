@@ -167,8 +167,8 @@ def from_agentrx(raw, path):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--agentdojo", type=Path, default=Path("benchmarks/artifacts/agentdojo_v2/summary.json"))
-    p.add_argument("--agentrx", type=Path, default=Path("benchmarks/artifacts/agentrx_v3/summary.json"))
+    p.add_argument("--agentdojo", type=Path, default=Path("docs/benchmarkmaxxing/v2-inputs/agentdojo_v2_summary.json"))
+    p.add_argument("--agentrx", type=Path, default=Path("docs/benchmarkmaxxing/v2-inputs/agentrx_v3_summary.json"))
     p.add_argument("--output", type=Path, default=Path("docs/benchmarkmaxxing"))
     a = p.parse_args()
     lo, hi = wilson(0, 10)

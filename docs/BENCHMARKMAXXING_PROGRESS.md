@@ -1,4 +1,34 @@
-# Mirage benchmark release charts and phase closeout
+# Mirage benchmarks
+
+**Status 10:20 CEST, Oct 11 — partial data; held-out AgentDojo is not in yet.**
+On AgentDojo prompt-injection tasks (tuning split, 20 attacked tasks per arm), the Mirage gate cut successful attacks from 11/20 to 3/20, but it also cut the user's task completed under attack from 8/20 to 4/20 and clean-task completion from 9/10 to 6/10 (3 false blocks).
+So on the tuning split Mirage clearly reduces attacks but currently costs utility; the held-out split, run once with the frozen config, is the number to quote and is still missing.
+On AgentRx held-out task families (6 failed runs per bar), Mirage's evidence helped GPT-OSS-20B find the broken step more often (2/6 → 3/6) but hurt Haiku 4.5 (3/6 → 0/6, with only 3/6 Haiku runs giving a usable answer).
+Samples are small: every interval below overlaps, so treat these as direction, not proof.
+
+![AgentDojo prompt-injection attacks, with and without Mirage](benchmarkmaxxing/agentdojo-v2-headline.png)
+
+![AgentRx: finding the step where a failed agent run broke, with and without Mirage evidence](benchmarkmaxxing/agentrx-v3-critical-step.png)
+
+### Numbers behind the charts
+
+Fixed denominators: every error, crash or unanswered case stays in n and counts as a failure. Ranges are Wilson 95% intervals (also the light whiskers on the charts).
+
+| AgentDojo split | Arm | Attack success ↓ | Task done under attack ↑ | Task done, no attack ↑ | Errors/UNKNOWN, all tasks (counted as fail) | Gate blocks |
+|---|---|---|---|---|---:|---:|
+| dev | unprotected | 11/20 (55%, 34%–74%) | 8/20 (40%, 22%–61%) | 9/10 (90%, 60%–98%) | 5 | 0 |
+| dev | Mirage gate | 3/20 (15%, 5%–36%) | 4/20 (20%, 8%–42%) | 6/10 (60%, 31%–83%) | 2 | 13 |
+
+| AgentRx (heldout_families) | Simple | + Mirage evidence |
+|---|---|---|
+| GPT-OSS-20B | 2/6 (33%, 10%–70%); scored 5/6 | 3/6 (50%, 19%–81%); scored 6/6 |
+| Haiku 4.5 | 3/6 (50%, 19%–81%); scored 6/6 | 0/6 (0%, 0%–39%); scored 3/6 |
+
+Inputs (copied verbatim from the W1/W3 worker branches): [AgentDojo summary](benchmarkmaxxing/v2-inputs/agentdojo_v2_summary.json), [AgentRx summary](benchmarkmaxxing/v2-inputs/agentrx_v3_summary.json); every drawn number: [v2-chart-source.json](benchmarkmaxxing/v2-chart-source.json). Rebuild with `sh docs/benchmarkmaxxing/render-v2-charts.sh` (stdlib SVG, macOS QuickLook to 1600×900 PNG). SVGs: [AgentDojo](benchmarkmaxxing/agentdojo-v2-headline.svg), [AgentRx](benchmarkmaxxing/agentrx-v3-critical-step.svg).
+AgentDojo: GPT-OSS-20B, temperature 0; "+ Mirage" = the Mirage gate blocking flagged tool calls. AgentRx: "+ Mirage" = evidence-assisted diagnosis (static → dynamic → checker stages before the diagnosis); compute is not matched between arms.
+
+
+## Previous phase: release charts and phase closeout
 
 **CLOSED AT USER REQUEST — 2026-10-11.** This phase closes with existing saved results; no active inference, benchmark/grader runs, services or new implementation. The user may assign Claude a later improvement phase using the [complete handoff](BENCHMARKMAXXING_CLAUDE_HANDOFF.md). **No positive AgentRx assisted gain or Mirage recovery advantage is demonstrated.** Source-only v2 preparation and offline recovery checks create no improved benchmark points.
 
