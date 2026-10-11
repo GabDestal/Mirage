@@ -11,7 +11,7 @@ export function EngineProof({ incident, events }: { incident: Incident; events: 
   const baseline = baselineEvidence(incident, evidence)
   const verification = verificationEvidence(evidence)
   const causeError = latestFailure(evidence, 'bisection')
-  const verdict = incident.verdict
+  const verdict = baseline.verdict
   return <details className="min-w-0 border-b border-line py-3 text-body [overflow-wrap:anywhere]">
     <summary className="cursor-pointer text-ink focus-visible:outline-offset-4">
       <strong className="font-medium">{incident.id}</strong> · {baseline.status ? states[baseline.status] : 'Awaiting sandbox proof'}

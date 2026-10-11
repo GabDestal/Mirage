@@ -40,6 +40,17 @@ export function requestFinished(events: MirageEvent[], kind: IncidentAction, aft
 type ProofKind = 'baseline' | 'removal' | 'verify'
 type ProofStatus = 'queued' | 'starting' | 'running' | 'completed' | 'failed'
 
+function eventVerdict(p: MirageEvent['payload']): NonNullable<Incident['verdict']> | undefined {
+  const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every((s) => typeof s === 'string')
+  const blast = p.blast_radius
+  if (typeof p.incident_id !== 'string' || typeof p.confirmed !== 'boolean' || typeof p.compromised_runs !== 'string'
+    || !strings(p.policies_violated) || !blast || typeof blast !== 'object' || Array.isArray(blast)) return
+  const b = blast as Record<string, unknown>
+  if (typeof b.records !== 'number' || typeof b.summary !== 'string' || !strings(b.recipients) || !strings(b.secrets)) return
+  return { incident_id: p.incident_id, confirmed: p.confirmed, compromised_runs: p.compromised_runs, policies_violated: p.policies_violated,
+    blast_radius: { records: b.records, summary: b.summary, recipients: b.recipients, secrets: b.secrets } }
+}
+
 // Completion/effect/failure payloads omit purpose; bind them to their started job ID.
 function detonationEvents(events: MirageEvent[], kind: ProofKind) {
   const kinds = new Map<unknown, ProofKind>()
@@ -68,6 +79,7 @@ export function baselineEvidence(incident: Incident, events: MirageEvent[]) {
   let jobId: string | undefined
   let error: string | undefined
   let ratio: string | undefined
+  let verdict: Incident['verdict']
   let resultIsPrevious = false
   let effects: MirageEvent['payload'][] = []
   for (const event of baseline) {
@@ -98,14 +110,16 @@ export function baselineEvidence(incident: Incident, events: MirageEvent[]) {
         status = 'completed'; error = undefined
         resultIsPrevious = false
         ratio = typeof p.compromised_runs === 'string' ? p.compromised_runs : undefined
+        verdict = eventVerdict(p)
         break
     }
   }
   status ??= incident.verdict ? 'completed' : incident.status === 'detonating'
     && !incidentEvents(events, incident.id).some((e) => e.type === 'detonation.started') ? 'starting' : undefined
   ratio ??= incident.verdict?.compromised_runs
+  verdict ??= incident.verdict ?? undefined
   // n_runs is requested work; only the engine verdict supplies the finished denominator.
-  return { status, jobId, requestedRuns, error, ratio, resultIsPrevious: !!ratio && resultIsPrevious, effects }
+  return { status, jobId, requestedRuns, error, ratio, verdict, resultIsPrevious: !!ratio && resultIsPrevious, effects }
 }
 
 export function verificationEvidence(events: MirageEvent[]) {
