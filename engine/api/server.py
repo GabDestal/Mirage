@@ -116,15 +116,27 @@ def _event_batch(after=0):
 def restore():
     """After an engine restart: agent registrations and a global STOP come back from the log.
     The latest of Stop all and its lift wins."""
-    for e in events.read():
-        if e.type == "agent.registered":
-            gate.agents[e.payload["name"]] = AgentSpec.model_validate(e.payload)
-        elif e.type == "global.stop":
-            gate.STOP.set()
-        elif e.type == "global.stop_lifted":
-            gate.STOP.clear()
-    jobs.restore()
-    repair.restore()
+    with jobs.lock:
+        log = events.read()
+        for e in log:
+            if e.type == "agent.registered":
+                gate.agents[e.payload["name"]] = AgentSpec.model_validate(e.payload)
+            elif e.type == "global.stop":
+                gate.STOP.set()
+            elif e.type == "global.stop_lifted":
+                gate.STOP.clear()
+        runs, incidents = fold(log)
+        for run in runs.values():
+            inc = incidents.get(run.incident_id)
+            if (run.env == "prod" and run.status == "frozen" and run.restarted_from is None
+                    and run.id not in gate.runs and inc and inc.run_id == run.id
+                    and inc.verdict and inc.verdict.confirmed):
+                events.emit("run.status", {"from": "frozen", "to": "failed", "actor": "system",
+                            "reason": "Original execution owner was not restored; this instance "
+                                      "cannot resume its tokens or held calls."},
+                            run_id=run.id, incident_id=inc.id)
+        jobs.restore()
+        repair.restore()
 
 
 @asynccontextmanager

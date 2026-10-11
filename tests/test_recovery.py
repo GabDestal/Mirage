@@ -332,6 +332,95 @@ def test_confirmed_resume_is_never_the_recovery_route(http_recovery):
     assert not any(run.restarted_from == data["old"]["id"] for run in gate.runs.values())
 
 
+def test_restore_contains_confirmed_original_without_restoring_authority(
+        http_recovery, monkeypatch, tmp_path):
+    data, api = http_recovery, http_recovery["api"]
+    old_id, inc_id = data["old"]["id"], data["incident_id"]
+    path = snapshot.SNAP_DIR / f"{inc_id}.json"
+    original_snapshot = path.read_bytes()
+    original_incident = api.get(f"/incidents/{inc_id}").json()
+    before = events.read()
+    gate.reset()  # the recorder exits; only its SQLite history and snapshot survive
+
+    server.restore()
+    failed = api.get(f"/runs/{old_id}").json()
+    assert failed["status"] == "failed" and failed["ended_at"]
+    assert not gate.runs and api.get("/runtime").json()["owned_run_ids"] == []
+    assert path.read_bytes() == original_snapshot
+    assert api.get(f"/incidents/{inc_id}").json() == original_incident
+    terminal = events.read()[len(before):]
+    assert len(terminal) == 1 and terminal[0].type == "run.status"
+    assert terminal[0].run_id == old_id and terminal[0].incident_id == inc_id
+    assert terminal[0].payload == {
+        "from": "frozen", "to": "failed", "actor": "system",
+        "reason": "Original execution owner was not restored; this instance "
+                  "cannot resume its tokens or held calls."}
+    server.restore()
+    assert events.read() == [*before, *terminal]  # durable and idempotent
+
+    for action in ("freeze", "unfreeze", "kill", "resume"):
+        assert api.post(f"/runs/{old_id}/{action}", json=HUMAN).status_code == 409
+    assert api.post("/runs/missing/kill", json=HUMAN).status_code == 404
+    for action in ("approve", "reject"):
+        call_id = original_incident["trigger"]["call_id"]
+        assert api.post(f"/approvals/{call_id}/{action}", json=HUMAN).status_code == 404
+    old_auth = {"Authorization": f"Bearer {data['old']['token']}"}
+    assert api.get(f"/runs/{old_id}/wait", headers=old_auth,
+                   params={"timeout": 0, "call_id": call_id}).status_code == 404
+    assert api.post("/gateway/check", headers=old_auth, json={
+        "run_id": old_id, "tool": "send_email", "args": brief()}).status_code == 404
+
+    monkeypatch.setenv("MIRAGE_REPAIR_REPOSITORY", data["job"].repository)
+    monkeypatch.setenv("MIRAGE_REPAIR_BASE_SHA", data["job"].base_sha)
+    clean_path = tmp_path / "clean.json"
+    clean_path.write_text(json.dumps(data["clean"]))
+    monkeypatch.setenv("MIRAGE_REPAIR_CLEAN_SNAPSHOT", str(clean_path))
+    created = api.post(f"/incidents/{inc_id}/repair-jobs", json=HUMAN)
+    assert created.status_code == 201, created.text
+    context = api.get(f"/repair-jobs/{created.json()['id']}/context", headers={
+        "Authorization": "Bearer synthetic-supervisor"})
+    assert context.status_code == 200, context.text
+    assert context.json()["snapshot"]["run_id"] == old_id
+    assert context.json()["incident"]["verdict"] == original_incident["verdict"]
+
+    assert api.post(f"/runs/{old_id}/restart", json=HUMAN).status_code == 409
+    assert prepare(data).status_code == 200
+    assert not gate.runs and status(data)["approval"] is None
+    queued = api.post(f"/runs/{old_id}/restart", json=HUMAN)
+    assert queued.status_code == 200, queued.text
+    assert queued.json()["status"] == "queued" and queued.json()["restarted_from"] == old_id
+    assert status(data)["approval"] == HUMAN and old_id not in gate.runs
+    assert api.get(f"/runs/{old_id}").json() == failed
+
+
+@pytest.mark.parametrize("excluded", ["owned", "running", "queued", "clean", "no_verdict",
+                                     "mirage", "restarted", "wrong_incident"])
+def test_restore_leaves_other_runs_unchanged(http_recovery, excluded):
+    data, old_id = http_recovery, http_recovery["old"]["id"]
+    inc_id = data["incident_id"]
+    if excluded in ("running", "queued"):
+        events.emit("run.status", {"from": "frozen", "to": excluded}, run_id=old_id)
+    elif excluded in ("mirage", "restarted"):
+        events.emit("run.started", {"task": data["report"]["task"], "agent": AGENT["name"],
+                    "restarted_from": "prior" if excluded == "restarted" else None},
+                    run_id=old_id, env="mirage" if excluded == "mirage" else "prod")
+        events.emit("run.status", {"from": "running", "to": "frozen"},
+                    run_id=old_id, incident_id=inc_id)
+    elif excluded == "clean":
+        events.emit("verdict.ready", _verdict(inc_id, False), incident_id=inc_id, env="mirage")
+    elif excluded in ("no_verdict", "wrong_incident"):
+        trigger = data["api"].get(f"/incidents/{inc_id}").json()["trigger"]["call_id"]
+        events.emit("incident.opened", {"incident_id": inc_id, "trigger_call_id": trigger},
+                    run_id=old_id if excluded == "no_verdict" else "another", incident_id=inc_id)
+        if excluded == "wrong_incident":
+            events.emit("verdict.ready", _verdict(inc_id, True), incident_id=inc_id, env="mirage")
+    if excluded != "owned":
+        gate.reset()
+    before = events.read()
+    server.restore()
+    assert events.read() == before
+
+
 def final_evidence(data):
     def effects(count):
         return [{"detonation_id": "final", "run_index": index, "step": 1,
