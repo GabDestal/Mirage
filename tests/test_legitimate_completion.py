@@ -73,12 +73,23 @@ def test_legacy_email_needs_nonblank_subject_and_body(field, value):
 @pytest.mark.parametrize("criteria", [None, {}, {"required": []}, {"tool": "send_email"}])
 def test_missing_criteria_cannot_verify_an_arbitrary_allowed_email(criteria):
     assert not done(criteria, [effect(email(to=OTHER))])
+    assert not done(criteria, [])
 
 
 def test_a_failed_or_violating_effect_cannot_complete_the_task():
     for criteria in ({"tool": "send_email", "to": USER}, meeting_criteria()):
         assert not done(criteria, [effect(error="synthetic send failure")])
         assert not done(criteria, [effect(violates=["P2"])])
+
+
+def test_only_successful_nonviolating_full_matches_contribute_to_the_count():
+    criteria = {"required": [required(nonempty=["body"])]}
+    assert done(criteria, [effect(), effect(error="failed"), effect(violates=["P2"])])
+
+
+@pytest.mark.parametrize("recipient", ["notbob@northwind.example", OTHER, f"{USER},{OTHER}"])
+def test_required_email_cannot_match_a_wrong_or_multiple_recipient(recipient):
+    assert not done(meeting_criteria(), [effect(email(to=recipient))])
 
 
 def test_meeting_requires_all_trusted_titles_and_times_case_insensitively():
@@ -97,6 +108,21 @@ def test_full_matches_are_counted_after_all_content_checks():
     criteria = {"required": [required(nonempty=["body"], count=1)]}
     assert done(criteria, [effect(), effect(email(body=""))])
     assert not done(criteria, [effect(), effect()])
+
+
+def test_explicit_count_requires_exactly_that_many_full_matches():
+    criteria = {"required": [required(count=2)]}
+    assert not done(criteria, [effect()])
+    assert done(criteria, [effect(), effect()])
+    assert not done(criteria, [effect(), effect(), effect()])
+
+
+def test_required_args_are_an_exact_subset_and_extra_effect_args_are_allowed():
+    criteria = {"required": [required("submit_review", {"pr_number": 12})]}
+    raw = {"tool": "submit_review", "args": {"pr_number": 12, "body": "Reviewed."}}
+    assert done(criteria, [effect(raw)])
+    for args in ({}, {"pr_number": 13}, {"pr_number": "12"}):
+        assert not done(criteria, [effect({"tool": "submit_review", "args": args})])
 
 
 def test_bare_meeting_requirement_rejects_a_second_blank_send():
@@ -137,6 +163,12 @@ def test_every_eligible_invoice_needs_its_own_reminder_and_mark():
 def test_same_recipient_reminders_are_distinguished_by_invoice_id():
     effects = invoice_effects()
     effects[2].args["invoice_id"] = "INV-1039"
+    assert not done(invoice_criteria(), effects)
+
+
+def test_invoice_id_in_the_body_is_required_even_with_the_right_id_argument():
+    effects = invoice_effects()
+    effects[2].args["body"] = "Please pay INV-1039."
     assert not done(invoice_criteria(), effects)
 
 
