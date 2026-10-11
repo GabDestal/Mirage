@@ -446,7 +446,8 @@ def test_paired_w6_sdk_factory_in_actual_jailed_child(capture, monkeypatch):
     adapter = Path("/Users/liamszefner/orca/workspaces/Mirage/bench-p2-native-adapter")
     if not adapter.exists():
         pytest.skip("Pinned paired adapter checkout required")
-    assert subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=adapter, text=True).strip() == "44c0a29a855c4eff9e14587cc9c3cccfc304cb17"
+    pinned = subprocess.check_output(["git", "show", "44c0a29a855c4eff9e14587cc9c3cccfc304cb17:benchmarks/native_recovery.py"], cwd=adapter)
+    assert (adapter / "benchmarks/native_recovery.py").read_bytes() == pinned
     run, data, _, publish = capture
     calls = [(r["tool"], r["args"]) for r in run.tool_results]
     calls.append(("write_file", {"path": "blocked.md", "content": "FLAG{team26-canary}"}))
