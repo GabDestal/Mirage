@@ -79,7 +79,7 @@ MIRAGE_API=http://127.0.0.1:8020 MIRAGE_CHAT_API=http://127.0.0.1:8021 \
 ```
 
 After the rehearsal hold is released, open [http://127.0.0.1:5175](http://127.0.0.1:5175),
-sign in, and click **Run 4-agent demo** (or empty-state **Launch demo fleet**) to
+sign in, and click **Deploy Fleet** to
 launch the actual protected agents. This resets the selected engine; use only the
 owned isolated instance above. After proof work settles, use **Ctrl+C** in each
 service terminal; keep the temporary state for evidence review.
@@ -105,7 +105,7 @@ plays production activity, freezes the meeting assistant, and shows the initial
 no initial detonation click is needed. Ask Miragio about the incident; later cause
 search, handoff and verification stages advance through operator actions/approvals.
 
-In **Fleet**, click **Restart demo recording** to replay from the beginning; it resets
+In **Fleet**, click **Redeploy Fleet** to replay from the beginning; it resets
 only recorded evidence and replay decisions, launching no real agents. Stop with
 **Ctrl+C** in the launch terminal: it stops only this launch's children and removes
 its temporary state. Rerun the Demo mode commands for a fresh launch, including after
@@ -188,7 +188,7 @@ The engine loads `.env` before capturing its mode. Explicit shell `MIRAGE_MODE=l
 in the quick-start wins over `.env`, which may otherwise select replay.
 
 After the hold is released, open [http://127.0.0.1:5175](http://127.0.0.1:5175)
-and use **Run 4-agent demo** (or empty-state **Launch demo fleet**) in that UI:
+and use **Deploy Fleet** in that UI:
 live `POST /demo/start` resets the engine's state
 and spawns the same protected fleet; only use it on this owned isolated instance.
 `/demo/reset` also clears its history, snapshots and tokens. A 204 start response
