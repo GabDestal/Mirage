@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from contracts.models import AgentSpec, GateDecision, HumanAction, Run
+from engine.config import MODE
 from engine.detection import decision_model
 from engine.detection.rules import POLICY, hard_rule
 from engine.detonation import jobs, snapshot
@@ -277,7 +278,7 @@ def _check(run, tool, args) -> GateDecision:
             emit("incident.opened", {"incident_id": run.incident_id, "trigger_call_id": call_id,
                                      "inputs": [i.model_dump() for i in snapshot.inputs(snap)]},
                  run_id=run.id, incident_id=run.incident_id)
-            if os.getenv("MIRAGE_MODE", "live") != "replay":
+            if MODE == "live":
                 jobs.automatic(run.incident_id, run)
         return gate
 
