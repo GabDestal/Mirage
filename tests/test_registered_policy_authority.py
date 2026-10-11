@@ -220,7 +220,14 @@ def test_approved_restart_pins_policy_before_queued_sdk_takeover(api):
     assert queued.status_code == 200
     original = copy.deepcopy(gate.policy_for(AGENT["name"]))
     assert api.post("/agents", json=wider_registration()).status_code == 200
-    run_id, auth = start(api)
+    body = {"agent": AGENT["name"], "task": "Prepare a brief", "restarted_from": old_id}
+    assert api.post("/runs", json=body).status_code == 409
+    assert api.get(f"/runs/{queued.json()['id']}").json()["status"] == "queued"
+    assert api.post("/agents", json=AGENT).status_code == 200
+    accepted = api.post("/runs", json=body)
+    assert accepted.status_code == 200
+    run_id = accepted.json()["run_id"]
+    auth = {"Authorization": f"Bearer {accepted.json()['run_token']}"}
     assert run_id == queued.json()["id"]
     assert check(api, run_id, auth, "send_email", {"to": ATTACKER})["decision"] == "freeze"
     assert snapshot.load(gate.runs[run_id].incident_id)["policy"] == original
