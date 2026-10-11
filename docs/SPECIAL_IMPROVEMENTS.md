@@ -99,18 +99,18 @@ Root alone holds the provider slot and ordinary operator-shell startup for the c
 
 The immutable recording's `model_id` is `ScriptedModel`; recovery must use the explicit trusted configuration source in `m2_nonsecret_config.json`, bound to the original raw snapshot SHA, for the actual effective `openai.gpt-oss-20b-1:0` model. Preserve that full provenance manifest separately from the minimal selected nonsecret configuration map. Never edit/resnapshot the original recording to hide this distinction. Root starts the installed supervisor from the ordinary operator shell using `/tmp/mirage-m1-operator-runtime.mjs`; a dispatched coding worker cannot launch a nested worker as a substitute.
 
-## What changed on main, and what we can now reuse
+## Historical main foundations reused by the extension
 
 This is a historical source comparison from the original proposal's base, `6cfea0e`, to reviewed main `1e6052e073886abf36f54af10c48e8c521f4b86e`. No services, tests or providers were run for that review. These findings describe source behavior at that revision; the delivery index above records the current `special-improvements` implementation evidence. The approved feature/milestone definitions below specify the intended behavior, not additional completion claims.
 
-| Change | How it works now | Consequence for special improvements |
+| Change | Behavior at reviewed pre-extension main | Consequence for special improvements |
 |---|---|---|
 | Run and tool failures remain failures: #141, #143 | SDK completion forwards invocation errors; LangGraph records handled tool errors instead of treating their messages as successful results. See [SDK core](../sdk/mirage/core.py) and [adapter](../sdk/mirage/adapters/langchain.py). | Reuse existing error/status reporting for repair progress. Do not build another success detector from agent prose. |
 | Full task requirements reach the snapshot: #143, #147 | `mirage.protect(..., legit=...)` carries trusted requirements; the fleet freezes requirements derived from clean inventories before execution. Checks cover the complete meeting brief and the required entities for other stories. See [fleet](../agents/run_demo_fleet.py) and [completion declarations](../agents/common/completion.py). | The repair must complete the actual meeting task. Reuse these criteria rather than inventing a second evaluator. |
 | Replay returns exact recorded reads: #150 | The child consumes results for identical tool names and arguments, once per recording, in order. A missing read is a typed unavailable result, rather than another contact's answer or a fake success. See [child](../engine/detonation/child.py). | Fleet evaluation requires compatible recordings. Changed queries can legitimately make a candidate unevaluable; plan for that small demo constraint. |
 | Human release belongs to one checked call: #154 | Held calls carry their identity, generation and admission state. A human release admits only the original call once. Results require that admission; identical result retries do not duplicate the ledger. See [gateway](../engine/gateway/gate.py) and [API](../engine/api/server.py). | Preserve the gateway and use its controls. Repair/recovery should not release the old compromised callback. |
 | Harm survives replay collection failures: #152 | Parent failures, malformed later ledger lines and failed sibling futures retain earlier effects. Errors do not earn a clean verification count. See [sandbox](../engine/detonation/sandbox.py). | Reuse `DetonateResult`, its exit code and its effects. Keep failed attempts visible without adding an extensive verification service. |
-| Policy and factory metadata are pinned: #155 | `LiveRun` deep-copies its admitted `AgentSpec`, allowlist and legitimate-task declaration. Freeze uses those copies. Fix verification also obtains the rebuilt factory's current spec and checks effects under freeze-time and current restrictions. | Much of the policy-authority prerequisite is already present. Add only explicit rule revisions/activation and visibility. There is still no versioned Rules product or remote operator authentication. |
+| Policy and factory metadata are pinned: #155 | `LiveRun` deep-copies its admitted `AgentSpec`, allowlist and legitimate-task declaration. Freeze uses those copies. Fix verification also obtains the rebuilt factory's current spec and checks effects under freeze-time and current restrictions. | Reuse that authority for rule revisions/activation and visibility. The reviewed main lacked the versioned Rules product; the extension delivers it. Remote operator authentication remains outside this local increment. |
 | Restart claims identify the approved work: #157 | Approval creates one queued restart for a killed, halted or failed run. Claiming it requires the same agent/task and unchanged full registration; duplicate approvals and ambiguous claims are refused. | Reuse restart approval. Add the missing launch of the merged code and task outcome; the existing `/restart` route still only queues work. |
 | Useful fallback and quieter UI: #151, #153 | [Scripted acceptance probes](../demo/acceptance_fleet.py) exercise SDK/HTTP/jailed replay without a model provider; Fleet no longer includes the service-evidence and engine-approval panels. | Use the probes for wiring if necessary, labelled scripted. Put repair progress on the incident/chat surface and keep Fleet quiet. |
 
@@ -132,15 +132,15 @@ Reuse the existing incident handoff, incident-scoped verification access and a l
 
 Launch from a trusted local supervisor with an allowlisted repository and base revision. Supply the authorized repair scope, sanitized incident facts, marked untrusted evidence and an incident-limited verification capability. Keep GitHub credentials in the supervisor/runtime, outside model continuation and detonation. Use the installed coding runtime and GitHub tooling before introducing a new coding framework.
 
-The worker makes a small repair, adds the regression case, verifies the same frozen incident with current code from scratch, commits, pushes and opens a draft PR. Verification must show both attack prevention and useful task completion. A repair that refuses everything, relaxes policy or depends on the injected text fails acceptance.
+The coding worker makes a small repair, adds the regression case, runs focused offline checks and commits the candidate. The delivered trusted supervisor independently verifies that committed checkout from scratch, pushes it and opens the draft PR. Verification must show both attack prevention and useful task completion. A repair that refuses everything, relaxes policy or depends on the injected text fails acceptance.
 
 The controlled repair loop may retry a bounded number of times using development evidence. Each candidate is verified against the same incident and clean control; a failed attempt remains visible. If repair fails or expires, the run stays contained and Miragio explains the blocker. Do not present a best-of-many lucky replay as a reliable repair.
 
-### Existing seams and proposed changes
+### Original seams and delivered extension
 
-Reuse `engine/handoff.py`, `engine/cli.py`, `POST /incidents/{id}/verify`, `POST /incidents/{id}/pr` and the Miragio/MCP experience. The existing engine constructs a handoff prompt and records a reported PR; it does not create that PR or supervise a coding process.
+Reuse `engine/handoff.py`, `engine/cli.py`, `POST /incidents/{id}/verify`, `POST /incidents/{id}/pr` and the Miragio/MCP experience. At reviewed pre-extension main, the engine constructed a handoff prompt and recorded a reported PR without creating it or supervising a coding process. The delivered local supervisor now owns those operations over the HTTP boundary.
 
-Proposed contract addition: a repair-job ID with queued/running/verifying/pr_open/failed states, exact repository/base/head revisions, verification evidence and a PR URL. Name endpoints and events only during contract alignment. Event progress must describe real work, not scripted success.
+The approved contract addition is delivered: a repair-job ID with queued/running/verifying/pr_open/failed states, exact repository/base/head revisions, verification evidence and a PR URL. The acceptance journey above names the engine and chat routes. Event progress must describe real work, not scripted success; the receipt index identifies which actual gates have passed.
 
 Person B owns operator UX, coding-runtime/GitHub integration and the repair prompt. Person A owns authoritative incident/job linkage and verification APIs. Contract models, fixtures and CONTRACTS.md change together.
 
@@ -166,11 +166,13 @@ Add a small Rules tab with Create rule, a readable form/preview, scope, status, 
 
 ### How rules reach the local harness
 
-Original baseline: `GET /policies` is read-only, agent allowlists are supplied at registration, and the default policy is defined in `engine/detection/policies.yaml`. Versioned storage and human-approved activation are the approved addition; the delivery index records the implemented Rules slices and their actual receipts.
+At reviewed pre-extension main, `GET /policies` was read-only, agent allowlists were supplied at registration, and the default policy was defined in `engine/detection/policies.yaml`. The delivered addition provides durable versioned Rules create/preview/explicit activation through `/rules`; the delivery index records its actual receipts.
 
 Use one authoritative engine policy store and the existing HTTP boundary. Company policy, agent role permissions and trusted task scope intersect. A model proposes actions; deterministic checks enforce permissions. External content cannot expand them.
 
-For the proposed single-laptop prototype, the local engine serves the validated active policy version and the SDK sends tool checks to that engine. The harness does not need another policy language or direct imports from `engine/`. If local execution needs a copy, it pulls an authenticated, versioned policy bundle at run start and pins its digest; it never polls untrusted instructions into live authority.
+In the delivered single-laptop prototype, the engine stores the active Rules revision, pins it at run admission and enforces the SDK's HTTP tool checks. The harness uses no second policy language, local evaluator or direct imports from `engine/`.
+
+A separate authenticated, versioned HTTP policy-bundle pull/cache remains proposed for a later standalone harness. If local execution needs a copy, that future harness pulls it at run start and pins its digest; it never polls untrusted instructions into live authority. This future design is not an acceptance claim for the current SDK.
 
 Pin the policy version to each run, snapshot and repair verification. Activating a new version affects new runs; older runs either finish under their pinned version or are explicitly paused and restarted under the new one. Do not silently change authorization beneath a paused call. Gate and verifier use the same effect restrictions and must reject policy-widening fixes.
 
@@ -178,7 +180,7 @@ Policy registration/activation must be bound to a trusted operator/owner. Audit 
 
 ### Feasibility and acceptance
 
-The incident regression artifact is a near-term extension of existing verification. The rule UI and policy activation are a second scoped increment once authority/versioning exist. Automatic discovery of company permissions is deferred.
+The approved scope combines the incident regression artifact with the Rules UI and explicit policy activation. The delivered Rules routes and UI reuse engine authority/versioning; the candidate's durable regression remains an actual repair acceptance gate in the index. Automatic discovery of company permissions is deferred.
 
 Accept when an incident reproduces before the fix and passes after it, a clean control still succeeds, the operator sees the policy diff, unauthorized policy updates fail, and the local harness/gate/verifier identify the same pinned version. All new contracts require models, fixtures and CONTRACTS.md together.
 
@@ -196,7 +198,7 @@ For a small compatible set, fork each agent's own context and state, insert the 
 
 Use the same effect checks and legitimate-task criteria as the original incident. Report the exact agent/code/policy revision tested, reproduction counts, task completion and coverage limits. "Shared exposure" from capability matching and "confirmed vulnerable" from replay are different findings.
 
-Reuse registration metadata, snapshots, detonation and the effects ledger. The likely engine addition is a bounded multi-agent exposure job with per-agent results, cancellation and artifact references. Do not overload the original incident verdict or count an evaluation error as prevention.
+Reuse registration metadata, snapshots, detonation and the effects ledger. The approved addition is a bounded multi-agent exposure job with per-agent results, cancellation and artifact references. Delivered exposure routes and their actual coverage are recorded above. Do not overload the original incident verdict or count an evaluation error as prevention.
 
 Person A owns compatible-context reconstruction, isolated execution and per-agent evidence. Person B owns fleet selection, exposure results and Miragio summaries. Align the result schema before UI work. Start with two or three compatible demo agents; defer an arbitrary enterprise-wide vulnerability scanner.
 
