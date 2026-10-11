@@ -1,10 +1,10 @@
 # Mirage benchmarks
 
-**Status 10:20 CEST, Oct 11 — partial data; held-out AgentDojo is not in yet.**
-On AgentDojo prompt-injection tasks (tuning split, 20 attacked tasks per arm), the Mirage gate cut successful attacks from 11/20 to 3/20, but it also cut the user's task completed under attack from 8/20 to 4/20 and clean-task completion from 9/10 to 6/10 (3 false blocks).
-So on the tuning split Mirage clearly reduces attacks but currently costs utility; the held-out split, run once with the frozen config, is the number to quote and is still missing.
-On AgentRx held-out task families (6 failed runs per bar), Mirage's evidence helped GPT-OSS-20B find the broken step more often (2/6 → 3/6) but hurt Haiku 4.5 (3/6 → 0/6, with only 3/6 Haiku runs giving a usable answer).
-Samples are small: every interval below overlaps, so treat these as direction, not proof.
+**Status 10:30 CEST, Oct 11.** On held-out AgentDojo prompt-injection tasks (20 attacked tasks per model, run once with the frozen gate), Mirage cut successful attacks on the two models that fall for them: GPT-OSS-20B from 11/20 to 0/20 and GPT-OSS-120B from 19/20 to 2/20.
+Haiku 4.5 and Opus 4.8 resisted every attack on their own (0/20), so for them Mirage adds no safety on this set.
+The price is utility: with Mirage the user's task was completed less often under attack (36/80 vs 64/80 across all four models) and on clean tasks too (24/40 vs 37/40), because the gate also blocks legitimate calls.
+On AgentRx held-out task families (6 failed runs per bar), Mirage's evidence helped GPT-OSS-20B find the broken step slightly more often (2/6 → 3/6) but hurt Haiku 4.5 (3/6 → 0/6; only 3 of those 6 Haiku runs gave a usable answer).
+Honest headline: Mirage stops prompt-injection attacks on models that are vulnerable, but at today's settings it costs a lot of task completion; samples are small, so read the AgentRx result as direction, not proof.
 
 ![AgentDojo prompt-injection attacks, with and without Mirage](benchmarkmaxxing/agentdojo-v2-headline.png)
 
@@ -12,21 +12,28 @@ Samples are small: every interval below overlaps, so treat these as direction, n
 
 ### Numbers behind the charts
 
-Fixed denominators: every error, crash or unanswered case stays in n and counts as a failure. Ranges are Wilson 95% intervals (also the light whiskers on the charts).
+Fixed denominators: every error, crash or unanswered case stays in n and counts as a failure. Ranges are Wilson 95% intervals (also the light whiskers on the charts). The dev split was used to tune the gate; held-out was run once with the frozen config and is the one charted.
 
-| AgentDojo split | Arm | Attack success ↓ | Task done under attack ↑ | Task done, no attack ↑ | Errors/UNKNOWN, all tasks (counted as fail) | Gate blocks |
-|---|---|---|---|---|---:|---:|
-| dev | unprotected | 11/20 (55%, 34%–74%) | 8/20 (40%, 22%–61%) | 9/10 (90%, 60%–98%) | 5 | 0 |
-| dev | Mirage gate | 3/20 (15%, 5%–36%) | 4/20 (20%, 8%–42%) | 6/10 (60%, 31%–83%) | 2 | 13 |
+| AgentDojo split | Model | Arm | Attack success ↓ | Task done under attack ↑ | Task done, no attack ↑ | Errors/UNKNOWN, all tasks (counted as fail) | Gate blocks |
+|---|---|---|---|---|---|---:|---:|
+| dev | openai.gpt-oss-20b-1:0 | unprotected | 9/20 (45%, 26%–66%) | 9/20 (45%, 26%–66%) | 9/10 (90%, 60%–98%) | 4 | 0 |
+| dev | openai.gpt-oss-20b-1:0 | Mirage gate | 2/20 (10%, 3%–30%) | 7/20 (35%, 18%–57%) | 5/10 (50%, 24%–76%) | 3 | 23 |
+| held_out | openai.gpt-oss-120b-1:0 | unprotected | 19/20 (95%, 76%–99%) | 15/20 (75%, 53%–89%) | 10/10 (100%, 72%–100%) | 1 | 0 |
+| held_out | openai.gpt-oss-120b-1:0 | Mirage gate | 2/20 (10%, 3%–30%) | 6/20 (30%, 15%–52%) | 6/10 (60%, 31%–83%) | 1 | 30 |
+| held_out | openai.gpt-oss-20b-1:0 | unprotected | 11/20 (55%, 34%–74%) | 15/20 (75%, 53%–89%) | 7/10 (70%, 40%–89%) | 0 | 0 |
+| held_out | openai.gpt-oss-20b-1:0 | Mirage gate | 0/20 (0%, 0%–16%) | 11/20 (55%, 34%–74%) | 7/10 (70%, 40%–89%) | 0 | 19 |
+| held_out | us.anthropic.claude-haiku-4-5-20251001-v1:0 | unprotected | 0/20 (0%, 0%–16%) | 17/20 (85%, 64%–95%) | 10/10 (100%, 72%–100%) | 0 | 0 |
+| held_out | us.anthropic.claude-haiku-4-5-20251001-v1:0 | Mirage gate | 0/20 (0%, 0%–16%) | 10/20 (50%, 30%–70%) | 6/10 (60%, 31%–83%) | 0 | 14 |
+| held_out | us.anthropic.claude-opus-4-8 | unprotected | 0/20 (0%, 0%–16%) | 17/20 (85%, 64%–95%) | 10/10 (100%, 72%–100%) | 0 | 0 |
+| held_out | us.anthropic.claude-opus-4-8 | Mirage gate | 0/20 (0%, 0%–16%) | 9/20 (45%, 26%–66%) | 5/10 (50%, 24%–76%) | 0 | 19 |
 
 | AgentRx (heldout_families) | Simple | + Mirage evidence |
 |---|---|---|
 | GPT-OSS-20B | 2/6 (33%, 10%–70%); scored 5/6 | 3/6 (50%, 19%–81%); scored 6/6 |
 | Haiku 4.5 | 3/6 (50%, 19%–81%); scored 6/6 | 0/6 (0%, 0%–39%); scored 3/6 |
 
-Inputs (copied verbatim from the W1/W3 worker branches): [AgentDojo summary](benchmarkmaxxing/v2-inputs/agentdojo_v2_summary.json), [AgentRx summary](benchmarkmaxxing/v2-inputs/agentrx_v3_summary.json); every drawn number: [v2-chart-source.json](benchmarkmaxxing/v2-chart-source.json). Rebuild with `sh docs/benchmarkmaxxing/render-v2-charts.sh` (stdlib SVG, macOS QuickLook to 1600×900 PNG). SVGs: [AgentDojo](benchmarkmaxxing/agentdojo-v2-headline.svg), [AgentRx](benchmarkmaxxing/agentrx-v3-critical-step.svg).
-AgentDojo: GPT-OSS-20B, temperature 0; "+ Mirage" = the Mirage gate blocking flagged tool calls. AgentRx: "+ Mirage" = evidence-assisted diagnosis (static → dynamic → checker stages before the diagnosis); compute is not matched between arms.
-
+Inputs (copied verbatim from the W1 `bench-agentdojo-v2` and W3 `bench-agentrx-v3` worker branches at 10:30): [AgentDojo summary](benchmarkmaxxing/v2-inputs/agentdojo_v2_summary.json), [AgentRx summary](benchmarkmaxxing/v2-inputs/agentrx_v3_summary.json); every drawn number: [v2-chart-source.json](benchmarkmaxxing/v2-chart-source.json). Rebuild with `sh docs/benchmarkmaxxing/render-v2-charts.sh` (stdlib SVG, macOS QuickLook to 1600×900 PNG). SVGs: [AgentDojo](benchmarkmaxxing/agentdojo-v2-headline.svg), [AgentRx](benchmarkmaxxing/agentrx-v3-critical-step.svg).
+AgentDojo: temperature 0; "+ Mirage" = the Mirage gate blocking flagged tool calls; dev split ran GPT-OSS-20B only. AgentRx: "+ Mirage" = evidence-assisted diagnosis (static → dynamic → checker stages before the diagnosis); compute is not matched between arms; AgentRx dev cases (2 per model/arm) scored 0/2 in every arm.
 
 ## Previous phase: release charts and phase closeout
 

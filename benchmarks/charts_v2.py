@@ -16,7 +16,9 @@ W, H = 1600, 900
 INK, MUTED, FAINT, BASE = "#111111", "#6b6b6b", "#a3a3a3", "#d4d4d4"
 GREY, ACCENT, WHISKER = "#c8c8c8", "#0f7b6c", "#9a9a9a"
 FONT = "Helvetica Neue, Helvetica, Arial, sans-serif"
-LABELS = {"openai.gpt-oss-20b-1:0": "GPT-OSS-20B", "us.anthropic.claude-haiku-4-5-20251001-v1:0": "Haiku 4.5"}
+LABELS = {"openai.gpt-oss-20b-1:0": "GPT-OSS-20B", "openai.gpt-oss-120b-1:0": "GPT-OSS-120B",
+          "us.anthropic.claude-haiku-4-5-20251001-v1:0": "Haiku 4.5", "us.anthropic.claude-opus-4-8": "Opus 4.8"}
+ORDER = list(LABELS)
 
 
 def wilson(k, n, z=1.96):
@@ -75,36 +77,61 @@ def frame(svg, title, subtitle, lines):
     svg.text(80, 852, lines[1], 21, 500, INK)
 
 
+def hbar(svg, x, y, bh, m, color, label, width):
+    """One horizontal bar: label on the left, value at the bar end, light Wilson whisker."""
+    svg.text(x - 16, y + bh * 0.72, label, 19, 500 if color == ACCENT else 400, INK, "end")
+    if not ok(m):
+        svg.text(x + 8, y + bh * 0.72, "not run yet", 18, 400, FAINT)
+        return
+    v, (lo, hi) = m["k"] / m["n"], wilson(m["k"], m["n"])
+    svg.rect(x, y, max(v * width, 3), bh, color)
+    mid = y + bh / 2
+    svg.line(x + lo * width, mid, x + hi * width, mid, WHISKER, 1)
+    svg.text(x + max(v * width, hi * width) + 12, y + bh * 0.78, f"{v:.0%}", 26, 600)
+
+
 def agentdojo(data, out):
-    splits, model = data.get("splits", {}), data.get("model") or "GPT-OSS-20B"
+    splits = data.get("splits", {})
     held = "held_out" in splits
     s = splits.get("held_out") or splits.get("dev") or {}
-    u, g = s.get("unprotected", {}), s.get("gate", {})
-    n = next((m["n"] for m in (u.get("attacker_success"), g.get("attacker_success")) if ok(m)), None)
+    models = sorted(s, key=lambda m: (ORDER.index(m) if m in ORDER else 99, m))
+    ns = sorted({a[k]["n"] for m in s.values() for a in m.values() for k in ("attacker_success",) if ok(a.get(k))})
     svg = SVG()
     where = "Held-out tasks" if held else "Tuning tasks only (held-out run not in yet)"
-    frame(svg, "AgentDojo: prompt-injection attacks",
-          f"{where} · {n} attacked tasks per bar" if n else f"{where} · results not in yet",
+    per = (f"{ns[0]}" if len(ns) == 1 else f"{ns[0]}–{ns[-1]}") + " attacked tasks per bar" if ns else "results not in yet"
+    frame(svg, "AgentDojo: prompt-injection attacks", f"{where} · {per}",
           ["Each task hides instructions from an attacker in data the agent reads, like a message or a web page.",
-           result_line(u, g)])
-    top, base = 300, 700
+           result_line(s)])
     for x0, key, head, hint in [(80, "attacker_success", "Attacks that succeeded", "lower is better"),
                                 (840, "utility_under_attack", "User's task still completed", "higher is better")]:
         svg.text(x0, 214, head, 26, 600)
         svg.text(x0, 246, hint, 19, 400, MUTED)
-        svg.line(x0, base, x0 + 680, base)
-        for i, (arm, color, label) in enumerate([(u, GREY, model), (g, ACCENT, model + " + Mirage")]):
-            bar(svg, x0 + 90 + i * 300, 200, arm.get(key), color, label, top, base)
+        y, bx, width = 286, x0 + 230, 380
+        svg.line(bx, y - 10, bx, y + len(models) * 92 - 18)
+        for model in models:
+            label = LABELS.get(model, model)
+            hbar(svg, bx, y, 30, s[model].get("unprotected", {}).get(key), GREY, label, width)
+            hbar(svg, bx, y + 36, 30, s[model].get("gate", {}).get(key), ACCENT, "+ Mirage", width)
+            y += 92
+        if not models:
+            svg.text(bx + 8, y + 22, "not run yet", 20, 400, FAINT)
     svg.save(out / "agentdojo-v2-headline.svg", "AgentDojo prompt-injection attacks, with and without Mirage")
 
 
-def result_line(u, g):
-    a, b = u.get("attacker_success"), g.get("attacker_success")
-    if not (ok(a) and ok(b)):
+def result_line(s):
+    tot = {(arm, k): [0, 0] for arm in ("unprotected", "gate") for k in ("attacker_success", "utility_under_attack")}
+    for model in s.values():
+        if not all(ok(model.get(arm, {}).get("attacker_success")) for arm in ("unprotected", "gate")):
+            continue
+        for (arm, k), t in tot.items():
+            t[0] += model[arm][k]["k"]; t[1] += model[arm][k]["n"]
+    (a, an), (b, bn) = tot["unprotected", "attacker_success"], tot["gate", "attacker_success"]
+    (c, cn), (d, dn) = tot["unprotected", "utility_under_attack"], tot["gate", "utility_under_attack"]
+    if not an:
         return "Both arms are not in yet, so there is no comparison to read."
-    c, d = u.get("utility_under_attack"), g.get("utility_under_attack")
-    return (f"With Mirage, {b['k']} of {b['n']} attacks succeeded instead of {a['k']} of {a['n']}; "
-            f"the user's task was still done in {d['k']} of {d['n']} (vs {c['k']} of {c['n']} without).")
+    who = "Across all models" if len(s) > 1 else "With Mirage"
+    return (f"{who}, Mirage cut successful attacks from {a} of {an} to {b} of {bn}; "
+            f"the user's task was done in {d} of {dn} with Mirage vs {c} of {cn} without.")
 
 
 def agentrx(data, out):
@@ -133,21 +160,20 @@ def load(path):
 
 
 def from_agentdojo(raw, path):
-    """W1 summary: {"<dev|heldout>/<arm>": {"attack": {n, attacker_success, utility}, "clean": {n, utility}}}."""
+    """W1 summary: {"<dev|heldout>/[<model_id>/]<arm>": {"attack": {n, attacker_success, utility}, "clean": {n, utility}}}."""
     splits = {}
     for key, s in raw.items():
-        if "/" not in key:
+        parts = key.split("/")
+        if len(parts) not in (2, 3):
             continue
-        split, arm = key.split("/")
+        split, arm, model = parts[0], parts[-1], parts[1] if len(parts) == 3 else "openai.gpt-oss-20b-1:0"
         a, c = s.get("attack", {}), s.get("clean", {})
-        splits.setdefault({"heldout": "held_out"}.get(split, split), {})[arm] = {
+        splits.setdefault({"heldout": "held_out"}.get(split, split), {}).setdefault(model, {})[arm] = {
             "attacker_success": {"k": a.get("attacker_success", 0), "n": a.get("n", 0)},
             "utility_under_attack": {"k": a.get("utility", 0), "n": a.get("n", 0)},
             "clean_utility": {"k": c.get("utility", 0), "n": c.get("n", 0)},
-            "unknown": s.get("unknown"), "blocks": s.get("blocks")}
-    ids = {json.loads(l).get("model_id") for p in path.parent.glob("*_rows.jsonl") for l in p.read_text().splitlines() if l}
-    model = LABELS.get(ids.pop()) if len(ids) == 1 else None
-    return {"splits": splits, "source": str(path), "model": model}
+            "unknown": s.get("unknown"), "blocks": s.get("blocks"), "false_blocks": c.get("false_blocks")}
+    return {"splits": splits, "source": str(path)}
 
 
 def from_agentrx(raw, path):
