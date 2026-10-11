@@ -46,7 +46,7 @@ from contracts.models import (
 )
 from engine import bisect as engine_bisect
 from engine import handoff as engine_handoff
-from engine.api import repair, services
+from engine.api import recovery, repair, services
 from engine.api.replay import Replay
 from engine.api.rules import router as rules_router
 from engine.api.state import fold
@@ -148,6 +148,7 @@ def live_only():
 
 
 app.include_router(repair.router(live_only))
+app.include_router(recovery.router(live_only))
 
 
 def _run(run_id) -> gate.LiveRun:
@@ -202,6 +203,7 @@ def start_run(body: RunStart) -> RunStarted:
             run = queued[0]
             if spec != run.admitted_spec:
                 raise HTTPException(409, "Registration changed since this clean restart was approved")
+            recovery.require_claim(run)
             gate.set_status(run, "running", "sdk", f"Clean restart of {run.restarted_from}.")
             return RunStarted(run_id=run.id, run_token=run.token,
                               rule_revision=run.policy.get("rule_revision"))
@@ -518,7 +520,13 @@ def restart(run_id: str, body: HumanRequest, request: Request) -> Run:
         if gate.STOP.is_set():
             raise HTTPException(409, "Global STOP is on")
         _restart_available(old)
-        return _launch(old, body, request, "approve_restart")
+        if not _compromised(_state()[1].get(old.incident_id)):
+            return _launch(old, body, request, "approve_restart")
+        # Compromised: only the prepared verified rollout; its trusted recovery launcher claims it.
+        recovery.require_prepared(old, gate.agents.get(old.agent))
+        new = _queue_restart(old, body, "approve_restart")
+        recovery.approved(old, new, body)
+        return get_run(new.id)
 
 
 def _restart_available(old):
