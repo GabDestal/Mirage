@@ -5,16 +5,7 @@ These commands are setup instructions, not permission to launch the rehearsal.
 See [current workflow and validation](docs/CURRENT_WORKFLOW_AND_VALIDATION.md)
 for source, evidence limits and the unrun acceptance route.
 
-## Run the M1 demo
-
-M1 has **four recorded background agents and recorded engine evidence**; Miragio
-uses **real Bedrock and real MCP tools** against that recorded engine.
-
-The recording includes meeting assistant, outreach, support and PR reviewer, with
-40-record example evidence. The current protected source fleet uses invoicing in
-place of support, eight seeded contacts, a narrower meeting task and a different
-poisoned invite. These are different evidence sources; see [demo evidence and remaining
-gates](docs/DEMO_EVIDENCE.md). Neither path currently uses real Google/HubSpot tools.
+## Quick start
 
 ### First-time setup
 
@@ -33,9 +24,10 @@ npm ci --prefix web
 npm run build --prefix mcp
 ```
 
-### Every run
+### Demo mode
 
-From the same repo root, use one terminal:
+M1 has **four recorded background agents and recorded proof**; Miragio uses
+**real Bedrock and real MCP tools** against that recorded engine. Use one terminal:
 
 ```sh
 cd /Users/liamszefner/Business/hacks/Mirage
@@ -43,6 +35,68 @@ npm run build --prefix mcp
 npm run dev:demo --prefix web
 ```
 
+Open [http://127.0.0.1:5174](http://127.0.0.1:5174), click **Sign in** with the
+prefilled demo fields, and ask Miragio about the incident as the recording plays.
+The launcher starts web, recorded engine and real chat together. **Ctrl+C** stops
+this launch's children and removes its temporary state.
+
+### Live mode
+
+Live uses **real Bedrock models and synthetic in-memory tools**. In addition to
+the chat settings above, configure `BEDROCK_AGENT_MODEL_ID`, `MEETING_ASSISTANT_MODEL_ID`,
+`BEDROCK_GATE_MODEL_ID`, `BEDROCK_JUDGE_MODEL_ID` and `BEDROCK_REPORT_MODEL_ID`
+following [.env.example](.env.example), using models available to your account.
+`--mode live` starts an **attach-only UI**; start engine and chat separately.
+Use three service terminals with free dedicated ports **8020/8021/5175** and the
+shared [first-time setup](#first-time-setup). Run this workflow on its own.
+
+Terminal 1 — live engine with fresh, owned isolated state:
+
+```sh
+cd /Users/liamszefner/Business/hacks/Mirage
+MIRAGE_M2_STATE=$(mktemp -d "/tmp/mirage-m2.XXXXXX")
+MIRAGE_MODE=live MIRAGE_DB="$MIRAGE_M2_STATE/events.db" \
+  MIRAGE_SNAPSHOTS="$MIRAGE_M2_STATE/snapshots" \
+  MIRAGE_TOKENS="$MIRAGE_M2_STATE/handoff_tokens.json" \
+  uv run uvicorn engine.api.server:app --host 127.0.0.1 --port 8020
+```
+
+Terminal 2 — real Miragio chat connected to that engine:
+
+```sh
+cd /Users/liamszefner/Business/hacks/Mirage
+MIRAGE_UI_MODE=live MIRAGE_API=http://127.0.0.1:8020 MIRAGE_CHAT_PORT=8021 \
+  MIRAGE_CHAT_ORIGINS=http://localhost:5175,http://127.0.0.1:5175,http://localhost:8021,http://127.0.0.1:8021 \
+  npm run chat --prefix mcp
+```
+
+Terminal 3 — UI with matching engine and chat proxies:
+
+```sh
+cd /Users/liamszefner/Business/hacks/Mirage
+MIRAGE_API=http://127.0.0.1:8020 MIRAGE_CHAT_API=http://127.0.0.1:8021 \
+  npm run dev --prefix web -- --mode live --host 127.0.0.1 --port 5175 --strictPort
+```
+
+After the rehearsal hold is released, open [http://127.0.0.1:5175](http://127.0.0.1:5175),
+sign in, and click **Run 4-agent demo** (or empty-state **Launch demo fleet**) to
+launch the actual protected agents. This resets the selected engine; use only the
+owned isolated instance above. After proof work settles, use **Ctrl+C** in each
+service terminal; keep the temporary state for evidence review.
+See [protected source fleet details](#protected-source-fleet-fresh-m2-synthetic-rehearsal)
+for limitations and the separate CLI alternative.
+
+## Run the M1 demo
+
+The recording includes meeting assistant, outreach, support and PR reviewer, with
+40-record example evidence. The current protected source fleet uses invoicing in
+place of support, eight seeded contacts, a narrower meeting task and a different
+poisoned invite. These are different evidence sources; see [demo evidence and remaining
+gates](docs/DEMO_EVIDENCE.md). Neither path currently uses real Google/HubSpot tools.
+
+### Every run
+
+Use the [Demo mode commands](#demo-mode) above after [first-time setup](#first-time-setup).
 Open [http://127.0.0.1:5174](http://127.0.0.1:5174) and click **Sign in** with the
 prefilled demo fields (a local demo sign-in; refreshing asks you to sign in again).
 The launcher starts web, recorded engine and real chat automatically. The recording
@@ -54,7 +108,7 @@ search, handoff and verification stages advance through operator actions/approva
 In **Fleet**, click **Restart demo recording** to replay from the beginning; it resets
 only recorded evidence and replay decisions, launching no real agents. Stop with
 **Ctrl+C** in the launch terminal: it stops only this launch's children and removes
-its temporary state. Rerun the commands above for a fresh launch, including after
+its temporary state. Rerun the Demo mode commands for a fresh launch, including after
 changing `.env`. Use this managed demo workflow on its own; do not combine it with
 the three-terminal manual attach workflow below.
 
@@ -115,6 +169,7 @@ it adds no live engine profile and starts no victim fleet or engine provider/job
 From repo root, launcher checks use stub children/disposable paths and make no provider calls:
 
 ```sh
+cd /Users/liamszefner/Business/hacks/Mirage
 npm run demo:selfcheck --prefix web
 npm run typecheck --prefix web
 npm run build --prefix web
@@ -124,36 +179,13 @@ npm run build --prefix web
 
 This separate path starts actual Bedrock-driven agents under the SDK and live gate,
 with **synthetic in-memory tools**. It supplies startup instructions, not fresh M2
-acceptance. Use the repo root in three service terminals after installing the dependencies
-above. Keep the current credentials/model configuration; start no recorded launcher
-alongside it. Use free dedicated ports **8020/8021/5175**; if occupied, choose another
+acceptance. Use the three-terminal [Live mode quick-start](#live-mode) above after
+[first-time setup](#first-time-setup). Keep the current credentials/model configuration;
+start no recorded launcher alongside it. If ports **8020/8021/5175** are occupied, choose another
 consistent set without stopping or attaching to the existing service.
 
-Terminal 1 creates new absolute state paths and one owned engine process. Set mode
-before import so later dotenv loading cannot select replay for the live gate:
-
-```sh
-MIRAGE_M2_STATE=$(mktemp -d "/tmp/mirage-m2.XXXXXX")
-MIRAGE_MODE=live MIRAGE_DB="$MIRAGE_M2_STATE/events.db" \
-  MIRAGE_SNAPSHOTS="$MIRAGE_M2_STATE/snapshots" \
-  MIRAGE_TOKENS="$MIRAGE_M2_STATE/handoff_tokens.json" \
-  uv run uvicorn engine.api.server:app --host 127.0.0.1 --port 8020
-```
-
-Terminal 2 starts real Miragio against that same engine:
-
-```sh
-MIRAGE_UI_MODE=live MIRAGE_API=http://127.0.0.1:8020 MIRAGE_CHAT_PORT=8021 \
-  MIRAGE_CHAT_ORIGINS=http://localhost:5175,http://127.0.0.1:5175,http://localhost:8021,http://127.0.0.1:8021 \
-  npm run chat --prefix mcp
-```
-
-Terminal 3 starts the attach-only UI with matching proxies:
-
-```sh
-MIRAGE_API=http://127.0.0.1:8020 MIRAGE_CHAT_API=http://127.0.0.1:8021 \
-  npm run dev --prefix web -- --mode live --host 127.0.0.1 --port 5175 --strictPort
-```
+The engine loads `.env` before capturing its mode. Explicit shell `MIRAGE_MODE=live`
+in the quick-start wins over `.env`, which may otherwise select replay.
 
 After the hold is released, open [http://127.0.0.1:5175](http://127.0.0.1:5175)
 and use **Run 4-agent demo** (or empty-state **Launch demo fleet**) in that UI:
@@ -189,12 +221,12 @@ each of `mcp/` and `web/` once.
 
 ```sh
 cd /Users/liamszefner/Business/hacks/Mirage
-uv run uvicorn engine.api.server:app --host 127.0.0.1 --port 8000
+MIRAGE_MODE=live uv run uvicorn engine.api.server:app --host 127.0.0.1 --port 8000
 ```
 
-Engine mode comes from the current `MIRAGE_MODE` shell environment and defaults to
-`live`; this command does not load the mode from `.env`. To choose explicitly,
-prefix the engine command with `MIRAGE_MODE=live` (real engine) or `MIRAGE_MODE=replay`
+The engine loads root `.env` before capturing `MIRAGE_MODE`; existing shell values
+win, and it defaults to `live` only when neither sets a mode. Keep the explicit
+`MIRAGE_MODE=live` above for the live engine, or use `MIRAGE_MODE=replay`
 (recorded fixtures for UI work, no engine Bedrock calls), as in the
 [engine runbook](docs/RUNBOOK.md). Operator chat still uses Bedrock in either mode.
 
