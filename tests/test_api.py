@@ -62,7 +62,9 @@ def test_attack_freezes_only_that_run(api):
     decision = check(api, bad_id, bad_auth, "send_email", to=ATTACKER, subject="x", body="rows")
     assert decision.json()["decision"] == "freeze"
     assert decision.json()["rule_id"] == "DEST_NOT_ALLOWED"
-    assert api.get(f"/runs/{bad_id}/wait?timeout=0.05", headers=bad_auth).json() == {
+    wait_path = f"/runs/{bad_id}/wait"
+    wait_params = {"timeout": 0.05, "call_id": decision.json()["call_id"]}
+    assert api.get(wait_path, params=wait_params, headers=bad_auth).json() == {
         "status": "frozen"}
     assert api.get(f"/runs/{ok_id}").json()["status"] == "running"  # others continue
 
@@ -70,7 +72,7 @@ def test_attack_freezes_only_that_run(api):
     assert incident["run_id"] == bad_id and incident["next_action"] == "detonate"
 
     api.post(f"/runs/{bad_id}/unfreeze", json=HUMAN)
-    assert api.get(f"/runs/{bad_id}/wait", headers=bad_auth).json() == {"status": "running"}
+    assert api.get(wait_path, params=wait_params, headers=bad_auth).json() == {"status": "running"}
 
 
 def test_kill_and_stop_revoke(api):

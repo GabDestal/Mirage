@@ -215,15 +215,21 @@ def check(body: ToolCheck, authorization: str = Header("")) -> GateDecision:
 @app.post("/runs/{run_id}/tool-results", status_code=204, **data_plane)
 def record_tool_result(run_id: str, body: ToolResult, authorization: str = Header("")):
     run = _authed(run_id, authorization)
-    gate.record_result(run, body.call_id, body.tool, body.result, body.error)
+    try:
+        gate.record_result(run, body.call_id, body.tool, body.result, body.error)
+    except gate.CallAuthorityError as error:
+        raise HTTPException(409, str(error)) from error
 
 
 @app.get("/runs/{run_id}/wait", **data_plane)
-def wait(run_id: str, timeout: float = 25, authorization: str = Header("")) -> WaitResult:
+def wait(run_id: str, timeout: float = 25, authorization: str = Header(""),
+         call_id: str | None = Query(None, description="Original checked call held for a human.")) -> WaitResult:
+    """Poll status; a bound call_id claims only that call's approved release, once."""
     run = _authed(run_id, authorization)  # sync route: runs in the threadpool, may block
-    run.resume.wait(min(timeout, 60))
-    status = "halted" if run.status == "completed" else run.status
-    return WaitResult(status=status if status != "queued" else "running")
+    try:
+        return WaitResult(status=gate.wait(run, call_id, min(timeout, 60)))
+    except gate.CallAuthorityError as error:
+        raise HTTPException(409, str(error)) from error
 
 
 @app.post("/runs/{run_id}/complete", **data_plane)
@@ -323,8 +329,21 @@ def _pending_approvals():
                                          agent=runs[e.run_id].agent if e.run_id in runs else "",
                                          tool=p["tool"], args=p["args"], policy_id=p.get("policy_id"),
                                          p=p.get("p"), explanation=p["explanation"], ts=e.ts)
-    return [a for r, a in pending.items()  # still held: frozen, and not an incident
-            if r in runs and runs[r].status == "frozen" and not runs[r].incident_id]
+    if REPLAY:
+        return [a for r, a in pending.items()
+                if r in runs and runs[r].status == "frozen" and not runs[r].incident_id]
+    eligible = []
+    with jobs.lock:
+        for run_id, approval in pending.items():
+            run = gate.runs.get(run_id)
+            call = run.calls.get(approval.call_id) if run else None
+            if (run and run.status == "frozen" and not run.incident_id
+                    and not run.revoked_by_reset and not gate.STOP.is_set()
+                    and call and call["state"] == "held" and not call["released"]
+                    and call["generation"] == run.containment_generation
+                    and call["token"] == run.token):
+                eligible.append(approval)
+    return eligible
 
 
 @app.get("/approvals")
@@ -334,17 +353,21 @@ def approvals() -> list[Approval]:
 
 
 def _decide(call_id, body, action):
-    held = next((a for a in _pending_approvals() if a.call_id == call_id), None)
-    if not held:
-        raise HTTPException(404, f"No call {call_id} is waiting for approval")
-    if REPLAY:
-        _recorded_control(action)
-        REPLAY.advance()
-        return get_run(held.run_id)
-    if held.run_id not in gate.runs:
-        raise HTTPException(409, f"Run {held.run_id} is owned by another process (no live control)")
-    getattr(gate, action)(held.run_id, body.actor, body.reason)
-    return gate.runs[held.run_id].model()
+    with jobs.lock:
+        held = next((a for a in _pending_approvals() if a.call_id == call_id), None)
+        if not held:
+            raise HTTPException(404, f"No call {call_id} is waiting for approval")
+        if REPLAY:
+            _recorded_control(action)
+            REPLAY.advance()
+            return get_run(held.run_id)
+        if held.run_id not in gate.runs:
+            raise HTTPException(409, f"Run {held.run_id} is owned by another process (no live control)")
+        try:
+            getattr(gate, action)(held.run_id, body.actor, body.reason, call_id)
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from error
+        return gate.runs[held.run_id].model()
 
 
 @app.post("/approvals/{call_id}/approve")
@@ -438,7 +461,10 @@ def _act(run_id, body, action, allowed_from):
     run = _run(run_id)
     if run.status not in allowed_from:
         raise HTTPException(409, f"Cannot {action} a run that is {run.status}")
-    getattr(gate, action)(run_id, body.actor, body.reason)
+    try:
+        getattr(gate, action)(run_id, body.actor, body.reason)
+    except ValueError as error:
+        raise HTTPException(409, str(error)) from error
     return run.model()
 
 
