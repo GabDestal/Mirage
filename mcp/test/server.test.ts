@@ -3,6 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ElicitRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { createServer } from "../src/server.js";
+import type { RepairController } from "../src/repair-supervisor.js";
 
 beforeEach(() => vi.stubEnv("MIRAGE_UI_MODE", undefined));
 afterEach(() => vi.unstubAllEnvs());
@@ -35,7 +36,7 @@ const DB: Record<string, unknown> = {
 };
 
 async function connect(opts: { elicit?: (msg: string) => { action: string; content?: Record<string, unknown> }; client?: string;
-  responses?: Record<string, unknown> } = {}) {
+  responses?: Record<string, unknown>; repair?: RepairController } = {}) {
   const posts: { path: string; body: any }[] = [];
   const fetch = (async (url: string, init: RequestInit) => {
     const path = url.replace("http://mirage.test", "");
@@ -45,7 +46,7 @@ async function connect(opts: { elicit?: (msg: string) => { action: string; conte
     const v = responses[key] as any;
     return key in responses ? Response.json(v, { status: v?.status === 409 ? 409 : 200 }) : Response.json({ detail: "not found" }, { status: 404 });
   }) as typeof globalThis.fetch;
-  const server = createServer({ api: "http://mirage.test", actor: "liam", fetch });
+  const server = createServer({ api: "http://mirage.test", actor: "liam", fetch, repair: opts.repair });
   const client = new Client({ name: opts.client ?? "claude-code", version: "1" },
     { capabilities: opts.elicit ? { elicitation: {} } : {} });
   if (opts.elicit) client.setRequestHandler(ElicitRequestSchema, (r) => opts.elicit!(r.params.message) as any);
@@ -63,8 +64,34 @@ test("same tool set for every client, with the right annotations", async () => {
     (await (await connect({ client })).client.listTools()).tools.map((t) => [t.name, t.annotations?.destructiveHint ?? false]);
   const claude = await names("claude-code");
   expect(claude).toEqual(await names("codex-mcp-client"));
-  expect(claude).toEqual([["list_runs", false], ["get_incident", false], ["get_audit", false], ["detonate", false],
+  expect(claude).toEqual([["start_repair", true], ["get_repair", false], ["list_runs", false], ["get_incident", false], ["get_audit", false], ["detonate", false],
     ["find_cause", false], ["unfreeze", true], ["kill", true], ["resume", true], ["resume_all", true], ["send_fix", true]]);
+});
+
+const repairJob = { id: "repair_1", incident_id: "inc_001", repository: "GabDestal/Mirage", base_branch: "special-improvements" as const,
+  base_sha: "a".repeat(40), snapshot_digest: "b".repeat(64), baseline_digest: "c".repeat(64), status: "queued" as const,
+  created_at: "2026-10-11T09:00:00Z", updated_at: "2026-10-11T09:00:00Z" };
+test("repair requires explicit elicitation and exposes only public job fields", async () => {
+  const starts: unknown[] = [];
+  const repair: RepairController = { async start(...args) { starts.push(args); return { ...repairJob, prompt: "private worker prompt", token: "private-token" } as any; },
+    async get() { return repairJob; } };
+  const denied = await connect({ repair });
+  expect((await denied.callText("start_repair", { incident_id: "inc_001" })).isError).toBe(true);
+  expect(starts).toEqual([]);
+  const approved = await connect({ repair, elicit: () => ({ action: "accept", content: { confirm: "repair inc_001", reason: "Fix and prove it" } }) });
+  const reply = await approved.callText("start_repair", { incident_id: "inc_001" });
+  expect(reply.structured).toEqual({ repair_job: repairJob });
+  expect(starts).toEqual([["inc_001", "liam via Claude Code (MCP)", "Fix and prove it"]]);
+  expect(JSON.stringify(reply)).not.toMatch(/private worker prompt|private-token/);
+  expect((await approved.callText("get_repair", { job_id: "repair_1" })).structured).toEqual({ repair_job: repairJob });
+});
+
+test("recorded mode cannot launch a coding worker", async () => {
+  vi.stubEnv("MIRAGE_UI_MODE", "demo");
+  const repair: RepairController = { start: vi.fn(async () => repairJob), get: vi.fn(async () => repairJob) };
+  const client = await connect({ repair, elicit: () => ({ action: "accept", content: { confirm: "repair inc_001", reason: "Fix" } }) });
+  expect((await client.callText("start_repair", { incident_id: "inc_001" })).isError).toBe(true);
+  expect(repair.start).not.toHaveBeenCalled();
 });
 
 test("unfreeze fails closed without the elicitation capability", async () => {
