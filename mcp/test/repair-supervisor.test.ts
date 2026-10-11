@@ -271,3 +271,36 @@ test("invalid private retry configuration fails without exposing its path or cre
     retryEvidencePath: "/private/missing-do-not-expose/seed.json", fetch: async () => { throw new Error("No HTTP operation expected"); } });
   await expect(supervisor.start("inc_001", "operator", "Retry")).rejects.toThrow(/^Private retry evidence could not be read or validated\.$/);
 });
+
+test.each(["MERGED", "CLOSED"])("open repair PR refresh reports %s to the engine and stops polling it", async (final) => {
+  const pr = { url: "https://github.com/GabDestal/Mirage/pull/201", number: 201, baseRefName: "special-improvements", headRefOid: head, isDraft: true, state: "OPEN" };
+  const job = { id: "repair_1", incident_id: "inc_001", repository: "GabDestal/Mirage", base_branch: "special-improvements", base_sha: base,
+    snapshot_digest: "d".repeat(64), baseline_digest: "e".repeat(64), status: "pr_open", candidate_sha: head, pull_request: pr,
+    pr_url: pr.url, created_at: "2026-10-11T00:00:00Z", updated_at: "2026-10-11T00:00:00Z" };
+  const failed = { ...job, id: "repair_0", status: "failed", pull_request: null };
+  let github = { ...pr, headRefName: "mirage-repair", state: "OPEN" };
+  const posts: { path: string; body: any; auth: string | null }[] = [];
+  const fetch = (async (url: string, init: RequestInit) => {
+    const path = new URL(url).pathname;
+    if (init.method === "GET") return Response.json([failed, job]);
+    posts.push({ path, body: JSON.parse(String(init.body)), auth: new Headers(init.headers).get("authorization") });
+    job.pull_request = posts.at(-1)!.body;
+    return Response.json(job);
+  }) as typeof globalThis.fetch;
+  const views: string[][] = [];
+  const run: CommandRunner = async (command, args) => { views.push([command, ...args]); return receipt(github); };
+  const supervisor = new RepairSupervisor({ repoPath: "/tmp", repository: "GabDestal/Mirage", baseSha: base, python: "python",
+    api: "http://127.0.0.1:8999", supervisorToken: "private-supervisor", liveVerification: true, run, fetch });
+  await supervisor.refreshPullRequests();
+  expect(posts).toHaveLength(0); // still open: nothing to report
+  expect(views).toEqual([["gh", "pr", "view", pr.url, "--repo", "GabDestal/Mirage", "--json", "url,number,baseRefName,headRefName,headRefOid,isDraft,state"]]);
+  github = { ...github, headRefOid: base, state: final }; // a pushed head is no longer the tested candidate
+  await supervisor.refreshPullRequests();
+  expect(posts).toHaveLength(0);
+  github = { ...github, headRefOid: head, isDraft: false };
+  await supervisor.refreshPullRequests();
+  expect(posts).toEqual([{ path: "/repair-jobs/repair_1/pull-request", auth: "Bearer private-supervisor",
+    body: { ...pr, isDraft: false, state: final } }]);
+  await supervisor.refreshPullRequests();
+  expect(views).toHaveLength(3); // merged/closed PRs are not polled again
+});
