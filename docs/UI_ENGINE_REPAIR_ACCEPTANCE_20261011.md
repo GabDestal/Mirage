@@ -110,7 +110,7 @@ reproducing. This ledger does not ask for a new suite or provider rerun.
 | Slice | Current delivery evidence | Acceptance still pending |
 |---|---|---|
 | U1 — SDK error truth and protected fleet | Shared contract #140 and engine callback/current-policy #142 merged. [#141](https://github.com/GabDestal/Mirage/pull/141) draft at `4fb80d8044407cda05ed30b6a2f57ad608d7ae18`, tested on shared head `4e0c1ef2c6700874408483144e27e0bd06ccc8b8`: 14 initial RED failures/2 normal controls → 50 parent SDK tests pass; pinned jailed error replay was RED before #142. New rebase/test target is `738aa060`. | Final SDK/error-replay GREEN/merge, current metadata publication, fleet factory/start failure surfacing and trusted per-story registration; composed UI evidence. |
-| U2 — services and human controls | #125 merged; actual reason/body hooks and encoded REST paths tested with stub fetch/rendering. | Browser-visible service isolation, approval vs chat approval, manual Freeze→Unfreeze/Kill, restored ownership refusal, queued restart, STOP/recovery and no repeated effects. |
+| U2 — services and human controls | #125 merged; actual reason/body hooks and encoded REST paths tested with stub fetch/rendering. [#146](https://github.com/GabDestal/Mirage/pull/146) draft at `5907fdd78bf847640129663e58b84f698eac1458` adds truthful queued recovery wording; worker reports 68 MCP passes and lifecycle13 GREEN/10 intentional RED pending runtime ownership. Coordinator separately found a reachable recorded-control preflight RED, fix in progress. | Final narrow recovery/compatibility repair and exact runtime composition; browser-visible service isolation, approval vs chat approval, manual Freeze→Unfreeze/Kill, restored ownership refusal, queued restart, STOP/recovery and no repeated effects. No broader authorization requirement is added. |
 | U3 — stream recovery | [#130](https://github.com/GabDestal/Mirage/pull/130) draft at `116258461d6858543ea4c5d888e53dd2ed36690e` on unmerged engine `59dce1b9c755cc6698312eeec3f46001aee4cc78`; latest 8 regression REDs → 24 stream selfchecks. Worker reports 14 actual loopback HTTP/SSE assertion groups through current frontend parsers; 74 related engine tests, typecheck/build/launcher/lint pass. | Runtime contract merge and own-only replay onto exact main; fresh engine8040/UI5180/chat8041 browser recovery/ownership acceptance. Provider-free wire checks are not browser acceptance. |
 | U4 — persistent proof | [#132](https://github.com/GabDestal/Mirage/pull/132) draft at `ac50da1198840c1dd7e095c131317d82b9f508df`, consuming optional job contract from `59dce1b9c755cc6698312eeec3f46001aee4cc78`; typed detail/restoration and zero-request live/recorded renders reported green. Shared newest-production-run selector uses timestamp/ID ordering. | Shared job contract merge and final own-only replay; navigate Chat/Fleet/Incident on the composed runtime without a model turn and keep baseline distinct from bisection/verification. Synthetic renders are not browser8040 acceptance. |
 | U5 — documentation acceptance | [Draft #137](https://github.com/GabDestal/Mirage/pull/137), these three documentation files; README updated for #133. | Final known source SHA and coordinator rehearsal artifacts, final link/syntax/scope checks, pushed matching PR head. Documentation readiness will not close missing runtime gates. |
@@ -143,6 +143,16 @@ composition; this worker has not rerun it. At 01:48 UTC the coordinator independ
 ran `node tests/stream.test.mjs` from the PR #130 worktree's `web/` on exact
 `116258461d6858543ea4c5d888e53dd2ed36690e`: 24 passed, 0 failed. This is the tracked
 test filename; it accepts neither final main nor a browser workflow.
+
+U4 independent coordinator checks at exact
+`ac50da1198840c1dd7e095c131317d82b9f508df`, from its worktree's `web/`, passed:
+`node --experimental-strip-types src/pages/incident-data.selfcheck.ts`,
+`node --experimental-strip-types src/pages/fleet-presentation.selfcheck.ts` and
+`node src/components/engine-proof.selfcheck.mjs live`. The coordinator reviewed typed
+jobs and the current-run selector. These are source/synthetic rendering checks;
+final main and browser evidence remain pending. The #146 recorded-control preflight
+RED is a known compatibility regression under repair, not accepted by earlier renders;
+its exact reproduction command has not been supplied here.
 
 ### Engine invariant and architecture ledger — reserved for Person A
 
