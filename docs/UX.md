@@ -2,8 +2,8 @@
 
 Owner: Liam. Read with `PRODUCT.md`, `CONTRACTS.md` and
 [current workflow and validation](CURRENT_WORKFLOW_AND_VALIDATION.md).
-Full UI/provider rehearsal is **NOT RUN**, on user hold. Medium-flow final alignment
-awaits the engine handoff; the current record names that dependency.
+Full UI/provider rehearsal is **NOT RUN**, on user hold. The current record names
+the merged source and separates source/test evidence from browser/provider preflights.
 
 Rule: **the user sees what matters, fast.** Healthy things stay quiet. Only the problem gets color.
 
@@ -54,8 +54,11 @@ New live gate incidents automatically queue three sandbox replays after snapshot
 No initial Detonate click is required. Queueing is a system action; the started event means
 sandbox execution has begun. During queued/running work, manual detonate/bisect/verify and
 unfreeze are refused by the engine. Failure leaves the run frozen and offers an explicit
-Detonate retry. High-risk/hard-rule/escalation recovery stays human-directed even
-after clean replay; see the current record for the pending medium-clearance change.
+Detonate retry. Medium shows checking, automatic resume or continued containment.
+Only its initial conclusive three-baseline job can release the original call once;
+checking/inconclusive cannot human-unfreeze. A later manual freeze after clearance
+permits human unfreeze without repeating that callback. High/hard/escalation recovery
+stays human-directed even after clean replay. See the current record for exact criteria.
 Managed M1 plays recorded baseline proof automatically; legacy replay keeps its
 manual stepping. Demo reset/start refuses with 409 while sandbox work
 is active, preserving the incident; wait for completion and retry.

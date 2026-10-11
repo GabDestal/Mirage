@@ -1,12 +1,12 @@
 # Current workflow and validation
 
-2026-10-11. **Draft: final engine handoff pending. Rehearsal is on hold.**
+2026-10-11. **Engine repairs merged. Full UI rehearsal is NOT RUN, on user hold.**
 Only the user can tell the coordinator to start the full rehearsal.
 This record covers the local synthetic demo, not production acceptance.
 
-Source inspected: base `5c9e2df8a996efab41562a697c0bb20cc3e87525`, then merged
-policy/restart deltas through `1e6052e073886abf36f54af10c48e8c521f4b86e` (#155/#157).
-The final code SHA, medium-clearance delivery and final accuracy review are pending.
+Source: exact merged main `d72eb8c0848ad797dad4213d671c8480e60e8f41` (#158), after
+policy pin #155 and restart #157. Coordinator verified its entire tracked tree equals
+tested/reviewed `a8d75c4cb697c383d0af8979f3434a87db00b78e` (tree `9f1eba0b496022d031f52edd34502f2dfab439c5`).
 This documentation worker has run no agents, services, controls or provider calls.
 
 ## What changed, and why
@@ -14,7 +14,7 @@ This documentation worker has run no agents, services, controls or provider call
 | Change | How it works | Why it matters |
 |---|---|---|
 | Protected four-agent fleet | Meeting assistant, invoicing, outreach and PR reviewer use the SDK and HTTP gate. Runs start before factory construction; failures keep a safe reason. | A failed model, factory or tool must not look completed, and healthy siblings can continue. |
-| Call authority | A held release belongs to the original run, checked call and containment generation. Its wait claims admission once; results must match the admitted call. | Approving one call cannot authorize an unchecked sibling or revive a retired hold. |
+| Call authority | A held release belongs to the original run, checked call and containment generation. Its wait claims admission once; results must match the admitted call. | Releasing one call cannot authorize an unchecked sibling or revive a retired hold. |
 | Admitted policy | The run captures its own agent specification and policy. Later same-name registration applies to future runs; a changed registration cannot claim an existing queued restart. | Another registration cannot loosen the current run's gate or frozen policy. |
 | Clean restart identity | Human approval queues one successor; admission matches agent, task, original lineage and the full copied specification. Failed runs can request human restart. | Wrong, duplicate, ambiguous or STOP-revoked claims cannot start the approved task. Queued is not running. |
 | Failure and task truth | Snapshots retain tool-error markers. Replay matches the exact tool and arguments. Verification checks the required recipient, content and entity inventory. | An empty read, failed send, incomplete brief or partial task cannot count as a useful fix. |
@@ -32,14 +32,14 @@ Source holders: [fleet](../agents/run_demo_fleet.py), [SDK](../sdk/mirage/core.p
 [proof](../web/src/components/engine-proof.tsx), [handoff](../engine/handoff.py).
 [Models](../contracts/models.py) remain the source of truth for wire shapes.
 
-## Workflow and the medium change awaiting delivery
+## Current workflow
 
 Protected agents act autonomously. The SDK automatically checks each tool call;
 normal admitted calls run without asking a person for permission.
 Containment suspends the pending tool callback before its production effect.
 Other runs have separate owners and can continue.
 
-The user-approved medium workflow below is **pending at the inspected source**:
+The merged source implements these outcomes:
 
 | Gate outcome | Required behavior |
 |---|---|
@@ -49,10 +49,16 @@ The user-approved medium workflow below is **pending at the inspected source**:
 | Medium suspicion, inconclusive evidence | Error, crash, missing/partial/stale evidence or unresolved semantic doubt keeps the call contained. A no-harm count alone is insufficient. |
 | High risk, hard rule or escalation | Freeze and prove; recovery always needs a human, even if replay appears clean. |
 
-At the inspected source, medium suspicion still uses `NEEDS_APPROVAL` without an incident.
-The final engine feature must replace that behavior before these docs describe it
-as delivered. High/hard-rule/escalation recovery, manual Freeze/Unfreeze/Kill,
-STOP, fix merge and clean restart remain intentional human decisions.
+Medium now returns `SANDBOX_REVIEW` and opens an incident. Only its initial job can
+release: all three requested baselines must complete error-free useful work, capture
+the exact held effect and show zero deterministic harm. The configured stronger model
+must explicitly return validated SAFE for held and actual outbound calls. No-harm
+counts alone cannot clear semantic doubt. Run/call/token/generation, admitted/current
+spec and policy, task, snapshot, job and stream epoch are rechecked before durable
+clearance and the one original SDK callback grant. Retry/verify/bisect cannot release.
+Checking/inconclusive medium human-unfreeze is blocked; a later manual freeze of an
+already-cleared run permits human unfreeze without repeating its original callback.
+High/hard/escalation, STOP, Kill, fix merge and clean restart stay human-directed.
 Miragio approvals concern operator-requested actions, not routine protected tools.
 
 For a new persisted gate incident, the engine automatically queues three sandbox
@@ -74,24 +80,27 @@ authorized by the user.
 
 | Evidence source | Result | Limit |
 |---|---|---|
-| Current source and merged repairs | Coordinator accounts for the 16 Person B repair features; owning tests cover their named heads. This draft also inspects merged call binding #154 and parent proof preservation #152. | Test counts from different compositions are not added. Final engine feature/source handoff remains pending. |
+| Current source and merged repairs | Coordinator accounts for 16 Person B repair features and the finite policy → restart → medium chain (#155/#157/#158). Final Python suite passed on reviewed #158 head. | Named test compositions remain distinct; this does not establish a live UI/fleet rehearsal. |
 | Provider access probe | After key regeneration, six fresh model requests returned HTTP 200. Separate bounded gate/judge usability probes succeeded. | These probes do not establish a fresh four-agent fleet, injection reliability or full UI proof. |
 | Actual browser chat | One no-tool browser turn through UI 5180, chat 8041 and Bedrock rendered a reply. Chat build: `d9c5f7744b1d742da03c9910427566ad9c5d0247`, reported PID 68595. | No incident, MCP action, fleet or repair was exercised. |
 | Actual empty Fleet | Live attachment accepted on UI `5eef2405cbb3869ea70d124b38ae31b90f318d7c` and loaded engine `c116744767053793662dcbccc49c498f607e10f4`. Panel removal accepted on UI `56fc52e5b9ce7be26825984da07800b6563f1fe9`, same earlier API. | Empty layout/connection checks, not incident or medium-flow acceptance. |
-| Provider-free tests and HTTP/SSE checks | Owning workers/coordinator report GREEN at their pinned compositions, including real jailed synthetic children and actual loopback transport checks. | Scripted/mock models, synthetic rendering and wire tests are distinct from browser/provider rehearsal. |
+| Provider-free tests and HTTP/SSE checks | Owning workers/coordinator report passing checks at their pinned compositions, including real jailed synthetic children and actual loopback transport checks. | Scripted/mock models, synthetic rendering and wire tests are distinct from browser/provider rehearsal. |
 | Recorded M1 | Four recorded agents and recorded proof/fix progression, with real Miragio/MCP against replay. | Different support/40-contact example; no live snapshot capability or current-code fix test. |
 | Full fresh UI rehearsal | **NOT RUN: user hold.** | No full UI-started fleet → automatic proof → cause → external fix → bad-fix rejection → clean useful verification → recovery acceptance. |
 
 The engine's reported bounded attachment was PID 51886 on 8040 with an empty
 owner list. UI HMR, compiled chat and Python imports had separate revisions.
 Disk HEAD and an open port cannot prove what code those processes loaded.
-No final shared-source runtime packet has been supplied for this draft.
+Reported idle engine 8040 still loaded `c116744767053793662dcbccc49c498f607e10f4`;
+chat still loaded `d9c5f7744b1d742da03c9910427566ad9c5d0247`. Neither demonstrates
+a fresh runtime on final main. The UI/provider fleet route remains unexecuted.
 
 Selected owning validation below is historical and composition-specific, not
 rerun by this worker. The retained ledger gives the other repair heads/results.
 
 | Composition | Recorded command/result | Provenance |
 |---|---|---|
+| Medium #158, reviewed `a8d75c4cb697c383d0af8979f3434a87db00b78e` | Full command below: **1235 passed**, 177.77 s, 16 existing dependency warnings. Independent A checks: 52 passed, 27.30 s, separately. | [Merged #158](https://github.com/GabDestal/Mirage/pull/158), exact main/tree above; provider-free fixtures and real jailed synthetic children. |
 | Policy pin #155, reviewed `4ebb19d60ec30f3d1e3dd47e19f535cd7d75d943` on base `5c9e2df` | Provider-off `pytest tests sdk/tests agents -q -p no:cacheprovider --tb=short`: 1176 passed. Separate focused 24 and coordinator 54 checks are not added to that total. | [Merged #155](https://github.com/GabDestal/Mirage/pull/155); squash `f93f818d8c100cccf7e5eb120c433c44f4862798`. |
 | Restart #157, reviewed `22f056cda15ea57303b4f57178c5c44b91cef0fb` on base `f93f818` | `MIRAGE_MODE=live MIRAGE_LAYER2=0 MIRAGE_JUDGE=0 uv run pytest -q`: 1203 passed with stable HEAD. `uv run pytest -q tests/test_restart_identity_authority.py tests/test_registered_policy_authority.py tests/test_restart.py tests/test_resume.py`: 58 passed; independent coordinator 58 separately. | [Merged #157](https://github.com/GabDestal/Mirage/pull/157); squash `1e6052e073886abf36f54af10c48e8c521f4b86e`, local C report below. |
 | Restart UI, same reviewed C head | From `web/`, `node tests/run-lifecycle-truth-selfcheck.mjs`: 32 passed; `--demo`: 6 passed. Typecheck/build/lint passed with existing warnings. | Synthetic render/REST consumer checks; no browser/provider acceptance. |
@@ -99,9 +108,18 @@ rerun by this worker. The retained ledger gives the other repair heads/results.
 | Transport #130, coordinator `116258461d6858543ea4c5d888e53dd2ed36690e` | From `web/`, `node tests/stream.test.mjs`: 24 passed, 0 failed. | Retained ledger. Separate final worker HTTP/SSE checks are provider-free wire evidence. |
 | Scripted backup #151, reviewed `34f59396f00a7db9f657a6af31a43ca52f711445` | `uv run pytest demo/test_acceptance_fleet.py -q --tb=short`: worker 27 passed; independent coordinator 27 reported separately. | Retained ledger; SCRIPTED component/jailed-child evidence, not primary fleet rehearsal. |
 
-The C full suite first hit a Git-provenance assertion because HEAD changed during
-the run; the unchanged source passed the stable-head rerun above. Final medium
-commands, exact tested composition and source handoff are pending.
+Final medium full-suite command, reported by its owning worker (not rerun here):
+
+```sh
+PYTHONPATH="$PWD:$PWD/sdk" PYTHON_DOTENV_DISABLED=1 AWS_EC2_METADATA_DISABLED=true MIRAGE_MODE=live /Users/liamszefner/Business/hacks/Mirage/.venv/bin/python -m pytest -q --tb=short
+```
+
+The medium matrix began RED: 32 failed/4 passed; later high/hard/escalation transitions
+failed 3/3 before repair. The first full suite at `87714383f053f1053573df7f31d232408ee94a85`
+had 1234 pass/one obsolete assertion fail; final 1235 above supersedes it. Earlier
+193-check evidence (40.52 s) at that earlier head and independent 52 are not added.
+The C suite had an earlier moving-HEAD provenance failure; its stable-head 1203 rerun
+is the historical result above. These are reported checks, not a new campaign.
 
 Current production-lane tools are in-memory synthetic mail/calendar/CRM/invoice/PR
 services. The source fleet seeds eight contacts and two clean events plus one
@@ -134,7 +152,8 @@ or run standalone CLI jobs concurrently against the same process-local job store
 4. Check the five gate outcomes in the table above with identifiable probes:
    normal, medium clean, medium harmful, medium inconclusive, and high/hard/escalation.
    Record actual callback/effect counts; medium clean may resume the original once,
-   while the remaining contained cases must retain human recovery.
+   while harmful/inconclusive medium stays contained, medium checking/inconclusive
+   rejects human unfreeze, and high/hard/escalation requires human recovery even if clean.
 5. Inspect real effects/counts, blast radius and cause search. Inconclusive or
    interrupted evidence must stay explicit. Navigate Fleet/Incident/Miragio and
    reconnect; preserve baseline proof and reject stale epoch responses.
@@ -167,10 +186,13 @@ Historical repair notes are retained in the
 [closed, unmerged #137 draft ledger](https://github.com/GabDestal/Mirage/blob/c84a44d95aab8e16671fd755d3520fde6074a2d2/docs/UI_ENGINE_REPAIR_ACCEPTANCE_20261011.md).
 Its source/reviewed heads and owning test summaries remain historical, not final
 acceptance. The former audit source was `7c337214e1a92de08d905afc370d57a081831595`;
-its removed checkouts are not active test targets. Portable local reports remain:
+its removed checkouts are not active test targets. The user personally removed six
+old unused trees; preservation of any later dirty content was not verified here.
+The retained medium checkout is user-owned. Portable local reports remain:
 `/tmp/mirage-engine-audit-20261011.md`, `/tmp/mirage-agent-audit-20261011.md`,
 `/tmp/mirage-provider-access-regenerated-20261011.json`, and
 `/tmp/mirage-provider-usability-regenerated-20261011.json`.
+The final medium packet is `/tmp/mirage-medium-sandbox-clearance-report.md`.
 The C delivery packet is `/tmp/mirage-restart-identity-audit-20261011.md`; the engine
 closure checkpoint is `/tmp/mirage-engine-closure-checkpoint-20261011.md`.
 Their older PR/checkout status snapshots do not override later Git/coordinator facts.
@@ -179,6 +201,11 @@ predates closure of #137; current coordinator status supersedes its PR/worktree 
 
 [Demo provenance](DEMO_EVIDENCE.md), [M1 acceptance](DEMO_MILESTONE_1_ACCEPTANCE.md)
 and the [connection plan](UI_ENGINE_CONNECTION_PLAN.md) retain their named scopes.
-Final documentation validation will record Person A accuracy review, local links
-and stable section anchors, every changed document's line count (maximum 299),
-and whitespace/scope checks. No redundant code, runtime or provider reruns are planned.
+This docs PR preserves canonical section/subsection anchors and moves full contract
+definitions/examples to four linked references; models remain authoritative.
+`python3 /tmp/mirage-current-docs-check.py d72eb8c0848ad797dad4213d671c8480e60e8f41`
+passed: 75 local links/anchors, all 39 contract headings/anchors (13 full sections),
+31 historical plan headings, and all 11 documents ≤299 lines. Exact section accounting
+checks the mechanical move separately from 21 source-aligned semantic edits; whitespace
+and docs-only scope pass. Person A accuracy review will be recorded on PR #156 before ready.
+This worker ran no code/runtime/provider tests; coordinator MCP/web checks are separate.

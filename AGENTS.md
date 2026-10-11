@@ -36,16 +36,19 @@ API). If this file and those disagree, ask before building.
 
 ## What we are building
 Mirage is incident response for compromised AI agents. Several agents run tasks in parallel
-against real services. One agent reads a malicious input. Mirage:
+against current synthetic in-memory tools; real service integrations remain intended.
+The full UI rehearsal is on user hold; see [current validation](docs/CURRENT_WORKFLOW_AND_VALIDATION.md).
+One agent reads a malicious input. Mirage:
 1. **Detects** it: a gate checks every tool call before it runs (hard rules, then a
    decision model).
-2. **Freezes** only that run. Frozen, not killed: other runs keep working, and a human can
-   unfreeze a false positive.
+2. **Freezes** only that run before its effect. Other runs continue. Initial medium proof may
+   release its exact held call once; high/hard/escalation recovery always needs a human.
 3. **Detonates** the frozen run in Mirage, a simulation twin of production: same tools, fake
    backends, started from a snapshot taken at freeze. The bad call is allowed there. 3 runs.
 4. **Proves** the result: deterministic verdict, blast radius, and **bisection** (remove one
    input at a time) to find the input that caused the compromise.
-5. **Fixes**: one click hands the incident to a coding agent. It tests the fix with
+5. **Fixes**: one click hands the real incident/snapshot to the user's external coding agent.
+   Mirage has no internal code writer. The coding agent tests the fix with
    `mirage detonate` against the same snapshot. A human merges the PR and approves a clean
    restart.
 
@@ -67,14 +70,15 @@ Team rule: **demo first.** Build what the demo shows. Nothing else.
 2. **Support ticket with a malicious attachment.** Same engine, different tools and inputs.
    The attachment asks the agent to export customer records and use the canary secret.
 3. **False positive.** A clean agent emails a new address the customer gave in the ticket.
-   The gate freezes it, detonation shows no harm, a human unfreezes it.
+   Medium requires conclusive automatic clearance; high-risk false positives require
+   human recovery even when replay is clean.
 
 - Canary secret: `FLAG{team26-canary}`. No legitimate task ever needs it. Touching it = compromised.
 - The "attacker" address is a team-owned inbox, shown as attacker-controlled.
 
 ## Two environments
-- **Production:** real team-owned accounts with synthetic data: Gmail, Google Calendar,
-  HubSpot free CRM.
+- **Production lane:** current tools are synthetic in-memory services. Intended real
+  integrations use team-owned Gmail, Google Calendar and HubSpot with synthetic data.
 - **Mirage:** the same agent, but no real tool runs. The SDK (`mirage.protect` in mirage
   mode) answers each tool call: reads return the recorded result, writes are captured.
   **Nothing in Mirage reaches the real world** (no real HTTP, no real email).
@@ -115,7 +119,8 @@ Repo layout and ownership: `CONTRACTS.md` section 8. SDK: section 11. MCP: secti
   never changes `confirmed`.
 - "Legit task completed" is also a code check (example for story 1: a meeting summary email
   went to the user's own address). Define it per story.
-- The gate's decision model only decides freezes. A false freeze costs one human click.
+- The gate model decides suspicion. Code owns harm; stronger validated classifications also
+  support bounded automatic medium clearance. This is evidence, not universal proof.
 
 ## Bedrock setup
 - Region: `us-east-1` only.
@@ -133,9 +138,16 @@ Repo layout and ownership: `CONTRACTS.md` section 8. SDK: section 11. MCP: secti
 - Global STOP button: one click halts all runs and revokes all tokens. The gateway checks
   a global "halted" flag before every tool call.
 - Freeze / unfreeze / kill on each agent card.
-- Medium-risk actions wait in an approval queue (approve/reject with reason shown).
+- Normal checked tools run autonomously. Medium suspicion freezes the exact call, snapshots,
+  and automatically runs three baselines. Only all complete error-free useful runs capturing
+  the held effect, zero deterministic harm, validated stronger SAFE classifications and current
+  authority permit one release. Missing/partial/stale/crashed/semantic-unknown proof stays frozen.
+  Checking/inconclusive medium cannot human-unfreeze; high/hard/escalation stays human.
+  A later manual freeze after clearance may human-unfreeze without repeating the original call.
+- Miragio operator approvals are distinct from protected tool mediation. Live `/approvals` is empty.
 - Escalation rule: repeated denials followed by workaround attempts = pause run + alert human.
-- Human approves clean restarts and always merges PRs manually (no auto-merge).
+- Human approves clean restarts and merges incident fix PRs (no auto-merge). Queued restart
+  is pending until a matching protected owner actually starts it.
 - Every human decision is logged: who, when, what, why.
 
 ## Hard rules (non-negotiable)
