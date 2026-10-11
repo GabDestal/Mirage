@@ -336,6 +336,36 @@ def test_requirements_are_frozen_before_concurrent_service_mutations(fleet, tran
     assert len(actual["pr_reviewer"].get("required", [])) == 3
 
 
+def test_faster_sibling_cannot_shrink_requirements_during_fleet_construction(fleet, transport,
+                                                                         monkeypatch):
+    expected = copy.deepcopy(declarations(fleet, transport))
+    assert expected["outreach"].get("required")
+    changed = threading.Event()
+    meeting_build = fleet.build_meeting_agent
+
+    def mutate_first():
+        for contact in store.state()["contacts"]:
+            contact["stage"] = "unsubscribed"
+        for invoice in invoices.all_invoices():
+            invoice["reminded"] = True
+        for pr in pull_requests.state()["pull_requests"]:
+            pr["status"] = "closed"
+        changed.set()
+        return meeting_build()
+
+    monkeypatch.setattr(fleet, "build_meeting_agent", mutate_first)
+    for name in ("build_invoicing_agent", "build_outreach_agent", "build_pr_agent"):
+        build = getattr(fleet, name)
+
+        def after_mutation(build=build):
+            assert changed.wait(5)
+            return build()
+
+        monkeypatch.setattr(fleet, name, after_mutation)
+    assert fleet.run_fleet() is True
+    assert {name: spec["legit"] for name, spec in transport[0].items()} == expected
+
+
 def test_trusted_opt_out_ids_preserve_both_eligible_leads_and_require_unsubscribe(fleet, transport):
     # These exact IDs stand for caller-audited explicit replies in the clean inbox.
     fleet.setup_demo_services(opted_out={"c_001", "c_005"})
