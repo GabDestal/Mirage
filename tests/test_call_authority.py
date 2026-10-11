@@ -441,3 +441,14 @@ def test_approval_does_not_admit_a_result_before_the_bound_wait(api, monkeypatch
         "call_id": held["call_id"], "tool": "send_email", "result": {"status": "sent"}})
     assert response.status_code == 409
     assert gate.runs[run_id].tool_results == []
+
+
+def test_duplicate_result_with_different_json_type_is_a_conflict(api):
+    run_id, auth = start(api)
+    admitted = check(api, run_id, auth, "read_calendar").json()
+    payload = {"call_id": admitted["call_id"], "tool": "read_calendar", "result": {"value": 1}}
+    path = f"/runs/{run_id}/tool-results"
+    assert api.post(path, headers=auth, json=payload).status_code == 204
+    assert api.post(path, headers=auth, json={**payload, "result": {"value": True}}
+                    ).status_code == 409
+    assert len(gate.runs[run_id].tool_results) == 1

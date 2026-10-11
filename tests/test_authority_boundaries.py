@@ -94,7 +94,7 @@ def test_stop_cannot_undo_started_effect_but_blocks_the_next_one(api):
 
 
 
-def test_manual_freeze_during_slow_decision_holds_effect_until_human_kill(api, monkeypatch):
+def test_manual_freeze_during_slow_decision_blocks_effect_before_human_kill(api, monkeypatch):
     run_id, auth = start(api)
     entered, release, waiting = threading.Event(), threading.Event(), threading.Event()
     original_wait = core._wait
@@ -104,9 +104,9 @@ def test_manual_freeze_during_slow_decision_holds_effect_until_human_kill(api, m
         entered.set()
         assert release.wait(5)
 
-    def observed_wait(run):
+    def observed_wait(run, *args, **kwargs):
         waiting.set()
-        return original_wait(run)
+        return original_wait(run, *args, **kwargs)
 
     monkeypatch.setattr(gate.decision_model, "judge", slow)
     monkeypatch.setattr(core, "_wait", observed_wait)
@@ -116,7 +116,9 @@ def test_manual_freeze_during_slow_decision_holds_effect_until_human_kill(api, m
             assert entered.wait(2)
             assert api.post(f"/runs/{run_id}/freeze", json=HUMAN).status_code == 200
             release.set()
-            assert waiting.wait(2)
+            assert pending.result(3) == "blocked"
+            assert not waiting.is_set()
+            assert gate.runs[run_id].status == "frozen"
             assert effects == []
         finally:
             release.set()
@@ -146,7 +148,7 @@ def test_human_containment_survives_failed_audit_write(api, monkeypatch, action)
     if run.status == "running":
         protected(handle(run_id, auth), USER, effects)
     elif action == "freeze":
-        assert check(api, run_id, auth, "send_email", to=USER).json()["decision"] == "freeze"
+        assert check(api, run_id, auth, "send_email", to=USER).json()["decision"] == "block"
         assert api.post(f"/runs/{run_id}/kill", json=HUMAN).status_code == 200
     else:
         assert protected(handle(run_id, auth), USER, effects) == "blocked"
