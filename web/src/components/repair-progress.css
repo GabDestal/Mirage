@@ -1,0 +1,34 @@
+/* Coding-agent repair panel. Same surfaces as the incident proof and exposure panels: line borders, paper-2 washes, ink text. */
+.repair-progress { display: flex; flex-direction: column; align-items: stretch; gap: 16px; padding: 18px 20px; margin-block: 4px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.repair-state h3 { font-size: 15px; font-weight: 600; line-height: 22px; }
+.repair-state p, .repair-state-detail { margin-top: 4px; color: var(--ink-2); font-size: 13px; line-height: 20px; max-width: 70ch; }
+.repair-error { padding: 12px 14px; border-radius: 8px; background: var(--alarm-wash); color: var(--ink); font-size: 13px; line-height: 20px; }
+.repair-steps { display: flex; flex-direction: column; padding: 0; margin: 0; list-style: none; border-top: 1px solid var(--line); }
+.repair-steps > li { display: flex; gap: 12px; padding-block: 12px; border-bottom: 1px solid var(--line); }
+.repair-step-mark { display: grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--paper); color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+.repair-step-mark svg { width: 14px; height: 14px; }
+.repair-step-mark[data-state='done'] { border-color: transparent; background: var(--mirage-wash); color: #0a6b66; }
+.repair-step-mark[data-state='current'] { border-color: var(--ink); color: var(--ink); }
+.repair-step-mark[data-state='failed'] { border-color: transparent; background: var(--alarm-wash); color: #9b291f; }
+.repair-spin { animation: repair-spin 1s linear infinite; }
+@keyframes repair-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .repair-spin { animation: none; } }
+.repair-step-body { flex: 1; min-width: 0; padding-top: 2px; }
+.repair-step-title { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 13px; line-height: 20px; font-weight: 500; }
+.repair-steps > li[data-state='pending'] .repair-step-title > span:first-child { color: var(--ink-2); font-weight: 400; }
+.repair-step-word { color: var(--ink-2); font-weight: 400; }
+.repair-steps > li[data-state='failed'] .repair-step-word { color: #9b291f; font-weight: 500; }
+.repair-step-detail { margin-top: 4px; color: var(--ink-2); font-size: 13px; }
+.repair-progress code { font-family: var(--font-mono); font-size: 12px; color: var(--ink); }
+.repair-verification { display: flex; flex-wrap: wrap; gap: 8px 32px; margin-top: 10px; }
+.repair-verification dt { color: var(--ink-2); font-size: 12px; line-height: 16px; }
+.repair-verification dd { margin-top: 2px; font-size: 16px; font-weight: 600; line-height: 24px; font-variant-numeric: tabular-nums; }
+/* Beats the page-level `a` colors in chat.css and incident.css so the link keeps ink text on every page. */
+.repair-progress a.repair-pr, .repair-progress a.repair-pr:hover { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); text-decoration: none; transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease; }
+.repair-progress a.repair-pr:hover { background: var(--paper-2); border-color: var(--ink-3); }
+.repair-pr strong { display: block; font-size: 13px; font-weight: 500; }
+.repair-pr small { display: block; margin-top: 2px; color: var(--ink-2); font-size: 12px; }
+.repair-pr svg { flex-shrink: 0; color: var(--ink-2); }
+.repair-note { color: var(--ink-2); font-size: 13px; line-height: 20px; max-width: 70ch; }
+@media (max-width: 640px) { .repair-progress { padding: 16px; } .repair-verification { gap: 8px 24px; } }
+.repair-progress:empty { display: none; }
