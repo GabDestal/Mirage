@@ -53,7 +53,7 @@ def validate_runs(runs):
         raise ValueError("runs must be a positive integer from 1 to 10")
 
 
-def run_once(snap, *, current_spec=None):
+def run_once(snap, *, current_spec=None, repo_root=None):
     """One replay: (effects, error). An optional dict receives validated factory metadata."""
     if current_spec is not None:
         current_spec.clear()
@@ -77,7 +77,8 @@ def run_once(snap, *, current_spec=None):
                     "MIRAGE_CURRENT_SPEC": str(spec_file),
                     "AWS_EC2_METADATA_DISABLED": "true"}  # boto3 would probe 169.254.169.254
             try:
-                proc = subprocess.run([sys.executable, "-I", "-c", BOOT, str(REPO)], cwd=tmp,
+                proc = subprocess.run([sys.executable, "-I", "-c", BOOT,
+                                       str(REPO if repo_root is None else repo_root)], cwd=tmp,
                                       env=env, capture_output=True, text=True, timeout=TIMEOUT,
                                       check=False)
                 error = ((proc.stderr.strip()[-600:] or f"child exited with code {proc.returncode}")
