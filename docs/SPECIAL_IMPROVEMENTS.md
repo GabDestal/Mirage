@@ -142,7 +142,7 @@ Add a small Rules tab with Create rule, a readable form/preview, scope, status, 
 
 ### How rules reach the local harness
 
-Current behavior: `GET /policies` is read-only, agent allowlists are supplied at registration, and the default policy is defined in `engine/detection/policies.yaml`. Versioned policy storage and human-approved activation below are proposed additions.
+Original baseline: `GET /policies` is read-only, agent allowlists are supplied at registration, and the default policy is defined in `engine/detection/policies.yaml`. Versioned storage and human-approved activation are the approved addition; the delivery index records the implemented Rules slices and their actual receipts.
 
 Use one authoritative engine policy store and the existing HTTP boundary. Company policy, agent role permissions and trusted task scope intersect. A model proposes actions; deterministic checks enforce permissions. External content cannot expand them.
 
@@ -254,7 +254,7 @@ The proposed workflow is concrete:
 5. The trusted local supervisor reads the command's exit status and JSON output, records the snapshot digest and clean checkout SHA, and sends that evidence to the engine over HTTP. The private verification process must not append directly to the running engine's shared database. Person A's narrow report path records the evidence on the original incident without rerunning main's code.
 6. The worker pushes and creates a draft PR with the incident, regression and verification output. Use `gh pr create --base special-improvements --draft --body-file ...`; the supervisor reads its real URL, `baseRefName` and `headRefOid` with `gh pr view --json ...`. A terminal sentence saying “done” is not the PR receipt. The observed base must be `special-improvements` and the head must equal the tested commit. [GitHub CLI creation](https://cli.github.com/manual/gh_pr_create) and [PR JSON fields](https://cli.github.com/manual/gh_pr_view) cover these operations.
 
-Draft contract names for alignment, not existing routes: `POST /incidents/{id}/repair-jobs`, `GET /repair-jobs/{job_id}`, and a loopback supervisor report route `POST /repair-jobs/{job_id}/report`. Keep states to `queued`, `running`, `verifying`, `pr_open`, `failed`; reports carry an error or artifact reference rather than terminal transcripts. Reuse `fix.verified` and `/incidents/{id}/pr` where possible. A local trusted supervisor is sufficient here; distributed worker authentication and signed attestations are deferred.
+The approved M1 contract now uses `POST /incidents/{id}/repair-jobs`, `GET /repair-jobs/{job_id}`, and the private loopback supervisor route `POST /repair-jobs/{job_id}/report`. States remain `queued`, `running`, `verifying`, `pr_open`, `failed`; public progress carries safe evidence references rather than terminal transcripts. Reuse `fix.verified` and `/incidents/{id}/pr` where possible. A local trusted supervisor is sufficient here; distributed worker authentication and signed attestations are deferred.
 
 **Commit checkpoints:** save regression/job contract; show a real queued/running worker; return parsed verification evidence; show the actual PR. Each is a coherent working commit, approximately every 10–15 minutes. Only the directly relevant check is required at each checkpoint.
 
@@ -266,7 +266,7 @@ Draft contract names for alignment, not existing routes: `POST /incidents/{id}/r
 
 1. The human reviews and merges the repair PR into `special-improvements`. The supervisor fetches the PR's `baseRefName`, `state` and `mergeCommit` via GitHub CLI, confirms the integration target, and materializes that exact merged revision in an Orca-managed checkout. It does not switch or reset the user's main checkout.
 2. Compare the verified candidate's code tree with the merged tree. If identical, reuse the verification evidence. If relevant content changed, run the existing verification once against the final merged candidate before continuing. Track both commit IDs; squash merge need not preserve the candidate SHA.
-3. Build/register the repaired factory with the intended permissions and legitimate-task declaration **before** restart approval. The new engine guard will reject registration changes after approval; do not approve first and then silently install a different spec.
+3. Build/register the repaired factory with the intended permissions and legitimate-task declaration **before** restart approval. The existing engine guard rejects registration changes after approval; do not approve first and then silently install a different spec.
 4. For the original frozen compromised run, use the existing human kill decision, then human clean-restart approval. Launch the registered factory from the merged checkout with fresh model context and the exact approved task. Do not use `/resume` to bypass its confirmed-incident refusal. The SDK's normal start claims the single matching queued restart.
 5. Show the resulting `restarted_from` run actually entering `running` and finishing its legitimate task. Keep the old run contained. Queue creation alone is not completion.
 
@@ -282,7 +282,7 @@ By the original minute-75 checkpoint, this is the intended end-to-end result. If
 
 The first rule type is deliberately narrow: restrict named tools and exact allowed recipients for a named demo agent. Derive its readable sentence from typed fields. Use existing `Allowlist` shapes, a content digest as version, and the engine's existing durable event store for draft/activation history. No arbitrary predicates, YAML-first editing, company permission discovery or mutable P1–P6 text editor.
 
-Proposed HTTP surface: list revisions/drafts, create a draft and activate a selected revision with `{actor, reason}`. These names and models are aligned by A/B at the milestone start. The Rules page and Miragio both use that same store. The default canonical policy, registered role allowlist and activated restriction intersect; a rule can narrow the role's permissions, not expand them.
+Approved HTTP surface: list revisions/drafts, create a draft, preview and activate a selected revision with `{actor, reason}`. A/B aligned the models and routes in the Rules contract; the delivery index and HTTP journey identify the implemented names. The Rules page and Miragio both use that same store. The default canonical policy, registered role allowlist and activated restriction intersect; a rule can narrow the role's permissions, not expand them.
 
 Extend the existing admission-time policy copy with the active rule revision, preserve it in the snapshot and verification evidence, and expose it in HTTP responses. The local SDK continues sending tool checks to the engine; there is no need to implement a second local policy evaluator or bundle cache in this sprint. The versioned HTTP policy-to-harness contract remains the design; the engine is the single-laptop harness's enforcement service. A separate authenticated bundle pull remains for a later standalone harness.
 
