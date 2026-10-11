@@ -7,7 +7,6 @@ answer 409. Data plane routes that act on a run need `Authorization: Bearer <run
 """
 
 import asyncio
-import copy
 import os
 import subprocess
 import sys
@@ -188,11 +187,12 @@ def start_run(body: RunStart) -> RunStarted:
     queued = next((r for r in gate.runs.values()
                    if r.agent == body.agent and r.status == "queued"), None)
     if queued:  # an approved clean restart: this run takes it over
-        queued.legit = copy.deepcopy(spec.legit)
+        if spec != queued.admitted_spec:
+            raise HTTPException(409, "Registration changed since this clean restart was approved")
         gate.set_status(queued, "running", "sdk", f"Clean restart of {queued.restarted_from}.")
         return RunStarted(run_id=queued.id, run_token=queued.token)
     run = gate.LiveRun(id=gate.next_id("run"), agent=body.agent, task=body.task,
-                       restarted_from=body.restarted_from, legit=copy.deepcopy(spec.legit))
+                       restarted_from=body.restarted_from, admitted_spec=spec)
     gate.runs[run.id] = run
     gate.set_status(run, "running", "sdk", "Run started.")
     events.emit("run.started", {"task": run.task, "agent": run.agent,
@@ -510,7 +510,7 @@ def _queue_restart(old, body, action, note=None):
                                  "ts": datetime.now(UTC).isoformat()})
     spec = gate.agents.get(old.agent)
     run = gate.LiveRun(id=gate.next_id("run"), agent=old.agent, task=old.task,
-                       restarted_from=old.id, legit=copy.deepcopy(spec.legit if spec else {}))
+                       restarted_from=old.id, admitted_spec=spec)
     gate.runs[run.id] = run
     events.emit("run.started", {"task": run.task, "agent": run.agent, "restarted_from": old.id,
                                 "status": "queued", **({"note": note} if note else {})},
