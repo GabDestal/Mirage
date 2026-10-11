@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/sidebar/sidebar'
 import { CommandMenu } from '@/components/command-menu'
 import { Tooltip } from '@/components/ui/tooltip'
 import { isDemo } from '@/lib/demo'
+import { Chat } from '@/pages/chat'
 import { cn } from '@/lib/utils'
 
 const typing = (e: KeyboardEvent) =>
@@ -54,6 +55,7 @@ export function Shell() {
           </Tooltip>
         </div>}
         <main className="min-h-0 flex-1 overflow-y-auto">
+          <div className={title === 'Chat' ? 'contents' : 'hidden'}><Chat /></div>
           <Outlet />
         </main>
       </div>

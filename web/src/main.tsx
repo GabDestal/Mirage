@@ -8,7 +8,6 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { Fleet } from '@/pages/fleet'
 import { Integrations } from '@/pages/integrations'
 import { Rules } from '@/pages/rules'
-import { Chat } from '@/pages/chat'
 import { DemoEntry } from '@/pages/login'
 import { Incidents, RunPage } from '@/pages/placeholders'
 import { IncidentPage } from '@/pages/incident'
@@ -25,7 +24,8 @@ const router = createBrowserRouter([
   {
     element: <DemoEntry />,
     children: [
-      { path: '/', element: <Chat />, handle: { title: 'Chat' } },
+      // Shell keeps Chat mounted so the conversation survives tab switches.
+      { path: '/', element: null, handle: { title: 'Chat' } },
       { path: '/fleet', element: <Fleet />, handle: { title: 'Fleet' } },
       { path: '/integrations', element: <Integrations />, handle: { title: 'API keys' } },
       { path: '/rules', element: <Rules />, handle: { title: 'Rules' } },
