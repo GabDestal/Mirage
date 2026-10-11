@@ -12,7 +12,7 @@ registerHooks({ resolve(specifier, context, next) {
   }
   return next(specifier, context)
 } })
-const { connect, disconnect, resetStream } = await import('../src/api/stream.ts')
+const { connect, disconnect, resetStream, useNow } = await import('../src/api/stream.ts')
 const { queryClient, useApprovals, useServiceView } = await import('../src/api/client.ts')
 const originalFetch = globalThis.fetch
 const originalSource = globalThis.EventSource
@@ -207,6 +207,26 @@ test('external reset replaces a high cursor with low-seq history in the new runt
   sources.at(-1).runtime(); sources.at(-1).open(); await flush()
   assert.deepEqual(events().map((e) => e.seq), [1, 2])
   assert.equal(health().runtime.stream_epoch, 'epoch-2')
+})
+
+test('a restarted instance clears target queries and the event clock before accepting low seqs', () => {
+  function Clock() { return String(useNow()) }
+  const now = () => Number(renderToString(createElement(Clock)))
+  sources[0].message(event(80))
+  assert.equal(now(), Date.parse(event(80).ts))
+  for (const key of [['runs'], ['incidents', 'old'], ['approvals'], ['services', 'outbox', 'prod']])
+    queryClient.setQueryData(key, { stale: true })
+  runtime = { ...metadata('epoch-1', 1), instance_id: 'restarted-instance' }
+  sources[0].runtime()
+  assert.ok(sources[0].closed)
+  assert.ok(sources.at(-1).url.endsWith('after=0'))
+  assert.equal(now(), Date.now(), 'Restart clears the previous event clock offset')
+  for (const key of [['runs'], ['incidents', 'old'], ['approvals'], ['services', 'outbox', 'prod']])
+    assert.equal(queryClient.getQueryData(key), undefined)
+  sources.at(-1).runtime()
+  sources.at(-1).message(event(1))
+  assert.deepEqual(events().map((e) => e.seq), [1])
+  assert.equal(health().runtime.instance_id, 'restarted-instance')
 })
 
 test('new SSE epoch fences callbacks queued on the old source', () => {
