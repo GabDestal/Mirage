@@ -678,10 +678,7 @@ Human-action POSTs from web and MCP (§5) send `HumanRequest` `{actor, reason}`.
   The child calls `runner(snapshot, call_tool)` (`runner` defaults to `entrypoint`). For SDK agents the runner is
   `mirage.sandbox:run`: it rebuilds the agent from `entrypoint`, replays the recorded model replies up to
   the frozen call, then runs live from there. Every tool call goes to `call_tool(tool, args)`, owned by the
-  engine. Reads return the next recorded result for exactly the same tool and arguments. Missing or
-  exhausted reads return a typed `ToolResult` with null result and a safe error category.
-  Declared demo writes are captured and answered `{"status": "ok"}`; an exact recorded
-  failure stays a typed failure.
+  engine: a read returns its recorded result, anything else is captured as an effect and answered `{"status": "ok"}`.
 - Bisection: remove one `Input` from the snapshot (example: the invite from `read_calendar`'s result) and run
   again **from the start** (no replay of model replies), so the agent's path can change.
 
@@ -700,13 +697,8 @@ Built in `engine/detonation/`. The engine owns the process and the jail; the age
 - **Runner**: the child calls `(runner or entrypoint)(snapshot: dict, call_tool)` where
   `call_tool(tool, args) -> result`. Every tool call must go through `call_tool`. Today the engine's dev agent
   is called directly (`engine.dev.assistant:mirage_entry`); SDK agents go through `mirage.sandbox:run`.
-  `call_tool` consumes exact tool+args recordings in chronological order, without
-  reusing another entity's same-tool result. Successful read values stay raw, including
-  dictionaries with ordinary error/status fields. Non-null recorded errors and
-  unavailable reads return `ToolResult(result=None, error=<safe category>)` and emit the
-  same category in `Effect.error`, without provider text. Declared demo write names
-  receive captured synthetic acknowledgments; unsupported unrecorded tools fail
-  unavailable. Each attempt has a fresh snapshot and recording-consumption state.
+  `call_tool` returns the recorded result for a read (same args first, else same tool) and captures anything
+  else as an effect, answering `{"status": "ok"}`.
 - **Gate layer 2** (`engine/detection/decision_model.py`): for outbound calls the hard rules allowed (a destination
   argument, or a send/export/share/post/forward/upload/publish tool), `gpt-oss-safeguard-20b` judges the call against
   P1-P6 and the user's task. Violation with `p >= MIRAGE_GATE_THRESHOLD` (default 0.7) → freeze with
