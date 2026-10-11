@@ -127,6 +127,28 @@ try {
       assert.match(message, /1 .*skipped/i)
       assert.deepEqual(cache.getQueryData(['runs']), [halted, queued])
     })
+    for (const status of ['running', 'failed']) {
+      await test(`resume preserves an observed ${status} REST result without calling it queued`, async () => {
+        seed([halted])
+        const after = { ...queued, status }
+        const message = await request('resume', halted, after)
+        assert.ok(message.includes(status))
+        assert.doesNotMatch(message, /queued|awaiting owner/i)
+        assert.deepEqual(cache.getQueryData(['runs']), [halted, after])
+      })
+    }
+    await test('pending resume approval cannot optimistically start a replacement run', async () => {
+      seed([halted])
+      let finish
+      globalThis.fetch = () => new Promise((resolve) => { finish = resolve })
+      const pending = capture(actions.useHumanAction).mutateAsync({ kind: 'resume', run: halted, body })
+      await new Promise((resolve) => setImmediate(resolve))
+      try {
+        assert.deepEqual(cache.getQueryData(['runs']), [halted])
+        assert.equal(stat(render(Fleet), 'Active Agents'), 0)
+      } finally { finish(new Response(JSON.stringify(queued))); await pending }
+      assert.deepEqual(cache.getQueryData(['runs']), [halted, queued])
+    })
     await test('observed live owned running and frozen runs retain their explicit human controls', () => {
       seed([run])
       assert.ok(enabled(render(Fleet), 'Freeze'))

@@ -261,7 +261,7 @@ test("resume_all reports mixed returned states instead of treating every accepte
   expect(result.text).toMatch(/run_005.*queued/);
   expect(result.text).toMatch(/run_009.*running/);
   expect(result.text).toContain("Confirmed compromise");
-  expect(result.text).not.toMatch(/restarts as|2 .*running/i);
+  expect(result.text).not.toMatch(/restarts as|2 (?:agents?|runs?) (?:are )?running/i);
   expect(posts).toHaveLength(1);
 });
 

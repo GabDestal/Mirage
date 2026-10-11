@@ -36,15 +36,15 @@ function copy(kind: ActionKind, run: Run | undefined, runs: Run[]) {
   if (isDemo && kind === 'resumeAll') return {
     title: 'Resume recording?', effect: 'Stop all is lifted. Recording continues from its paused position and prior recorded run states are restored. No agents or providers are launched.',
   }
-  if (kind === 'stop') return { title: 'Stop all agents?', effect: 'Every run halts and all tokens are revoked. Resume all restarts them later.' }
+  if (kind === 'stop') return { title: 'Stop all agents?', effect: 'Active runs halt and their tokens are revoked. Resume all can queue eligible halted tasks for a new start.' }
   if (kind === 'resumeAll') return {
     title: 'Resume all agents?',
-    effect: 'Stop all is lifted and every halted agent starts its task again from the beginning. Every action goes through the gate. Compromised runs stay stopped.',
+    effect: 'Stop all is lifted and eligible halted tasks are queued to start from the beginning. A queued run waits for its owner to start it. Compromised or detonating runs stay stopped. New actions go through the gate.',
   }
   const label = run ? runLabel(run, runs) : 'this run'
   if (kind === 'freeze') return { title: `Freeze ${label}?`, effect: 'This run pauses before its next tool call. Other runs keep working. A manual freeze does not create incident proof.' }
   if (kind === 'restart') return { title: `Approve a clean restart of ${label}?`, effect: 'A new run is queued with the same task. It waits for the owner to start the agent; this approval does not launch it or merge a PR.' }
-  if (kind === 'resume') return { title: `Resume ${label}?`, effect: 'It starts its task again from the beginning. Every action goes through the gate.' }
+  if (kind === 'resume') return { title: `Resume ${label}?`, effect: 'A new run is queued to start the task from the beginning. It waits for its owner to start it; queued does not mean running. New actions go through the gate.' }
   if (kind === 'kill') return { title: `Kill ${label}?`, effect: 'The call it was holding never runs, and the run ends for good.' }
   const events = queryClient.getQueryData<MirageEvent[]>(['events']) ?? []
   const held = run && blockedCall(events, run.id)?.decision
@@ -188,10 +188,11 @@ export function HumanReasonDialog({ open, title, effect, reasons, verb, destruct
   )
 }
 
-const agents = (n: number) => `${n} ${n === 1 ? 'agent' : 'agents'}`
+const runCount = (n: number) => `${n} ${n === 1 ? 'run' : 'runs'}`
 const resumeAllToast = ({ resumed, skipped }: ResumeAll) =>
-  `${resumed.length ? `${agents(resumed.length)} starting again.` : 'No agent to resume.'}` +
-  (skipped.length ? ` ${agents(skipped.length)} skipped: compromised or detonating.` : '')
+  (resumed.length ? [...new Set(resumed.map((run) => run.status))].map((status) =>
+    `${runCount(resumed.filter((run) => run.status === status).length)} ${status}${status === 'queued' ? ' · awaiting owner start' : ''}.`,
+  ).join(' ') : 'No new recovery runs.') + (skipped.length ? ` ${runCount(skipped.length)} skipped.` : '')
 
 type Vars = { kind: ActionKind; run?: Run; body: HumanRequest }
 
@@ -213,16 +214,22 @@ export function useHumanAction() {
       return { before }
     },
     onSuccess: (data, { kind, run }) => {
-      if ((kind === 'freeze' || kind === 'restart') && data && 'id' in data) {
-        queryClient.setQueryData<Run[]>(['runs'], (old = []) => [...old.filter((r) => r.id !== data.id), data])
+      const recovered = kind === 'resumeAll' && !isDemo ? (data as ResumeAll).resumed
+        : ['freeze', 'restart', 'resume'].includes(kind) && data && 'id' in data ? [data] : []
+      if (recovered.length) {
+        queryClient.setQueryData<Run[]>(['runs'], (old = []) => [
+          ...old.filter((r) => !recovered.some((next) => next.id === r.id)), ...recovered,
+        ])
       }
       const runs = queryClient.getQueryData<Run[]>(['runs']) ?? []
       const label = run ? runLabel(run, runs) : ''
       if (kind === 'resumeAll') return toast(isDemo ? 'Recording resumed from where it paused. Prior recorded run states restored.' : resumeAllToast(data as ResumeAll))
       if (kind === 'restart') return toast('Clean restart approved and queued. Waiting for the owner to start the agent.')
+      if (kind === 'resume') return toast((data as Run).status === 'queued'
+        ? `${label} restart queued. Waiting for the owner to start it.` : `${label} restart: ${(data as Run).status}.`)
       if (kind === 'freeze') return toast(`${label} is frozen.`)
       toast(kind === 'stop' ? isDemo ? 'Recording paused. Active recorded runs are halted.' : 'All agents stopped.'
-        : kind === 'resume' ? `${label} is starting its task again.` : kind === 'kill' ? `${label} was killed.` : `${label} is working again.`)
+        : kind === 'kill' ? `${label} was killed.` : `${label} is working again.`)
     },
     onError: (err, _, ctx) => {
       queryClient.setQueryData(['runs'], ctx?.before)
