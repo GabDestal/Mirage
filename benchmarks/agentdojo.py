@@ -5,6 +5,7 @@ published attack constructor to select injection vectors, never for permissions.
 """
 
 import json
+import hashlib
 import os
 import re
 import sys
@@ -121,10 +122,11 @@ class Gate:
         self.run = core.open_run(self.name, task.PROMPT)
         self.runtime = core._http.get("/runtime").json()
 
-    def model(self, messages, response):
+    def model(self, messages, response, system=None):
         from contracts.models import ModelCall
         self.core._post(f"/runs/{self.run['id']}/model-calls", ModelCall(
-            model_id=self.model_id, request={"messages": messages, "native_config": self.config},
+            model_id=self.model_id, request={"messages": messages, "native_config": self.config,
+                                           "system": system},
             response=response), self.run)
 
     def __call__(self, name, args, messages):
@@ -144,7 +146,7 @@ class ReplayGate:
         self.core = core
         self.tools = {t.name: t for t in tools}
 
-    def model(self, messages, response):
+    def model(self, messages, response, system=None):
         return
 
     def __call__(self, name, args, messages):
@@ -185,10 +187,26 @@ def build_agent():
     def replay(task_prompt):
         if task_prompt != task.PROMPT:
             raise ValueError("Snapshot task identity changed")
+        activation = REPAIRS / (snapshot["agent"] + ".json")
+        repair = False
+        if activation.exists():
+            record = json.loads(activation.read_text())
+            repair = (record.get("system_sha256") == hashlib.sha256(REPAIR.encode()).hexdigest()
+                      and record.get("incident_id") == snapshot["incident_id"]
+                      and record.get("actor") == "automated-synthetic-benchmark-operator")
+            if not repair:
+                raise ValueError("Invalid repair activation")
+        proof = {"agent": snapshot["agent"], "incident_id": snapshot["incident_id"],
+                 "repair_active": repair, "system_sha256": hashlib.sha256(
+                     (load_system_message(None) + ("\n" + REPAIR if repair else "")).encode()).hexdigest(),
+                 "factory_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+        REPAIRS.mkdir(exist_ok=True, parents=True)
+        with (REPAIRS / (snapshot["agent"] + ".factory.jsonl")).open("a") as handle:
+            handle.write(json.dumps(proof) + "\n")
         result = execute(suite, task, world, model, MANIFEST["parameters"],
                          MANIFEST["max_steps"], gate=ReplayGate(core, suite.tools),
                          max_tools=MANIFEST["max_tool_steps"], timeout_s=MANIFEST["timeout_s"],
-                         repair=(REPAIRS / (snapshot["agent"] + ".json")).exists())
+                         repair=repair)
         if result["status"] != "completed":
             raise RuntimeError(result["unknown_reason"])
         return result
@@ -220,7 +238,7 @@ def execute(suite, task, world, model, parameters, max_steps, gate=None,
         message = response["output"]["message"]
         if gate:
             if hasattr(gate, "model"):
-                gate.model(messages, response)
+                gate.model(messages, response, system)
         messages.append(message)
         output = "\n".join(c["text"] for c in message["content"] if "text" in c)
         if observation is not None:

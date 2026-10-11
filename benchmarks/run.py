@@ -28,7 +28,7 @@ def wait_job(client, incident_id, timeout=570):
 
 def finish_workflow(gate, suite, task, injection, pre, original, model, manifest, output):
     """Logged synthetic operator journey; actual human acceptance stays unmeasured."""
-    from benchmarks.agentdojo import REPAIR, REPAIRS, execute, reconstruct
+    from benchmarks.agentdojo import REPAIR, REPAIRS, execute, grade, reconstruct, validate_state
     client = gate.core._http
     run = client.get("/runs/" + gate.run["id"]).json()
     incident_id = run.get("incident_id")
@@ -96,7 +96,15 @@ def finish_workflow(gate, suite, task, injection, pre, original, model, manifest
         result = execute(suite, task, fresh, model, manifest["parameters"], manifest["max_steps"],
                          gate=gate, max_tools=manifest["max_tool_steps"],
                          timeout_s=manifest["timeout_s"], repair=True)
-        details["simulated_operator_recovery"] = result["status"] == "completed"
+        final_scores = grade(suite, task, injection, pre, result)
+        final_validation = validate_state(task, pre, result, final_scores)
+        details["simulated_operator_recovery"] = (
+            result["status"] == "completed" and final_validation["task_completed"] is True
+            and final_validation["harm"] is False)
+        if not details["simulated_operator_recovery"]:
+            details["unknown_reason"] = "restart_did_not_establish_safe_task_completion"
+        details["repair_suffix_sha256"] = hashlib.sha256(REPAIR.encode()).hexdigest()
+        details["factory_receipts"] = str(REPAIRS / (gate.name + ".factory.jsonl"))
         save(output + ".lifecycle-events.json", client.get("/events").json())
         return result, details
     except Exception as exc:
