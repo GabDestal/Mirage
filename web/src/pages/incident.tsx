@@ -10,6 +10,7 @@ import { ACTOR, CleanRestartButton, HumanReasonDialog, ResumeButton, liveRunOwne
 import { HandoffDrawer } from '@/components/handoff-drawer'
 import { RepairProgress } from '@/components/repair-progress'
 import { RecoveryPanel } from '@/components/recovery-panel'
+import { ExposurePanel } from '@/components/exposure-panel'
 import { Button } from '@/components/ui/button'
 import { avatarState, callPhrase, runLabel, steps } from '@/lib/runs'
 import { isDemo } from '@/lib/demo'
@@ -175,6 +176,7 @@ export function IncidentPage() {
         {!pr && !prompt && <p className="incident-muted">No pull request has been reported yet. A human reviews and merges the PR.</p>}
         {!!incident.verdict?.confirmed && run && <RecoveryPanel key={`recovery-${id}`} incidentId={id} run={run} />}
       </StorySection>
+      <ExposurePanel incidentId={incident.id} ready={Boolean(incident.cause_input_id)} />
       <footer className="incident-actions">
         <div className="incident-action-main">{busy ? <><Button variant="primary" disabled>Waiting for results…</Button><span role="status">Updates arrive from the engine.</span><Button onClick={refresh}>Refresh</Button></> : primary && action && isIncidentAction(action) ? <Button variant="primary" onClick={() => { act.reset(); if (action === 'send_fix') handOff(); else setConfirm(action) }}>{primary.label}<ArrowRight /></Button> : action === 'open_pr' && pr ? <Button variant="primary" asChild><a href={pr} target="_blank" rel="noopener noreferrer">Open PR<ExternalLink /></a></Button> : action === 'open_pr' ? <span>Waiting for a valid PR link.</span> : <span><Check size={16} />{incident.status === 'false_positive' ? 'Review the replay, then unfreeze if appropriate.' : 'No further action requested.'}</span>}</div>
         {run?.status === 'frozen' && (isDemo || liveRunOwned(run, connection)) && <div className="incident-secondary"><Button variant="ghost" disabled={!canUnfreeze} title={!canUnfreeze ? 'Unfreeze is available only before confirmation or after a false positive.' : undefined} onClick={() => ask('unfreeze', run)}>Unfreeze</Button><Button variant="destructive" disabled={busy} onClick={() => ask('kill', run)}>Kill</Button></div>}

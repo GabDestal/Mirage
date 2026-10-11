@@ -8,6 +8,7 @@ import type { RepairController } from "./repair-supervisor.js";
 import { publicRepairJob } from "./repair-supervisor.js";
 import type { RecoveryController } from "./recovery.js";
 import { registerRules } from "./rules.js";
+import { registerExposureTools } from "./exposure.js";
 
 // Hand-typed subset of contracts/models.py.
 type Run = { id: string; agent: string; task: string; status: string; incident_id: string | null; tool_calls: number;
@@ -459,5 +460,6 @@ export function createServer(opts: Options = {}) {
       `Open ${agents} and paste this prompt to start the fix:\n\n${h.prompt ?? ""}`, h);
   }));
 
+  registerExposureTools(server, { call, actor, untrusted });
   return server;
 }
