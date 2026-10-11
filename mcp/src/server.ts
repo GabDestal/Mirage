@@ -307,7 +307,7 @@ export function createServer(opts: Options = {}) {
   // --- Level 1: real effects, typed human confirmation, fail closed -----------------------
 
   const MESSAGE = {
-    unfreeze: (run: Run) => `Unfreeze ${run.id} (${run.agent}) and resume it in production. The action it was stopped on goes through the gate again.`,
+    unfreeze: (run: Run) => `Unfreeze ${run.id} (${run.agent}). The held call may execute in production when you release it. Later tool calls remain gated.`,
     kill: (run: Run) => `Kill ${run.id} (${run.agent}). It stops for good and cannot be resumed.`,
     resume: (run: Run) => `Resume ${run.id} (${run.agent}). A new run is queued to start the task from the beginning in production. A queued run waits for its owner to start it. New actions go through the gate.`,
   };

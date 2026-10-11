@@ -190,6 +190,23 @@ try {
       assert.equal(stat(render(Fleet), 'Active Agents'), 0)
       assert.deepEqual(cache.getQueryData(['runs']), [run], 'Ownership changes must preserve historical evidence')
     })
+    for (const status of [200, 409]) {
+      await test(`late ${status} control response from a previous engine cannot replace current evidence`, async () => {
+        seed([run])
+        let finish
+        globalThis.fetch = () => new Promise((resolve) => { finish = resolve })
+        const pending = capture(actions.useHumanAction).mutateAsync({ kind: 'freeze', run, body })
+        await new Promise((resolve) => setImmediate(resolve))
+        const current = { ...run, id: 'run/current-engine', status: 'running' }
+        connection(runtime([current.id], { instance_id: 'synthetic-engine-b', stream_epoch: 'synthetic-epoch-b' }))
+        cache.setQueryData(['runs'], [current])
+        finish(new Response(JSON.stringify(status === 200 ? { ...run, status: 'frozen' }
+          : { detail: 'Synthetic old engine refused the action' }), { status }))
+        if (status === 200) await pending
+        else await assert.rejects(pending, { status: 409 })
+        assert.deepEqual(cache.getQueryData(['runs']), [current], 'Stale completion/rollback must not restore the old engine cache')
+      })
+    }
     await test('queued recovery is pending until a running run has an observed live owner', () => {
       seed([halted, queued], runtime([]))
       const pending = render(Fleet)
