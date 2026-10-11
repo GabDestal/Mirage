@@ -1,12 +1,16 @@
 // Synthetic render checks. Real coding-worker and provider acceptance belongs to the operator rehearsal.
 import assert from 'node:assert/strict'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createServer } from 'vite'
 
 process.env.MIRAGE_UI_MODE = 'live'
-const server = await createServer({ server: { middlewareMode: true, ws: false }, appType: 'custom' })
+const cacheDir = await mkdtemp(join(tmpdir(), 'mirage-repair-render-'))
+const server = await createServer({ configLoader: 'runner', cacheDir, server: { middlewareMode: true, ws: false }, appType: 'custom' })
 try {
   const { RepairProgress } = await server.ssrLoadModule('/src/components/repair-progress.tsx')
   const { queryClient } = await server.ssrLoadModule('/src/api/client.ts')
@@ -21,7 +25,7 @@ try {
   assert.ok(queued.includes('Repair queued') && queued.includes('role="status"'))
   assert.ok(!queued.includes('Review draft PR') && !queued.includes('Attack blocked'))
   const running = render({ status: 'running' })
-  assert.ok(running.includes('coding worker') && !running.includes('draft PR is ready'))
+  assert.ok(running.includes('local repair runtime') && !running.includes('draft PR is ready'))
   const verifying = render({ status: 'verifying' })
   assert.ok(verifying.includes('committed candidate') && !verifying.includes('Attack blocked'))
   const failed = render({ status: 'failed', error: 'verification_failed' })
@@ -33,4 +37,4 @@ try {
   assert.ok(!render({ status: 'pr_open', pr_url: 'javascript:alert(1)' }).includes('href='))
   assert.ok(!ready.includes('prompt') && !ready.includes('token') && !ready.includes('terminal transcript'))
   console.log('RepairProgress: seven synthetic state and privacy checks passed.')
-} finally { await server.close() }
+} finally { await server.close(); await rm(cacheDir, { recursive: true, force: true }) }

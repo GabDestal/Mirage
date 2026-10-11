@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { assertSanitized, digest, digestBytes, privateDirectory, privateJson, runCommand, serializeEvidenceReport, verifyCurrentCode,
+import { assertSanitized, digest, digestBytes, privateDirectory, privateJson, resolveOrcaRepository, runCommand, serializeEvidenceReport, verifyCurrentCode,
   type CommandResult, type CommandRunner, type RepairConfig, type RepairJob, type Verification } from "./repair-supervisor.js";
 
 const sha = z.string().regex(/^[a-f0-9]{40}$/);
@@ -165,7 +165,8 @@ export class RecoverySupervisor implements RecoveryController {
       const candidateTree = sha.parse(await this.command("git", ["rev-parse", `${job.candidate_sha}^{tree}`]));
       const mergedTree = sha.parse(await this.command("git", ["rev-parse", `${pr.mergeCommit.oid}^{tree}`]));
       if (await realpath(this.config.repoPath) !== this.config.repoPath) throw new Error("Configure the canonical repository path.");
-      const created = JSON.parse(await this.command(this.config.orca ?? "orca", ["worktree", "create", "--repo", `path:${this.config.repoPath}`,
+      const repository = await resolveOrcaRepository(this.run, this.config.orca ?? "orca", this.config.repoPath);
+      const created = JSON.parse(await this.command(this.config.orca ?? "orca", ["worktree", "create", "--repo", repository,
         "--name", `mirage-recovery-${jobId}-${pr.mergeCommit.oid.slice(0, 8)}`, "--no-parent", "--base-branch", "special-improvements", "--setup", "skip", "--json"]));
       const cwd = created.result?.worktree?.path;
       if (!created.ok || typeof cwd !== "string" || await realpath(cwd) === this.config.repoPath)
