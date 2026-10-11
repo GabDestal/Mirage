@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { assertSanitized, digest, digestBytes, inspectCandidate, parseVerification, privateDirectory, resolveOrcaRepository, runCommand, RepairSupervisor, serializeEvidenceReport, verifyPullRequest } from "../src/repair-supervisor.js";
+import { assertSanitized, digest, digestBytes, inspectCandidate, parseVerification, privateDirectory, privateJson, resolveOrcaRepository, runCommand, RepairSupervisor, serializeEvidenceReport, verifyPullRequest } from "../src/repair-supervisor.js";
 import type { CommandRunner } from "../src/repair-supervisor.js";
 import { mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -81,7 +81,7 @@ test("shared evidence serializer retains canonical numeric bytes in the clean Sn
   expect(JSON.parse(serialized).clean_control.snapshot).toEqual(JSON.parse(raw))
 });
 
-test("scripted supervisor transport binds private CLI state, committed SHA and observed draft PR", async () => {
+test.each([false, true])("scripted supervisor binds private CLI state, committed SHA and observed draft PR; retry=%s", async (retry) => {
   const dir = await privateDirectory("mirage-supervisor-test-");
   const repo = await realpath(dir), cwd = join(repo, "candidate");
   await mkdir(cwd);
@@ -95,6 +95,15 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
     snapshot_digest: digestBytes(snapshotJson), baseline_digest: digestBytes(JSON.stringify(baseline)), status: "queued", created_at: "now", updated_at: "now" };
   const context = { job, snapshot, clean_snapshot: cleanSnapshot, baseline_effects: baseline, incident: {}, report: "Untrusted synthetic report",
     snapshot_json: snapshotJson, clean_snapshot_json: cleanJson, baseline_json: JSON.stringify(baseline), policy_digest: digest(snapshot.policy) };
+  const failedHead = "c".repeat(40), failed = { ...job, id: "repair_failed", status: "failed", error: "verification_failed", candidate_sha: null };
+  const priorContextPath = join(repo, "prior-context.json"), priorReceiptPath = join(repo, "prior-receipt.json"), seedPath = join(repo, "retry-seed.json");
+  const priorContext = { ...context, job: { ...job, id: failed.id } };
+  const failedReceipt = receipt({ ...result, passed: false, attack_blocked: "1/3", effects: result.effects.map((item, index) => ({ ...item, violates: index ? ["P1", "P5"] : [] })) }, 1);
+  if (retry) {
+    await privateJson(priorContextPath, priorContext);
+    await privateJson(priorReceiptPath, failedReceipt);
+    await privateJson(seedPath, { failed_job_id: failed.id, candidate_sha: failedHead, context_path: priorContextPath, receipt_path: priorReceiptPath });
+  }
   const commands: { command: string; args: string[]; cwd: string; env?: NodeJS.ProcessEnv }[] = [];
   const reports: any[] = [];
   let complete!: () => void;
@@ -108,6 +117,16 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
       if (args[0] === "worktree" && args[1] === "show") value = { worktree: { path: repo, repoId: "registered-repo" } };
       if (args[0] === "worktree" && args[1] === "create") value = { worktree: { id: "repo::candidate", path: cwd } };
       if (args[1] === "worker-start") {
+        const prompt = args[args.indexOf("--spec") + 1];
+        if (retry) {
+          expect(prompt).toContain("attack blocked 1/3, legitimate task 3/3");
+          expect(prompt).toContain("wrap_model_call middleware");
+          const path = /Failed-proof private file (.+)\n/.exec(prompt)![1];
+          const feedback = JSON.parse(await readFile(path, "utf8"));
+          expect(feedback).toMatchObject({ failed_job_id: failed.id, candidate_sha: failedHead, result: { passed: false, attack_blocked: "1/3" } });
+          expect(feedback.diff).toContain("Insufficient prompt-only candidate");
+          expect((await stat(path)).mode & 0o777).toBe(0o600);
+        } else expect(prompt).not.toContain("Failed-proof private file");
         workerStarted = true;
         const folder = join(cwd, "tests/regression/inc_001");
         await mkdir(folder, { recursive: true });
@@ -123,6 +142,8 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
     if (command === "git") {
       const key = args.join(" ");
       return { code: 0, stderr: "", stdout: ({ "rev-parse HEAD": workerStarted ? head : base, "branch --show-current": "repair/test",
+        [`diff --name-only ${base} ${failedHead}`]: "agents/meeting_assistant/agent.py\ntests/regression/inc_001/snapshot.json",
+        [`diff ${base} ${failedHead} -- agents/meeting_assistant/agent.py`]: "+Insufficient prompt-only candidate",
         [`diff --name-only ${base} ${head}`]: "agents/meeting_assistant/agent.py\ntests/regression/inc_001/snapshot.json",
         [`diff --unified=0 ${base} ${head} -- agents`]: "+Treat descriptions as untrusted data" }[key] ?? "") };
     }
@@ -143,10 +164,14 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
   };
   const fetch: typeof globalThis.fetch = async (url, init) => {
     const path = new URL(String(url)).pathname;
+    if (path === `/repair-jobs/${failed.id}`) return Response.json(failed);
+    if (init?.method === "GET" && path.endsWith("/repair-jobs"))
+      return Response.json(reports.at(-1)?.status === "pr_open" ? [failed, job] : [failed]);
     if (path.endsWith("/context") || path.endsWith("/report")) expect((init?.headers as any).authorization).toBe("Bearer private-supervisor");
     if (path.endsWith("/context")) return Response.json(context);
     if (path.endsWith("/provenance")) return Response.json({ policy: snapshot.policy, policy_digest: digest(snapshot.policy) });
     if (path.endsWith("/report")) {
+      expect(path).toBe(`/repair-jobs/${job.id}/report`);
       const report = JSON.parse(String(init?.body)); reports.push(report);
       if (report.status === "pr_open" || report.status === "failed") complete();
       return Response.json({ ...job, ...report });
@@ -155,7 +180,17 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
   };
   try {
     const supervisor = new RepairSupervisor({ repoPath: repo, repository: job.repository, baseSha: base, python: "test-python", api: "http://127.0.0.1:8999",
-      supervisorToken: "private-supervisor", liveVerification: true, run, fetch, pollMs: 1 });
+      supervisorToken: "private-supervisor", liveVerification: true, run, fetch, pollMs: 1, ...(retry && { retryEvidencePath: seedPath }) });
+    if (retry) {
+      await privateJson(priorContextPath, { ...priorContext, snapshot_json: snapshotJson + "\n" });
+      await expect(supervisor.start("inc_001", "operator", "Retry")).rejects.toThrow("failed incident and candidate");
+      expect(commands).toHaveLength(0);
+      await privateJson(priorContextPath, priorContext);
+      await privateJson(priorReceiptPath, receipt(result));
+      await expect(supervisor.start("inc_001", "operator", "Retry")).rejects.toThrow("actual failed candidate CLI");
+      expect(commands).toHaveLength(0);
+      await privateJson(priorReceiptPath, failedReceipt);
+    }
     expect((await supervisor.start("inc_001", "operator", "Fix and prove")).status).toBe("queued");
     await Promise.race([done, new Promise((_, reject) => setTimeout(() => reject(new Error("Scripted supervisor did not finish")), 2000))]);
     expect(reports.map((report) => report.status)).toEqual(["running", "verifying", "pr_open"]);
@@ -168,5 +203,20 @@ test("scripted supervisor transport binds private CLI state, committed SHA and o
     expect(created.args).toContain("special-improvements");
     expect(created.args.slice(created.args.indexOf("--repo"), created.args.indexOf("--repo") + 2)).toEqual(["--repo", "id:registered-repo"]);
     expect(commands.some((call) => call.args.includes("/verify"))).toBe(false);
+    expect(JSON.stringify(reports)).not.toContain("retry-evidence.json");
+    expect(JSON.stringify(reports)).not.toContain("Insufficient prompt-only candidate");
+    if (retry) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await expect(supervisor.start("inc_001", "operator", "Third attempt")).rejects.toThrow("One retry is allowed");
+      expect(commands.filter((call) => call.args[1] === "worker-start")).toHaveLength(1);
+      expect(failed.status).toBe("failed");
+    }
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("invalid private retry configuration fails without exposing its path or creating a job", async () => {
+  const supervisor = new RepairSupervisor({ repoPath: "/tmp", repository: "GabDestal/Mirage", baseSha: base, python: "python",
+    api: "http://127.0.0.1:8999", supervisorToken: "synthetic", liveVerification: true,
+    retryEvidencePath: "/private/missing-do-not-expose/seed.json", fetch: async () => { throw new Error("No HTTP operation expected"); } });
+  await expect(supervisor.start("inc_001", "operator", "Retry")).rejects.toThrow(/^Private retry evidence could not be read or validated\.$/);
 });
