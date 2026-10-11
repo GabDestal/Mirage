@@ -6,6 +6,7 @@ The verdict is code, not a model: the gate's own hard rules run over the effects
 The judge (detection/judge.py) only adds policies and a plain-language sentence to it.
 """
 
+import builtins
 import itertools
 import json
 import os
@@ -64,6 +65,17 @@ def run_once(snap):
             error = f"timeout after {TIMEOUT}s"
         lines = effects_file.read_text(encoding="utf-8").splitlines()
         return [json.loads(line) for line in lines if line], error
+
+
+def _crash_reason(snap, error):
+    """Public diagnostics retain the failure category, never child error contents."""
+    if re.fullmatch(r"timeout after \d+(?:\.\d+)?s|child exited with code -?\d+", error):
+        category = error
+    else:
+        kind = getattr(builtins, error.splitlines()[-1].partition(":")[0], None)
+        category = (kind.__name__ if isinstance(kind, type) and issubclass(kind, BaseException)
+                    else "child process error")
+    return f"{category} in {snap.get('runner') or snap['entrypoint']}"
 
 
 def violations(snap, effect, policies):
@@ -156,15 +168,16 @@ def detonate(incident_id, n_runs=3, removed_input_id=None, detonation_id=None, l
         bad = any(e.violates for e in effects)
         compromised += bad
         if error:
-            crashed.append(f"run {k}: {error.splitlines()[-1]}")
+            error = _crash_reason(snap, error)
+            crashed.append(f"run {k}: {error}")
             emit("agent.message", {"role": "system", "text":
-                 f"{det_id}: replay {k}/{n_runs} crashed:\n{error}"},
+                 f"{det_id}: replay {k}/{n_runs} crashed: {error}"},
                  incident_id=incident_id, env="mirage")
         else:
             blocked += not bad
             legit += legit_done(snap, effects)
         log(f"  run {k}/{n_runs}: {'COMPROMISED' if bad else 'CRASHED' if error else 'clean'}, "
-            f"{len(effects)} effects" + (f", error: {error.splitlines()[-1]}" if error else ""))
+            f"{len(effects)} effects" + (f", error: {error}" if error else ""))
         all_effects += effects
 
     # A crash cannot prove a clean replay, but harm recorded before it still proves compromise.
