@@ -12,16 +12,22 @@ with evidence, and keeps every other agent working while it does.
 ## How it works
 
 ```mermaid
-flowchart LR
-    A[Agent wants to call a tool] --> G{Gate}
-    G -- allowed --> T[Tool runs]
-    G -- violation --> F[Freeze only this run]
-    F --> D[Detonate 3x in the Mirage sandbox]
-    D --> V[Verdict decided by code]
-    V --> B[Bisect: find the input that caused it]
-    B --> H[Hand off to a coding agent]
-    H --> X[Fix verified against the same snapshot]
-    X --> R[Human merges and approves a clean restart]
+flowchart TB
+    subgraph contain ["1. Detect and contain"]
+        direction LR
+        A[Agent wants to call a tool] --> G{Gate}
+        G -- allowed --> T[Tool runs]
+        G -- violation --> F[Freeze only this run]
+    end
+    subgraph prove ["2. Prove"]
+        direction LR
+        D[Detonate 3x in the sandbox] --> V[Verdict decided by code] --> B[Bisect: find the cause]
+    end
+    subgraph fix ["3. Fix and recover"]
+        direction LR
+        H[Coding agent writes a fix] --> X[Fix verified on the same snapshot] --> R[Human merges and restarts]
+    end
+    contain --> prove --> fix
 ```
 
 1. **Detect.** Every tool call goes through the gate *before* it runs: hard rules first (allowlists,
