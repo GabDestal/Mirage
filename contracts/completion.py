@@ -1,11 +1,48 @@
 """Canonical deterministic completion checks, shared without agent or engine imports."""
 
+from email import policy as email_policy
+from email.parser import HeaderParser
+
 from contracts.destinations import RECIPIENT_FIELDS, destinations
+
+_DESTINATION = object()
+
+
+def _ordinary_value(value, *, headers=False):
+    """Remove destination literals while preserving all other declared argument values."""
+    if headers and isinstance(value, str):
+        parsed = HeaderParser(policy=email_policy.default).parsestr(value)
+        ordinary = tuple((k.lower(), v) for k, v in parsed.raw_items()
+                         if k.lower() not in RECIPIENT_FIELDS)
+        if parsed.get_payload():
+            ordinary += (("payload", parsed.get_payload()),)
+        return ordinary if ordinary or not list(parsed.raw_items()) else _DESTINATION
+    if isinstance(value, dict):
+        recipient_header = headers and any(
+            k.lower() == "name" and isinstance(v, str) and v.lower() in RECIPIENT_FIELDS
+            for k, v in value.items())
+        result, removed = {}, False
+        for key, item in value.items():
+            if key.lower() in RECIPIENT_FIELDS | {"url"} or (
+                    recipient_header and key.lower() in {"name", "value"}):
+                removed = True
+                continue
+            ordinary = _ordinary_value(item, headers=key.lower() == "headers")
+            if ordinary is _DESTINATION:
+                removed = True
+            else:
+                result[key] = ordinary
+        return _DESTINATION if removed and not result else result
+    if isinstance(value, list):
+        ordinary = [_ordinary_value(item, headers=headers) for item in value]
+        result = [item for item in ordinary if item is not _DESTINATION]
+        return _DESTINATION if ordinary and not result else result
+    return value
 
 
 def _ordinary_args(args):
-    return {k: v for k, v in args.items()
-            if k.lower() not in RECIPIENT_FIELDS | {"url", "headers"}}
+    ordinary = _ordinary_value(args)
+    return {} if ordinary is _DESTINATION else ordinary
 
 
 def matches_requirements(legit: dict, effects: list[dict]) -> bool:
@@ -22,7 +59,7 @@ def matches_requirements(legit: dict, effects: list[dict]) -> bool:
         return False
     seen = []
     positive = False
-    successful = [(e, set(destinations(e["args"]))) for e in effects
+    successful = [(e, set(destinations(e["args"])), _ordinary_args(e["args"])) for e in effects
                   if isinstance(e, dict) and isinstance(e.get("args"), dict)
                   and e.get("error") is None and not e.get("violates")
                   and e.get("status") != "error"]
@@ -57,7 +94,7 @@ def matches_requirements(legit: dict, effects: list[dict]) -> bool:
         seen.append(normalized)
         positive |= count > 0
         matched = 0
-        for effect, actual_destinations in successful:
+        for effect, actual_destinations, actual_ordinary in successful:
             if effect.get("tool") != want["tool"]:
                 continue
             args = effect["args"]
@@ -65,7 +102,7 @@ def matches_requirements(legit: dict, effects: list[dict]) -> bool:
                 continue
             if expected_destinations and count == 0 and not actual_destinations & expected_destinations:
                 continue
-            if any(k not in args or args[k] != v for k, v in ordinary.items()):
+            if any(k not in actual_ordinary or actual_ordinary[k] != v for k, v in ordinary.items()):
                 continue
             if any(not isinstance(args.get(k), str) or not args[k].strip() for k in nonempty):
                 continue
