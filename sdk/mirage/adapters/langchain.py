@@ -10,6 +10,7 @@ from langchain.agents.factory import _chain_model_call_handlers
 from langchain.agents.middleware import ModelResponse
 from langchain_core.messages import ToolMessage, messages_from_dict, messages_to_dict
 
+from contracts.models import ToolResult
 from mirage import core
 from mirage.protect import registry
 
@@ -27,13 +28,23 @@ def _tool_hook(prev):
 
         def real():
             out["msg"] = prev(request, execute) if prev else execute(request)
+            if isinstance(out["msg"], ToolMessage) and out["msg"].status == "error":
+                return ToolResult(call_id=call["id"], tool=call["name"],
+                                  error="ToolMessageError")
             return _content(out["msg"]) if isinstance(out["msg"], ToolMessage) else None
 
         result = core.tool(call["name"], call["args"], real)
         if "msg" in out:
             return out["msg"]
-        content = result if isinstance(result, str) else json.dumps(result)
-        return ToolMessage(content=content, tool_call_id=call["id"], name=call["name"])
+        status = "success"
+        if isinstance(result, ToolResult):
+            status = "error" if result.error is not None else "success"
+            result = result.result if result.result is not None else result.error
+            content = result if isinstance(result, (str, list)) else json.dumps(result)
+        else:
+            content = result if isinstance(result, str) else json.dumps(result)
+        return ToolMessage(content=content, tool_call_id=call["id"], name=call["name"],
+                           status=status)
     return wrap
 
 
@@ -43,9 +54,13 @@ def _model_hook(prev):
             return ModelResponse(result=messages_from_dict(reply["messages"]))
         response = execute(request)
         model = request.model
+        messages = [ToolMessage(content="ToolMessageError", status="error",
+                                tool_call_id=m.tool_call_id, name=m.name, id=m.id)
+                    if isinstance(m, ToolMessage) and m.status == "error" else m
+                    for m in request.messages]
         core.model_call(
             getattr(model, "model_id", None) or getattr(model, "model", None) or type(model).__name__,
-            {"system": request.system_prompt, "messages": messages_to_dict(request.messages),
+            {"system": request.system_prompt, "messages": messages_to_dict(messages),
              "tools": [getattr(t, "name", str(t)) for t in request.tools]},
             {"messages": messages_to_dict(response.result)})
         return response
@@ -84,15 +99,22 @@ def protect(graph, name, allow, owner, entrypoint):
     def protected_invoke(graph_input, *args, **kwargs):
         token = core.start(name, _task(graph_input))
         try:
-            return invoke(graph_input, *args, **kwargs)
-        finally:
+            result = invoke(graph_input, *args, **kwargs)
+        except BaseException as error:
+            core.end(token, error)
+            raise
+        else:
             core.end(token)
+            return result
 
     def protected_stream(graph_input, *args, **kwargs):
         token = core.start(name, _task(graph_input))
         try:
             yield from stream(graph_input, *args, **kwargs)
-        finally:
+        except BaseException as error:
+            core.end(token, error)
+            raise
+        else:
             core.end(token)
 
     graph.invoke, graph.stream = protected_invoke, protected_stream

@@ -16,6 +16,7 @@ from contracts.models import (  # shortcut: monorepo import; vendor the models w
     Allowlist,
     GateDecision,
     ModelCall,
+    RunCompletion,
     RunStart,
     RunStarted,
     ToolCheck,
@@ -65,16 +66,23 @@ def open_run(agent, task):
     return {"id": started.run_id, "token": started.run_token}
 
 
-def end(token):
+def end(token, error=None):
     if token is None:
         return
     run = _run.get()
     _run.reset(token)
-    complete(run)
+    if error is None:
+        complete(run)
+    else:
+        try:
+            complete(run, type(error).__name__)
+        except Exception as reporting_error:  # noqa: BLE001 - preserve the agent exception
+            error.add_note(f"Mirage failure reporting failed: {type(reporting_error).__name__}")
 
 
-def complete(run):
-    _post(f"/runs/{run['id']}/complete", run=run)
+def complete(run, error=None):
+    body = RunCompletion(error=error) if error is not None else None
+    _post(f"/runs/{run['id']}/complete", body, run)
 
 
 def model_call(model_id, request, response):
@@ -131,7 +139,13 @@ def tool(name, args, fn):
     try:
         result = fn()
     except Exception as e:
-        record(run, call_id, name, error=f"{type(e).__name__}: {e}")
+        try:
+            record(run, call_id, name, error=type(e).__name__)
+        except Exception as reporting_error:  # noqa: BLE001 - preserve the tool exception
+            e.add_note(f"Mirage tool error recording failed: {type(reporting_error).__name__}")
         raise
-    record(run, call_id, name, result)
+    if isinstance(result, ToolResult):
+        record(run, call_id, name, result.result, result.error)
+    else:
+        record(run, call_id, name, result)
     return result
