@@ -17,20 +17,22 @@ def _caller():
     return module if function == "<module>" else f"{module}:{function}"
 
 
-def protect(agent, name, allow=None, owner="unknown", entrypoint=None, *, api_key=None):
+def protect(agent, name, allow=None, owner="unknown", entrypoint=None, *, api_key=None, legit=None):
     """Wrap an agent so Mirage checks every tool call. Returns the same agent, protected.
 
     api_key is an accepted-and-ignored demo placeholder; it provides no authentication.
+    legit is the trusted completion declaration registered with the agent.
     """
     entrypoint = entrypoint or _caller()
+    metadata = {"legit": legit} if legit is not None else {}
     kind = type(agent).__module__
     if kind.startswith("langgraph"):
         from mirage.adapters import langchain
-        return langchain.protect(agent, name, allow, owner, entrypoint)
+        return langchain.protect(agent, name, allow, owner, entrypoint, **metadata)
     if kind.startswith("claude_agent_sdk"):
         from mirage.adapters import claude_agent
-        return claude_agent.protect(agent, name, allow, owner, entrypoint)
+        return claude_agent.protect(agent, name, allow, owner, entrypoint, **metadata)
     if kind.startswith("agents.") and hasattr(agent, "tools") and hasattr(agent, "instructions"):
         from mirage.adapters import openai_agents  # duck-typed: `agents` is also a local name
-        return openai_agents.protect(agent, name, allow, owner, entrypoint)
+        return openai_agents.protect(agent, name, allow, owner, entrypoint, **metadata)
     raise TypeError(f"mirage.protect: no adapter for {type(agent).__name__} ({kind}).")
