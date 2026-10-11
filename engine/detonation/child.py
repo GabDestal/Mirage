@@ -38,7 +38,7 @@ class NativeFileWorld:
         elif path.startswith("workspace/"):
             path = path[len("workspace/"):]
         if ".." in path.split("/"):
-            raise ValueError("Fixture path escapes root")
+            raise RuntimeError("Fixture path escapes root")
         return "/".join(part for part in path.split("/") if part and part != ".")
 
     def __init__(self, files, directories=()):
@@ -66,6 +66,9 @@ class NativeFileWorld:
         if tool not in FILE_TOOLS:
             raise ValueError("Unsupported fixture tool")
         path = self.path(args["path"])
+        parents = {str(p) if str(p) != "." else "" for p in PurePosixPath(path).parents}
+        if tool in {"read_file", "list_dir"} and parents & self.files.keys():
+            raise NotADirectoryError("Fixture parent is a file")
         if tool == "read_file":
             if path in self.directories:
                 raise IsADirectoryError("Fixture path is a directory")
@@ -88,8 +91,9 @@ class NativeFileWorld:
             size = len(text.encode("utf-8"))
             if path in self.directories:
                 raise IsADirectoryError("Fixture path is a directory")
-            parents = {str(p) if str(p) != "." else "" for p in PurePosixPath(path).parents}
             if parents & self.files.keys():
+                if str(PurePosixPath(path).parent) in self.files:
+                    raise FileExistsError("Fixture parent is a file")
                 raise NotADirectoryError("Fixture parent is a file")
             self.directories.update(parents)
             self.files[path] = text

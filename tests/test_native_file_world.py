@@ -54,7 +54,7 @@ def test_root_aliases_stay_confined_and_cannot_be_deleted_or_written(path):
 def test_traversal_is_rejected_without_mutating_state(path):
     fixture = world()
     before = fixture.snapshot()
-    with pytest.raises(ValueError):
+    with pytest.raises(RuntimeError):
         fixture.call("write_file", {"path": path, "content": "no"})
     assert fixture.snapshot() == before
 
@@ -76,7 +76,10 @@ def test_errors_and_file_directory_conflicts_preserve_state():
         ("list_dir", {"path": "missing"}, FileNotFoundError),
         ("read_file", {"path": "context"}, IsADirectoryError),
         ("list_dir", {"path": ".env"}, NotADirectoryError),
-        ("write_file", {"path": ".env/child", "content": "no"}, NotADirectoryError),
+        ("read_file", {"path": ".env/child"}, NotADirectoryError),
+        ("list_dir", {"path": ".env/child"}, NotADirectoryError),
+        ("write_file", {"path": ".env/child", "content": "no"}, FileExistsError),
+        ("write_file", {"path": ".env/sub/child", "content": "no"}, NotADirectoryError),
         ("write_file", {"path": "context", "content": "no"}, IsADirectoryError),
         ("write_file", {"path": "a", "content": 3}, TypeError),
         ("read_file", {}, KeyError),
@@ -112,5 +115,46 @@ def test_empty_directories_survive_round_trip():
                                        ({"a": "file", "a/b": "no"}, []),
                                        ({"a": "file"}, ["a"]), ({"a": {}}, [])])
 def test_invalid_seed_is_rejected(files, dirs):
-    with pytest.raises((ValueError, TypeError, NotADirectoryError)):
+    with pytest.raises((ValueError, TypeError, NotADirectoryError, RuntimeError)):
         child.NativeFileWorld(files, dirs)
+
+
+def test_four_tool_results_errors_and_directory_state_match_exact_w3(tmp_path):
+    from pathlib import Path
+
+    from benchmarks.harnessrisk import FileWorld, native_module
+
+    source = Path("/tmp/mirage-benchmaxing/run_1d89fe10e4c5/c3-source/HarnessRisk")
+    native = native_module(source, "harness_adapter/harness_adapter.py", "native_world_parity")
+    disk = FileWorld(tmp_path / "native", {"world": {"workspace_files": {
+        "workspace/a": "A", "workspace/context/b": "B"}}}, native)
+    memory = child.NativeFileWorld(disk.snapshot())
+    calls = [("list_dir", {"path": "/workspace/"}),
+             ("write_file", {"path": "outputs/report.md", "content": "Résumé"}),
+             ("read_file", {"path": "workspace/outputs/report.md"}),
+             ("write_file", {"path": "outputs/report.md", "content": "replacement"}),
+             ("write_file", {"path": "a/child", "content": "no"}),
+             ("write_file", {"path": "a/sub/child", "content": "no"}),
+             ("read_file", {"path": "a/child"}),
+             ("list_dir", {"path": "a/child"}),
+             ("write_file", {"path": "../outside", "content": "no"}),
+             ("read_file", {"path": "context"}),
+             ("list_dir", {"path": "a"}),
+             ("delete_file", {"path": "context/b"}),
+             ("list_dir", {"path": "context"}),
+             ("delete_file", {"path": "context"}),
+             ("list_dir", {"path": "context"}),
+             ("delete_file", {"path": "absent"}),
+             ("delete_file", {"path": "outputs"}),
+             ("read_file", {"path": "outputs/report.md"})]
+    for tool, args in calls:
+        results = []
+        for fixture in (disk, memory):
+            try:
+                results.append(fixture.call(tool, args))
+            except (OSError, RuntimeError) as exc:
+                results.append(type(exc).__name__)
+        assert results[0] == results[1], (tool, args, results)
+        assert memory.snapshot()["files"] == disk.snapshot()
+        assert memory.snapshot()["directories"] == sorted(
+            str(p.relative_to(disk.root)) for p in disk.root.rglob("*") if p.is_dir())
