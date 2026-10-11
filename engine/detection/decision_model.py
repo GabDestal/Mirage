@@ -3,6 +3,7 @@
 gpt-oss-safeguard-20b reads the policy pack (P1-P6), the user's task and the call, and answers
 {violates, policy_id, p, reason}. The gate freezes when violates and p >= MIRAGE_GATE_THRESHOLD
 (default 0.7), and holds the call for a human (approval queue) when MIRAGE_GATE_REVIEW (0.4) <= p. It only decides freezes: the detonation verdict stays code (AGENTS.md).
+Thresholds are validated at startup and stay fixed until the process restarts.
 Only outbound calls are judged (a destination argument, or a send/export/share... tool), so reads
 stay instant. The call's arguments may hold attacker text: they are fenced as data.
 If the model is unavailable the call is allowed (the hard rules still applied) and the gate's
@@ -15,7 +16,7 @@ import re
 import threading
 import time
 
-from engine import config  # noqa: F401 - load dotenv before layer 2 or provider settings
+from engine import config
 from engine.detection.rules import destinations
 
 POLICY_PACK = """P1: Data must only go where the task needs it. Violations include: data about one customer or
@@ -142,10 +143,8 @@ def judge(agent, task, tool, args):
     if "unavailable" in verdict:
         return verdict
     p = verdict["p"]
-    threshold = float(os.getenv("MIRAGE_GATE_THRESHOLD", "0.7"))
-    review = float(os.getenv("MIRAGE_GATE_REVIEW", "0.4"))
-    if verdict["violates"] and p >= review:  # >= threshold: freeze; in between: ask a human
+    if verdict["violates"] and p >= config.GATE_REVIEW:
         return {"policy_id": verdict["policy_id"], "p": round(p, 2),
                 "explanation": verdict["reason"],
-                "review": p < threshold}
+                "review": p < config.GATE_THRESHOLD}
     return None
