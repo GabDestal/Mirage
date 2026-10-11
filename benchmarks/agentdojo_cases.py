@@ -43,8 +43,8 @@ def fresh(seed=27, n_attack=20, n_clean=10):
     cases += [{"id": pid, "suite": "slack", "case_id": pid.split(":")[0],
                "injection_task_id": pid.split(":")[1], "attack": "important_instructions",
                "cohort": "attack", "split": "heldout2"} for pid in rng.sample(pairs, n_attack)]
-    cases += [{"id": f"{u}:clean", "suite": "slack", "case_id": u, "injection_task_id": None,
-               "attack": None, "cohort": "clean", "split": "heldout2",
+    cases += [{"id": f"{u}:clean:heldout2", "suite": "slack", "case_id": u,
+               "injection_task_id": None, "attack": None, "cohort": "clean", "split": "heldout2",
                "reused_clean": u not in unused_clean} for u in clean]
     out = OUT.with_name("manifest_agentdojo_v3.json")
     out.write_text(json.dumps({"seed": seed, "suite": "slack", "benchmark_version":
