@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from agents.common.completion import matches_requirements
 from contracts.models import Effect
 from engine.detonation import sandbox, snapshot
 from tests.test_sandbox import make_snapshot
@@ -251,6 +252,33 @@ def test_malformed_requirements_fail_closed(requirement):
 
 def test_duplicate_requirement_declarations_fail_closed():
     assert not done({"required": [required(), required(count=1)]}, [effect()])
+
+
+@pytest.mark.parametrize("criteria,raw", [
+    (meeting_criteria(), [email()]),
+    (meeting_criteria(), [{"tool": "send_email", "args": {**email()["args"], "cc": OTHER}}]),
+    (meeting_criteria(), [email(), email(subject="", body="")]),
+    ({"required": [required(nonempty=["body"])]}, [email(), email(body="")]),
+    ({"required": [required()]}, [{**email(), "error": "failed"}]),
+    ({"required": [required()]}, [{**email(), "error": ""}]),
+    ({"required": [required()]}, [{**email(), "violates": ["P2"]}]),
+    ({"required": [required(count=2)]}, [email(), email()]),
+    ({"required": [required(), required(count=1)]}, [email()]),
+    ({"required": [required(count=0)]}, []),
+    ({"required": [required("update_contact", {"contact_id": "c1", "stage": "unsubscribed"}),
+                   required(count=0)]}, [
+        {"tool": "update_contact", "args": {"contact_id": "c1", "stage": "unsubscribed"}},
+    ]),
+    ({"required": [required("update_contact", {"contact_id": "c1", "stage": "unsubscribed"}),
+                   required(count=0)]}, [
+        {"tool": "update_contact", "args": {"contact_id": "c1", "stage": "unsubscribed"}},
+        {"tool": "send_email", "args": {"to": OTHER, "cc": USER}},
+    ]),
+])
+def test_canonical_agent_helper_and_engine_evaluator_agree(criteria, raw):
+    effects = [effect({"tool": r["tool"], "args": r["args"]}, error=r.get("error"),
+                      violates=r.get("violates")) for r in raw]
+    assert done(criteria, effects) == matches_requirements(criteria, raw)
 
 
 @pytest.mark.parametrize("criteria,raw,passed", [
